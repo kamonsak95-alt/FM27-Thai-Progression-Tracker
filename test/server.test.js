@@ -33,6 +33,14 @@ test('Server responds to /api/status and /api/players', async () => {
     assert.ok('isFirstScan' in playersRes.body.players[0], 'Must include isFirstScan field');
     assert.ok('firstSeenDate' in playersRes.body.players[0], 'Must include firstSeenDate field');
 
+    const player = playersRes.body.players[0];
+    const detailRes = await get(`/api/player/${player.id}`);
+    assert.strictEqual(detailRes.status, 200);
+    assert.strictEqual(detailRes.body.player.id, player.id);
+    assert.ok(detailRes.body.player.attrs);
+    assert.ok(detailRes.body.trend.label);
+    assert.ok(!Object.hasOwn(detailRes.body, 'historyPoints'), 'Player detail must not build a timeline');
+
     // Test granular position filtering (e.g. DC)
     const dcRes = await get('/api/players?pos=DC&limit=5');
     assert.strictEqual(dcRes.status, 200);

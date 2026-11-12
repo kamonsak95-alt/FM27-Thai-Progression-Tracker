@@ -209,12 +209,31 @@ let currentStaffName = '';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.pos-btn, .compact-pos-pill, .pitch-btn, .pitch-preset-btn').forEach(button => {
+    const group = getPositionGroup(button.dataset.pos || button.dataset.presetPos);
+    if (group) button.dataset.positionGroup = group;
+  });
   initEventListeners();
   loadStatus();
   loadPlayers();
   checkForUpdates(true); // check quietly in background
   setInterval(() => checkForUpdates(true), 60000); // periodically check every 60s
 });
+
+function getPositionGroup(position = '') {
+  const code = position.trim().toUpperCase();
+  if (code === 'GK') return 'gk';
+  if (['DEF', 'DC', 'DL', 'DR', 'WB', 'WBL', 'WBR', 'SW'].includes(code)) return 'def';
+  if (['MID', 'DM', 'MC', 'ML', 'MR', 'AM', 'AMC', 'AML', 'AMR'].includes(code)) return 'mid';
+  if (['ATT', 'ST', 'FC'].includes(code)) return 'att';
+  return '';
+}
+
+function renderPositionBadges(positions) {
+  return (positions || '').split(',').map(position => position.trim()).filter(Boolean)
+    .map(position => `<span class="badge badge-pos" data-position-group="${getPositionGroup(position)}">${escapeHtml(position)}</span>`)
+    .join('') || '–';
+}
 
 function initEventListeners() {
   // Copy Name Buttons
@@ -968,7 +987,7 @@ async function loadStatus() {
     }
 
     if (el.infoSave) {
-      el.infoSave.textContent = data.refCode || '-';
+      el.infoSave.textContent = formatSaveRefCode(data.refCode);
     }
 
     // Update baseline info badge in header
@@ -1187,7 +1206,7 @@ function renderTable(players) {
     const natStr = Array.isArray(p.nat) ? p.nat.join(', ') : (p.nat || '-');
 
     return `
-      <tr onclick="openPlayerModal(${p.id})">
+      <tr onclick="openPlayerModal(${p.id}, ${Number.isFinite(p.prevCA) ? p.prevCA : 'null'})">
         <td class="col-name sticky-col">
           <div class="player-name-cell">
             <span class="player-name font-semibold text-white">${escapeHtml(p.name)}</span>
@@ -1195,7 +1214,7 @@ function renderTable(players) {
           </div>
         </td>
         <td class="text-center font-medium">${p.age}</td>
-        <td class="text-center"><span class="badge badge-pos">${escapeHtml(p.pos || '-')}</span></td>
+        <td class="text-center"><span class="player-positions">${renderPositionBadges(p.pos)}</span></td>
         <td><span class="text-club">${escapeHtml(p.club || '-')}</span></td>
         <td class="text-center font-bold text-accent">${p.ca}</td>
         <td class="text-center font-bold text-green">${p.pa}</td>
@@ -1210,11 +1229,11 @@ function renderTable(players) {
   el.tableBody.innerHTML = rows.join('');
 }
 
-async function openPlayerModal(id) {
+async function openPlayerModal(id, previousCA) {
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
-    const { player, trend, historyPoints } = await res.json();
+    const { player, trend, previousAttributes, attributeBaselineDate } = await res.json();
 
     currentPlayerName = player.name;
     if (el.btnCopyPlayerName) {
@@ -1223,126 +1242,44 @@ async function openPlayerModal(id) {
     }
 
     document.getElementById('modal-name').textContent = player.name;
-    document.getElementById('modal-pos').textContent = player.pos || '-';
+    const playerId = document.getElementById('modal-player-id');
+    playerId.hidden = player.id == null;
+    playerId.textContent = player.id == null ? '' : `ID ${player.id}`;
+    document.getElementById('modal-pos').innerHTML = renderPositionBadges(player.pos);
     document.getElementById('modal-club').textContent = player.club || '-';
     document.getElementById('modal-nat').textContent = Array.isArray(player.nat) ? player.nat.join(', ') : (player.nat || '-');
     document.getElementById('modal-age').textContent = `${player.age} ปี (เกิด ${player.birthYear || '-'})`;
     document.getElementById('modal-ca').textContent = player.ca;
     document.getElementById('modal-pa').textContent = player.pa;
 
+    const progression = document.getElementById('modal-ca-progression');
+    const hasBaseline = Number.isFinite(previousCA) && previousCA > 0 && Number.isFinite(player.ca);
+    progression.hidden = !hasBaseline;
+    if (hasBaseline) {
+      const delta = player.ca - previousCA;
+      progression.dataset.direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
+      document.getElementById('modal-ca-range').textContent = `${previousCA} → ${player.ca}`;
+      const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
+      const percentage = ((Math.abs(delta) / previousCA) * 100).toFixed(2);
+      document.getElementById('modal-ca-change').textContent =
+        `${sign}${Math.abs(delta)} CA (${sign}${percentage}%)${delta === 0 ? ' · คงที่' : ''}`;
+    }
+
     // Render Development Forecast Box
     const forecastBox = document.getElementById('modal-forecast-box');
     if (forecastBox) {
       const tr = trend || { label: 'คงที่', icon: '➖', reason: 'รักษามาตรฐานค่าพลัง', badgeClass: 'badge-trend-neutral' };
       forecastBox.innerHTML = `
-        <div class="forecast-icon">${tr.icon}</div>
-        <div class="forecast-content">
-          <div class="forecast-title">
-            <span>แนวโน้ม: <strong class="text-accent">${tr.label}</strong></span>
-            <span class="badge ${tr.badgeClass}">${tr.icon} ${tr.label}</span>
-          </div>
-          <div class="forecast-desc">${escapeHtml(tr.reason)}</div>
-        </div>
+        <span class="badge ${tr.badgeClass}">${tr.icon} ${tr.label}</span>
+        <p class="forecast-desc">${escapeHtml(tr.reason)}</p>
       `;
     }
 
-    // Render Timeline (Milestones only by default)
-    const timelineEl = document.getElementById('modal-history-timeline');
-    const btnToggle = document.getElementById('btn-toggle-timeline');
-    let isShowingAllTimeline = false;
-    const rawHistory = historyPoints || [];
-
-    function renderTimeline() {
-      if (!timelineEl) return;
-      if (!rawHistory || rawHistory.length === 0) {
-        timelineEl.innerHTML = `<span class="text-muted text-sm">ยังไม่มีประวัติรอบอื่นๆ</span>`;
-        if (btnToggle) btnToggle.style.display = 'none';
-        return;
-      }
-
-      // Compute milestones (only dates where CA changed + baseline)
-      const milestones = [];
-      const firstPt = rawHistory[0];
-      milestones.push({
-        ...firstPt,
-        isBaseline: true,
-        diffText: `<span class="badge badge-growth-neutral text-xs text-muted">(จุดเริ่มบันทึก)</span>`
-      });
-
-      let prevCA = firstPt.ca;
-      for (let i = 1; i < rawHistory.length; i++) {
-        const pt = rawHistory[i];
-        if (pt.ca !== prevCA) {
-          const diff = pt.ca - prevCA;
-          const diffText = diff > 0
-            ? `<span class="text-green font-bold">(+${diff} CA)</span>`
-            : `<span class="text-red font-bold">(${diff} CA)</span>`;
-          milestones.push({
-            ...pt,
-            diffText,
-            isMilestone: true
-          });
-          prevCA = pt.ca;
-        }
-      }
-
-      if (milestones.length === 1 && rawHistory.length > 1) {
-        milestones[0].diffText = `<span class="badge badge-growth-neutral text-xs text-muted">(จุดเริ่มบันทึก - ค่าพลังคงที่ตลอด ${rawHistory.length} รอบ)</span>`;
-      }
-
-      const hasRedundant = rawHistory.length > milestones.length;
-      if (btnToggle) {
-        if (hasRedundant) {
-          btnToggle.style.display = 'inline-block';
-          btnToggle.textContent = isShowingAllTimeline
-            ? `ย่อเหลือเฉพาะที่เปลี่ยน (${milestones.length} รอบ)`
-            : `ดูทุกรอบ (${rawHistory.length} รอบ)`;
-        } else {
-          btnToggle.style.display = 'none';
-        }
-      }
-
-      const pointsToDisplay = isShowingAllTimeline
-        ? rawHistory.map((pt, idx) => {
-            let diffText = '';
-            if (idx === 0) {
-              diffText = `<span class="badge badge-growth-neutral text-xs text-muted">(จุดเริ่มบันทึก)</span>`;
-            } else {
-              const prev = rawHistory[idx - 1];
-              const diff = pt.ca - prev.ca;
-              if (diff > 0) diffText = `<span class="text-green font-bold">(+${diff} CA)</span>`;
-              else if (diff < 0) diffText = `<span class="text-red font-bold">(${diff} CA)</span>`;
-              else diffText = `<span class="text-muted text-xs">(คงที่)</span>`;
-            }
-            return { ...pt, diffText };
-          })
-        : milestones;
-
-      timelineEl.innerHTML = pointsToDisplay.map(pt => {
-        const itemClass = pt.isMilestone ? 'timeline-milestone' : (pt.isBaseline ? 'timeline-baseline' : '');
-        return `
-          <div class="timeline-item ${itemClass}">
-            <span class="timeline-date font-semibold">${pt.gameDate}:</span>
-            <span>CA: <strong class="text-accent">${pt.ca}</strong></span>
-            <span>PA: <strong class="text-green">${pt.pa}</strong></span>
-            ${pt.diffText || ''}
-          </div>
-        `;
-      }).join('');
-    }
-
-    if (btnToggle) {
-      btnToggle.onclick = (e) => {
-        e.stopPropagation();
-        isShowingAllTimeline = !isShowingAllTimeline;
-        renderTimeline();
-      };
-    }
-
-    renderTimeline();
-
     // Render Attributes
     const attrs = player.attrs || {};
+    document.getElementById('modal-attribute-baseline').textContent = attributeBaselineDate
+      ? `เทียบค่าพลังรายช่องกับรอบ ${attributeBaselineDate}`
+      : 'ยังไม่มีค่าพลังรายช่องจากรอบก่อนหน้าให้เปรียบเทียบ';
     const attrsGrid = document.getElementById('modal-attrs-grid');
     attrsGrid.innerHTML = Object.entries(ATTR_GROUPS).map(([catName, list]) => {
       const rows = list.map(attr => {
@@ -1353,10 +1290,19 @@ async function openPlayerModal(id) {
           else if (val >= 11) colorClass = 'attr-val-good';
           else if (val >= 6) colorClass = 'attr-val-avg';
         }
+        const previous = previousAttributes?.[attr];
+        let change = '';
+        if (Number.isFinite(previous) && Number.isFinite(val)) {
+          const delta = val - previous;
+          const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
+          const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+          const description = delta === 0 ? `คงที่ที่ ${val}` : `${delta > 0 ? 'เพิ่ม' : 'ลด'}จาก ${previous} เป็น ${val}`;
+          change = `<span class="attribute-change" data-direction="${direction}" role="img" aria-label="${description}" title="${description}">${arrow}</span>`;
+        }
         return `
           <div class="attr-row">
             <span class="attr-name">${attr}</span>
-            <span class="attr-val ${colorClass}">${val}</span>
+            <span class="attribute-result"><span class="attr-val ${colorClass}">${val}</span>${change}</span>
           </div>
         `;
       }).join('');
@@ -1382,6 +1328,8 @@ async function openPlayerModal(id) {
     }).join('');
 
     el.modal.style.display = 'flex';
+    el.modal.querySelector('.player-modal-details').scrollTop = 0;
+    el.modal.querySelector('.player-modal-overview').scrollTop = 0;
   } catch (err) {
     showToast(`เกิดข้อผิดพลาดในการเปิดข้อมูลนักเตะ: ${err.message}`, true);
   }
@@ -1400,7 +1348,7 @@ async function triggerScan() {
       const sCount = (data.staffCount || 0).toLocaleString();
       const sec = (data.elapsed / 1000).toFixed(1);
       const staffMsg = data.staffCount ? ` และทีมงาน ${sCount} คน` : '';
-      const refMsg = data.refCode ? ` [เซฟ: ${data.refCode}]` : '';
+      const refMsg = data.refCode ? ` [เซฟ: ${formatSaveRefCode(data.refCode)}]` : '';
       showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
       await loadStatus();
       await loadPlayers();
@@ -1464,6 +1412,10 @@ function fallbackCopy(text, callback) {
     console.error('Fallback copy failed:', err);
   }
   document.body.removeChild(ta);
+}
+
+function formatSaveRefCode(refCode) {
+  return refCode?.replace(/^#[^-]+-([0-9a-f]{6})$/i, '#FM-$1') || '-';
 }
 
 function formatCurrency(val) {

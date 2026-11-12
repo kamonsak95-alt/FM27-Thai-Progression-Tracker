@@ -3,10 +3,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
-const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore, saveHistoryStore, computeSaveRefCode, renameSnapshotDate, resolveCareer, resolveEffectiveGameDate, confirmScanRoundDate } = require('./historyEngine');
+const {
+  saveSnapshot,
+  listSnapshots,
+  getSnapshot,
+  calculateDeltas,
+  calculateFirstSeenDeltas,
+  loadHistoryStore,
+  computeSaveRefCode,
+  resolveCareer,
+  resolveEffectiveGameDate,
+  confirmScanRoundDate
+} = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
+const { decodeSnapshotAttributes } = require('./snapshotAttributes');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -433,31 +445,13 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 404, { error: 'ไม่พบข้อมูลนักเตะ' });
     }
 
-    // Gather history points across snapshots for the active save
-    const store = require('./historyEngine');
-    const refCode = dump?.meta ? store.computeSaveRefCode(dump.meta, dump.staff) : null;
-    const allSnaps = store.listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode);
-    const currentGameDate = dump?.meta?.gameDate || '9999-99-99';
-    const historyPoints = [];
-    for (const snapInfo of allSnaps) {
-      if (snapInfo.gameDate > currentGameDate) continue;
-      const snapData = store.getSnapshot(snapInfo.gameDate, dump?.meta?.manager, dump?.meta?.myClub, refCode);
-      if (snapData && snapData.players[String(id)]) {
-        historyPoints.push({
-          gameDate: snapInfo.gameDate,
-          ca: snapData.players[String(id)].ca,
-          pa: snapData.players[String(id)].pa,
-          club: snapData.players[String(id)].club
-        });
-      }
-    }
-
-    const trend = predictDevelopmentTrend(player, 0);
-
+    const baseline = cachedPlayersWithDeltas?.find(p => p.id === id);
+    const previousAttributes = decodeSnapshotAttributes(baseline?.previousAttributeValues);
     return sendJson(res, 200, {
       player,
-      trend,
-      historyPoints
+      trend: predictDevelopmentTrend(player, 0),
+      previousAttributes,
+      attributeBaselineDate: previousAttributes ? (baseline.attributeBaselineDate || currentBaselineDate) : null
     });
   }
 

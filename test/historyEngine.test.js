@@ -4,7 +4,31 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const http = require('node:http');
+const { decodeSnapshotAttributes } = require('../server/snapshotAttributes');
 
+test('Attribute baselines skip legacy snapshots and persist same-day attribute changes', () => {
+  const tempFile = path.join(os.tmpdir(), `fm27-attrs-${process.pid}-${Date.now()}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
+  const { saveSnapshot, loadHistoryStore, calculateFirstSeenDeltas, calculateDeltas, getSnapshot } = require('../server/historyEngine');
+  const player = { id: 1, name: 'Attribute Player', ca: 100 };
+  try {
+    saveSnapshot('2026-07-01', [player], 'QA', 'United');
+    saveSnapshot('2026-07-02', [{ ...player, attrs: { Pace: 10, Tackling: 0 } }], 'QA', 'United');
+    saveSnapshot('2026-07-02', [{ ...player, attrs: { Pace: 11, Tackling: 0 } }], 'QA', 'United');
+    const current = [{ ...player, attrs: { Pace: 12, Tackling: 0, Finishing: 8 } }];
+    const [firstSeen] = calculateFirstSeenDeltas(current, loadHistoryStore().snapshots, '2026-07-03', 'QA', 'United');
+    assert.equal(firstSeen.firstSeenDate, '2026-07-01');
+    assert.equal(firstSeen.attributeBaselineDate, '2026-07-02');
+    assert.deepEqual(decodeSnapshotAttributes(firstSeen.previousAttributeValues), { Tackling: 0, Pace: 11 });
+    const snapshot = getSnapshot('2026-07-02', 'QA', 'United');
+    assert.equal(calculateDeltas(current, snapshot.players)[0].previousAttributeValues, firstSeen.previousAttributeValues);
+    const [sameDay] = calculateFirstSeenDeltas(current, loadHistoryStore().snapshots, '2026-07-02', 'QA', 'United');
+    assert.equal(sameDay.previousAttributeValues, undefined);
+  } finally {
+    if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+    delete process.env.FM27_HISTORY_FILE;
+  }
+});
 test('calculateDeltas calculates correct delta CA and % growth', () => {
   const { calculateDeltas } = require('../server/historyEngine');
   const current = [

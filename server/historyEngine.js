@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { encodeSnapshotAttributes } = require('./snapshotAttributes');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 
@@ -394,6 +395,24 @@ function confirmScanRoundDate(storeOrMeta, metaOrDate, confirmedDateOrPlayers, p
   return { career, snapshot, gameDate: validDate };
 }
 
+function buildSnapshotPlayerMap(players) {
+  const playerMap = {};
+  for (const p of players) {
+    if (!p || !p.id || (p.name && (p.name.trim() === '?' || p.name.trim() === ''))) continue;
+    const snapshot = {
+      ca: p.ca || 0,
+      pa: p.pa || 0,
+      age: p.age || 0,
+      club: p.club || '',
+      pos: p.pos || ''
+    };
+    const attributeValues = encodeSnapshotAttributes(p.attrs);
+    if (attributeValues) snapshot.attributeValues = attributeValues;
+    playerMap[String(p.id)] = snapshot;
+  }
+  return playerMap;
+}
+
 /**
  * Saves a new snapshot by gameDate and save/career.
  * Updates snapshot if CA/PA or player details changed on same game date.
@@ -404,17 +423,7 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', 
   const saveKey = career ? career.refCode : getSaveKey(manager, club, refCode);
   const careerId = career ? career.id : null;
 
-  const playerMap = {};
-  for (const p of players) {
-    if (!p || !p.id || (p.name && (p.name.trim() === '?' || p.name.trim() === ''))) continue;
-    playerMap[String(p.id)] = {
-      ca: p.ca || 0,
-      pa: p.pa || 0,
-      age: p.age || 0,
-      club: p.club || '',
-      pos: p.pos || ''
-    };
-  }
+  const playerMap = buildSnapshotPlayerMap(players);
 
   // Check if snapshot for this gameDate and career already exists
   const existingIdx = store.snapshots.findIndex(s => {
@@ -437,7 +446,8 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', 
         for (const k of newKeys) {
           const np = playerMap[k];
           const op = oldP[k];
-          if (!op || op.ca !== np.ca || op.pa !== np.pa || op.club !== np.club || op.pos !== np.pos || op.age !== np.age) {
+          if (!op || op.ca !== np.ca || op.pa !== np.pa || op.club !== np.club || op.pos !== np.pos || op.age !== np.age ||
+              op.attributeValues !== np.attributeValues) {
             isIdentical = false;
             break;
           }
@@ -482,20 +492,7 @@ function renameSnapshotDate(oldGameDate, newGameDate, manager = '', club = '', r
   const oldSnapIdx = store.snapshots.findIndex(s => s.gameDate === oldGameDate && isSnapshotMatchingSave(s, targetKey, store));
   if (oldSnapIdx < 0) return null;
 
-  let playerMap = null;
-  if (players && Array.isArray(players) && players.length > 0) {
-    playerMap = {};
-    for (const p of players) {
-      if (!p || !p.id || (p.name && (p.name.trim() === '?' || p.name.trim() === ''))) continue;
-      playerMap[String(p.id)] = {
-        ca: p.ca || 0,
-        pa: p.pa || 0,
-        age: p.age || 0,
-        club: p.club || '',
-        pos: p.pos || ''
-      };
-    }
-  }
+  const playerMap = Array.isArray(players) && players.length > 0 ? buildSnapshotPlayerMap(players) : null;
 
   // Check if a snapshot for newGameDate already exists for this save
   const existingTargetIdx = store.snapshots.findIndex(s => s.gameDate === newGameDate && isSnapshotMatchingSave(s, targetKey, store));
@@ -588,6 +585,7 @@ function calculateDeltas(currentPlayers, baselineMap = {}) {
       deltaCA,
       growthPercent,
       prevCA,
+      previousAttributeValues: base.attributeValues,
       isNew: false
     };
   });
@@ -623,6 +621,11 @@ function buildFirstSeenMap(snapshots = [], currentGameDate = '', manager = '', c
           pos: p.pos,
           gameDate: snap.gameDate
         };
+      }
+      const baseline = firstSeenMap[id];
+      if (baseline && !baseline.attributeValues && p?.attributeValues) {
+        baseline.attributeValues = p.attributeValues;
+        baseline.attributeBaselineDate = snap.gameDate;
       }
     }
   }
@@ -687,6 +690,8 @@ function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDat
       deltaCA,
       growthPercent,
       prevCA: baselineCA,
+      previousAttributeValues: base.attributeValues,
+      attributeBaselineDate: base.attributeBaselineDate,
       firstSeenDate: base.gameDate,
       isNew: false,
       isFirstScan: false
