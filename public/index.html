@@ -6,12 +6,13 @@
   <title>FM27 Thai Progression Tracker & Scout</title>
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=1.0.12">
+  <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
+  <link rel="stylesheet" href="style.css?v=1.0.14">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-dark text-light">
+<body>
 
   <!-- Header Section -->
   <header class="app-header">
@@ -109,19 +110,18 @@
 
         <div class="quick-filters">
           <button class="pill-btn active" data-preset="all">ทั้งหมด</button>
-          <button class="pill-btn" data-preset="wonderkids" aria-describedby="wonderkids-criteria">Wonderkids</button>
+          <button class="pill-btn" data-preset="wonderkids">Wonderkids</button>
           <button class="pill-btn" data-preset="explosive">ก้าวกระโดด</button>
           <button class="pill-btn" data-preset="declining">เริ่มถดถอย</button>
           <button class="pill-btn" data-preset="myclub">นักเตะทีมเรา</button>
           <button class="pill-btn" data-preset="growth">พัฒนาการสูงสุด</button>
-          <span id="wonderkids-criteria" class="text-muted text-sm">อายุ ≤ 21 · PA ≥ 150</span>
         </div>
       </div>
 
       <!-- Detail Filter Sliders & Dropdowns -->
-      <div class="filter-grid">
+      <div class="filter-grid row g-3">
         <!-- Position Filter -->
-        <div class="filter-group">
+        <div class="filter-group col-12 col-md-4 col-xl-3">
           <div class="filter-label-row">
             <label class="filter-label">ตำแหน่ง</label>
             <div class="pitch-mode-actions">
@@ -168,7 +168,7 @@
         </div>
 
         <!-- Age Range -->
-        <div class="filter-group">
+        <div class="filter-group col-6 col-md-2 col-xl-3">
           <label class="filter-label">ช่วงอายุ: <span id="val-age" class="text-accent font-semibold">15 - 45</span> ปี</label>
           <div class="range-inputs">
             <input type="number" id="min-age" class="form-input num-input" value="15" min="15" max="45">
@@ -178,7 +178,7 @@
         </div>
 
         <!-- CA Range -->
-        <div class="filter-group">
+        <div class="filter-group col-6 col-md-3 col-xl-3">
           <label class="filter-label">ค่าพลังปัจจุบัน (CA): <span id="val-ca" class="text-accent font-semibold">1 - 200</span></label>
           <div class="range-inputs">
             <input type="number" id="min-ca" class="form-input num-input" value="1" min="1" max="200">
@@ -188,7 +188,7 @@
         </div>
 
         <!-- PA Range -->
-        <div class="filter-group">
+        <div class="filter-group col-6 col-md-3 col-xl-3">
           <label class="filter-label">ศักยภาพสูงสุด (PA): <span id="val-pa" class="text-accent font-semibold">1 - 200</span></label>
           <div class="range-inputs">
             <input type="number" id="min-pa" class="form-input num-input" value="1" min="1" max="200">
@@ -410,7 +410,7 @@
       </div>
 
       <!-- 3 FM-Style Dropdowns & Sliders Grid matching User Screenshots -->
-      <div class="filter-grid staff-filter-grid">
+      <div class="filter-grid row g-3 row-cols-1 row-cols-sm-2 row-cols-md-3">
         <!-- Dropdown 1: ตำแหน่งเจ้าหน้าที่ (Role) -->
         <div class="filter-group">
           <label class="filter-label" for="filter-staff-role">ตำแหน่งเจ้าหน้าที่</label>
