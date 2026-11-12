@@ -1,0 +1,124 @@
+const { exec } = require('node:child_process');
+const path = require('node:path');
+const fs = require('node:fs');
+
+const PROJECT_ROOT = path.join(__dirname, '..');
+const PKG_FILE = path.join(PROJECT_ROOT, 'package.json');
+
+function execPromise(cmd, cwd = PROJECT_ROOT) {
+  return new Promise((resolve, reject) => {
+    exec(cmd, { cwd }, (err, stdout, stderr) => {
+      if (err) return reject(new Error(stderr || stdout || err.message));
+      resolve(stdout.trim());
+    });
+  });
+}
+
+function getLocalVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(PKG_FILE, 'utf8'));
+    return pkg.version || '1.0.0';
+  } catch {
+    return '1.0.0';
+  }
+}
+
+async function getLocalCommit() {
+  try {
+    return await execPromise('git rev-parse HEAD');
+  } catch {
+    return 'local';
+  }
+}
+
+/**
+ * Checks for updates against the remote repository
+ */
+async function checkForUpdates() {
+  const currentVersion = getLocalVersion();
+  const currentCommit = await getLocalCommit();
+  const isGitRepo = fs.existsSync(path.join(PROJECT_ROOT, '.git'));
+
+  if (!isGitRepo) {
+    return {
+      hasUpdate: false,
+      isGit: false,
+      currentVersion,
+      currentCommit: currentCommit.slice(0, 7),
+      message: 'โปรแกรมรันในโหมดโฟลเดอร์แบบ Standalone (ไม่มี Git)'
+    };
+  }
+
+  try {
+    // Check remote commit using git ls-remote (fast, read-only network check)
+    const remoteOut = await execPromise('git ls-remote origin main');
+    const remoteCommit = (remoteOut.split(/\s+/)[0] || '').trim();
+
+    if (!remoteCommit) {
+      return {
+        hasUpdate: false,
+        isGit: true,
+        currentVersion,
+        currentCommit: currentCommit.slice(0, 7),
+        message: 'ไม่พบข้อมูล Branch main บน Remote'
+      };
+    }
+
+    const hasUpdate = remoteCommit !== currentCommit;
+    let updateMessage = hasUpdate 
+      ? 'ตรวจพบเวอร์ชันใหม่บน GitHub!' 
+      : 'โปรแกรมเป็นเวอร์ชันล่าสุดแล้ว';
+
+    return {
+      hasUpdate,
+      isGit: true,
+      currentVersion,
+      currentCommit: currentCommit.slice(0, 7),
+      latestCommit: remoteCommit.slice(0, 7),
+      message: updateMessage
+    };
+  } catch (err) {
+    return {
+      hasUpdate: false,
+      isGit: true,
+      currentVersion,
+      currentCommit: currentCommit.slice(0, 7),
+      error: `ตรวจสอบอัปเดตไม่สำเร็จ: ${err.message}`
+    };
+  }
+}
+
+/**
+ * Applies the update by pulling latest code from git
+ */
+async function applyUpdate() {
+  const isGitRepo = fs.existsSync(path.join(PROJECT_ROOT, '.git'));
+  if (!isGitRepo) {
+    return {
+      ok: false,
+      error: 'ไม่สามารถอัปเดตอัตโนมัติได้เนื่องจากโฟลเดอร์ไม่ได้เชื่อมต่อกับ Git'
+    };
+  }
+
+  try {
+    const pullOut = await execPromise('git pull origin main');
+    const newCommit = await getLocalCommit();
+    return {
+      ok: true,
+      output: pullOut,
+      newCommit: newCommit.slice(0, 7),
+      message: 'อัปเดตไฟล์เรียบร้อยแล้ว'
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `การอัปเดตล้มเหลว: ${err.message}`
+    };
+  }
+}
+
+module.exports = {
+  checkForUpdates,
+  applyUpdate,
+  getLocalVersion
+};

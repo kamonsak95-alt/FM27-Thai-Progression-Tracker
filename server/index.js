@@ -5,6 +5,7 @@ const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
 const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
+const { checkForUpdates, applyUpdate } = require('./updaterEngine');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -127,6 +128,24 @@ const server = http.createServer((req, res) => {
       } catch (e) {
         sendJson(res, 500, { ok: false, error: e.message });
       }
+    });
+    return;
+  }
+
+  if (pathname === '/api/check-update') {
+    checkForUpdates().then(info => {
+      sendJson(res, 200, info);
+    }).catch(err => {
+      sendJson(res, 500, { hasUpdate: false, error: err.message });
+    });
+    return;
+  }
+
+  if (pathname === '/api/apply-update' && req.method === 'POST') {
+    applyUpdate().then(result => {
+      sendJson(res, result.ok ? 200 : 500, result);
+    }).catch(err => {
+      sendJson(res, 500, { ok: false, error: err.message });
     });
     return;
   }

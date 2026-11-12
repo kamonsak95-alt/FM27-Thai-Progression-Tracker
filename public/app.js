@@ -89,7 +89,12 @@ const el = {
   paginationText: document.getElementById('pagination-text'),
   modal: document.getElementById('player-modal'),
   modalClose: document.getElementById('modal-close-btn'),
-  toast: document.getElementById('toast')
+  toast: document.getElementById('toast'),
+  updateBanner: document.getElementById('update-banner'),
+  updateDesc: document.getElementById('update-banner-desc'),
+  btnApplyUpdate: document.getElementById('btn-apply-update'),
+  btnDismissUpdate: document.getElementById('btn-dismiss-update'),
+  btnCheckUpdate: document.getElementById('btn-check-update')
 };
 
 // Initialize
@@ -97,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initEventListeners();
   loadStatus();
   loadPlayers();
+  checkForUpdates(true); // check quietly in background
 });
 
 function initEventListeners() {
@@ -218,6 +224,19 @@ function initEventListeners() {
 
   // Scan Button
   el.btnScan.addEventListener('click', triggerScan);
+
+  // Update System Listeners
+  if (el.btnCheckUpdate) {
+    el.btnCheckUpdate.addEventListener('click', () => checkForUpdates(false));
+  }
+  if (el.btnDismissUpdate) {
+    el.btnDismissUpdate.addEventListener('click', () => {
+      el.updateBanner.style.display = 'none';
+    });
+  }
+  if (el.btnApplyUpdate) {
+    el.btnApplyUpdate.addEventListener('click', applyUpdate);
+  }
 
   // Modal Close
   el.modalClose.addEventListener('click', () => {
@@ -550,4 +569,62 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+async function checkForUpdates(silent = false) {
+  if (!silent && el.btnCheckUpdate) {
+    el.btnCheckUpdate.disabled = true;
+    el.btnCheckUpdate.innerHTML = '<span>⏳</span><span>กำลังเช็ก...</span>';
+  }
+
+  try {
+    const res = await fetch('/api/check-update');
+    const data = await res.json();
+
+    if (data.hasUpdate) {
+      el.updateDesc.innerHTML = `ตรวจพบเวอร์ชันใหม่บน GitHub (Commit: <strong>${data.latestCommit}</strong>)!`;
+      el.updateBanner.style.display = 'block';
+      if (!silent) showToast(`🚀 พบการอัปเดตใหม่บน GitHub! (Commit: ${data.latestCommit})`);
+    } else {
+      el.updateBanner.style.display = 'none';
+      if (!silent) {
+        showToast(data.message || '✅ โปรแกรมของคุณเป็นเวอร์ชันล่าสุดแล้ว');
+      }
+    }
+  } catch (err) {
+    if (!silent) showToast(`❌ ตรวจสอบอัปเดตไม่สำเร็จ: ${err.message}`, true);
+  } finally {
+    if (!silent && el.btnCheckUpdate) {
+      el.btnCheckUpdate.disabled = false;
+      el.btnCheckUpdate.innerHTML = '<span>🔄</span><span>เช็กอัปเดต</span>';
+    }
+  }
+}
+
+async function applyUpdate() {
+  if (!confirm('ต้องการเริ่มการอัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดทันทีใช่หรือไม่?')) return;
+
+  el.btnApplyUpdate.disabled = true;
+  el.btnApplyUpdate.textContent = 'กำลังดาวน์โหลดและอัปเดตไฟล์...';
+  showToast('⏳ กำลังดึงไฟล์อัปเดตจาก GitHub กรุณารอสักครู่...');
+
+  try {
+    const res = await fetch('/api/apply-update', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.ok) {
+      showToast('✅ อัปเดตไฟล์สำเร็จเรียบร้อยแล้ว! กำลังรีโหลดหน้าต่างโปรแกรมใน 2 วินาที...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else {
+      showToast(`❌ การอัปเดตล้มเหลว: ${data.error}`, true);
+      el.btnApplyUpdate.disabled = false;
+      el.btnApplyUpdate.textContent = 'ลองใหม่อีกครั้ง';
+    }
+  } catch (err) {
+    showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, true);
+    el.btnApplyUpdate.disabled = false;
+    el.btnApplyUpdate.textContent = 'ลองใหม่อีกครั้ง';
+  }
 }
