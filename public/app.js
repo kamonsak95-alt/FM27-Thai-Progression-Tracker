@@ -1166,64 +1166,66 @@ async function loadPlayers() {
     el.btnPrevPage.disabled = state.page <= 1;
     el.btnNextPage.disabled = state.page >= state.totalPages;
 
-    renderTable(data.players || []);
+    const comparisonDate = data.baselineDate && data.baselineDate !== state.gameDate ? data.baselineDate : '';
+    document.getElementById('player-comparison-basis').textContent = comparisonDate
+      ? `เทียบ CA กับรอบ ${comparisonDate}`
+      : 'เทียบ CA กับรอบแรกที่พบนักเตะ';
+    renderTable(data.players || [], comparisonDate);
   } catch (err) {
     console.error('Failed to load players:', err);
-    el.tableBody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-red">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>`;
+    el.tableBody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-red">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>`;
   }
 }
 
-function renderTable(players) {
+function renderTable(players, comparisonDate) {
   if (players.length === 0) {
     el.tableBody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-muted">ไม่พบข้อมูลนักเตะที่ตรงกับเงื่อนไข</td></tr>`;
     return;
   }
 
   const rows = players.map(p => {
+    const originDate = comparisonDate || p.firstSeenDate || '';
+    const originLabel = escapeHtml(originDate || 'รอบแรกที่พบ');
     let growthBadge = '';
     if (p.isFirstScan) {
       growthBadge = `<span class="badge badge-growth-neutral text-muted" title="สแกนครั้งแรก (ยังไม่มีประวัติรอบเปรียบเทียบ)">- (รอบแรก)</span>`;
     } else if (p.isNew) {
       if (p.isNewgen) {
-        growthBadge = `<span class="badge badge-growth-new" title="เพิ่งพบครั้งแรกในรอบนี้ (เด็กเกิดใหม่ / Youth Intake)">👶 เกิดใหม่</span>`;
+        growthBadge = `<span class="badge badge-growth-new" title="เพิ่งพบครั้งแรกในรอบนี้ (เด็กเกิดใหม่ / Youth Intake)">เกิดใหม่</span>`;
       } else {
-        growthBadge = `<span class="badge badge-growth-neutral" title="เพิ่งพบครั้งแรกในฐานข้อมูล (อายุ ${p.age || '-'} ปี)">🆕 พบครั้งแรก</span>`;
+        growthBadge = `<span class="badge badge-growth-neutral" title="เพิ่งพบครั้งแรกในฐานข้อมูล (อายุ ${p.age || '-'} ปี)">พบครั้งแรก</span>`;
       }
     } else if (p.deltaCA > 0) {
-      const originDate = p.firstSeenDate || 'เริ่มบันทึก';
-      const tooltip = `เติบโต +${p.deltaCA} CA ตั้งแต่ ${originDate} (เดิม ${p.prevCA || '-'})`;
+      const tooltip = `เติบโต +${p.deltaCA} CA เทียบกับ ${originLabel} (เดิม ${p.prevCA || '-'})`;
       growthBadge = `<span class="badge badge-growth-up" title="${tooltip}">+${p.deltaCA} CA (+${p.growthPercent}%)</span>`;
     } else if (p.deltaCA < 0) {
-      const originDate = p.firstSeenDate || 'เริ่มบันทึก';
-      const tooltip = `ลดลง ${p.deltaCA} CA ตั้งแต่ ${originDate} (เดิม ${p.prevCA || '-'})`;
+      const tooltip = `ลดลง ${p.deltaCA} CA เทียบกับ ${originLabel} (เดิม ${p.prevCA || '-'})`;
       growthBadge = `<span class="badge badge-growth-down" title="${tooltip}">${p.deltaCA} CA (${p.growthPercent}%)</span>`;
     } else {
-      const originDate = p.firstSeenDate || 'เริ่มบันทึก';
-      growthBadge = `<span class="badge badge-growth-neutral" title="ค่าพลังคงที่ตั้งแต่ ${originDate}">คงที่ (0 CA)</span>`;
+      growthBadge = `<span class="badge badge-growth-neutral" title="ค่าพลังคงที่เมื่อเทียบกับ ${originLabel}">คงที่ (0 CA)</span>`;
     }
 
-    const trend = p.trend || { label: 'คงที่', icon: '➖', badgeClass: 'badge-trend-neutral' };
-    const trendBadge = `<span class="badge ${trend.badgeClass}">${trend.icon} ${trend.label}</span>`;
+    const trendLabel = escapeHtml(p.trend?.label || 'คงที่');
 
     const valueStr = formatCurrency(p.value);
     const wageStr = formatCurrency(p.wage);
     const natStr = Array.isArray(p.nat) ? p.nat.join(', ') : (p.nat || '-');
 
     return `
-      <tr onclick="openPlayerModal(${p.id}, ${Number.isFinite(p.prevCA) ? p.prevCA : 'null'})">
+      <tr data-comparison-date="${escapeHtml(originDate)}" onclick="openPlayerModal(${p.id}, ${Number.isFinite(p.prevCA) ? p.prevCA : 'null'}, this.dataset.comparisonDate)">
         <td class="col-name sticky-col">
           <div class="player-name-cell">
-            <span class="player-name font-semibold text-white">${escapeHtml(p.name)}</span>
+            <button type="button" class="player-name player-name-button">${escapeHtml(p.name)}</button>
             <span class="nat-badge text-muted text-xs">${escapeHtml(natStr)}</span>
           </div>
         </td>
         <td class="text-center font-medium">${p.age}</td>
         <td class="text-center"><span class="player-positions">${renderPositionBadges(p.pos)}</span></td>
         <td><span class="text-club">${escapeHtml(p.club || '-')}</span></td>
-        <td class="text-center font-bold text-accent">${p.ca}</td>
-        <td class="text-center font-bold text-green">${p.pa}</td>
-        <td class="text-center">${trendBadge}</td>
-        <td class="text-center">${growthBadge}</td>
+        <td class="text-center font-semibold">${p.ca}</td>
+        <td class="text-center text-secondary">${p.pa}</td>
+        <td class="text-center text-muted">${trendLabel}</td>
+        <td class="text-right">${growthBadge}</td>
         <td class="text-right text-secondary font-mono">${valueStr}</td>
         <td class="text-right text-muted font-mono">${wageStr}</td>
       </tr>
@@ -1233,7 +1235,7 @@ function renderTable(players) {
   el.tableBody.innerHTML = rows.join('');
 }
 
-async function openPlayerModal(id, previousCA) {
+async function openPlayerModal(id, previousCA, comparisonDate) {
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
@@ -1263,6 +1265,9 @@ async function openPlayerModal(id, previousCA) {
       const delta = player.ca - previousCA;
       progression.dataset.direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
       document.getElementById('modal-ca-range').textContent = `${previousCA} → ${player.ca}`;
+      document.getElementById('modal-ca-basis').textContent = comparisonDate
+        ? `เทียบกับรอบ ${comparisonDate}`
+        : 'เทียบกับรอบแรกที่พบ';
       const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
       const percentage = ((Math.abs(delta) / previousCA) * 100).toFixed(2);
       document.getElementById('modal-ca-change').textContent =
@@ -1272,9 +1277,9 @@ async function openPlayerModal(id, previousCA) {
     // Render Development Forecast Box
     const forecastBox = document.getElementById('modal-forecast-box');
     if (forecastBox) {
-      const tr = trend || { label: 'คงที่', icon: '➖', reason: 'รักษามาตรฐานค่าพลัง', badgeClass: 'badge-trend-neutral' };
+      const tr = trend || { label: 'คงที่', reason: 'รักษามาตรฐานค่าพลัง' };
       forecastBox.innerHTML = `
-        <span class="badge ${tr.badgeClass}">${tr.icon} ${tr.label}</span>
+        <strong class="forecast-label">${escapeHtml(tr.label)}</strong>
         <p class="forecast-desc">${escapeHtml(tr.reason)}</p>
       `;
     }
@@ -1449,7 +1454,7 @@ function showUpdateDownload(link, data) {
 async function checkForUpdates(silent = false, isCelebration = false) {
   if (!silent && el.btnCheckUpdate) {
     el.btnCheckUpdate.disabled = true;
-    el.btnCheckUpdate.innerHTML = '<span>⏳</span><span>กำลังเช็ก...</span>';
+    el.btnCheckUpdate.textContent = 'กำลังเช็กอัปเดต';
   }
 
   try {
@@ -1478,7 +1483,7 @@ async function checkForUpdates(silent = false, isCelebration = false) {
       // Case 1: Remote GitHub has an unpulled update
       const summaryText = data.latestMessage ? `: <strong class="text-white">${escapeHtml(data.latestMessage)}</strong>` : '';
       if (el.updateBannerBadge) {
-        el.updateBannerBadge.textContent = '🚀 อัปเดตใหม่!';
+        el.updateBannerBadge.textContent = 'อัปเดตใหม่';
         el.updateBannerBadge.className = 'update-badge';
       }
       if (data.isGit === false) el.updateDesc.textContent = data.message;
@@ -1494,7 +1499,7 @@ async function checkForUpdates(silent = false, isCelebration = false) {
     } else if (isDiskAheadOfUI) {
       // Case 2: Code on disk has been updated, but this browser window was loaded earlier
       if (el.updateBannerBadge) {
-        el.updateBannerBadge.textContent = '⚡ ต้องรีโหลดหน้าจอ';
+        el.updateBannerBadge.textContent = 'ต้องรีโหลดหน้าจอ';
         el.updateBannerBadge.className = 'update-badge badge-warning';
       }
       el.updateDesc.innerHTML = `ตรวจพบเวอร์ชันใหม่พร้อมใช้งาน (หน้าต่างเปิดค้างไว้ที่ <code>${state.loadedCommit}</code> ➔ ล่าสุด <code>${currentCommit}</code>) กรุณากดปุ่มเพื่ออัปเดตการแสดงผล`;
@@ -1519,7 +1524,7 @@ async function checkForUpdates(silent = false, isCelebration = false) {
   } finally {
     if (!silent && el.btnCheckUpdate) {
       el.btnCheckUpdate.disabled = false;
-      el.btnCheckUpdate.innerHTML = '<span>🔄</span><span>เช็กอัปเดต</span>';
+      el.btnCheckUpdate.textContent = 'เช็กอัปเดต';
     }
   }
 }

@@ -6,7 +6,7 @@
   <title>FM27 Thai Progression Tracker & Scout</title>
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=1.0.11">
+  <link rel="stylesheet" href="style.css?v=1.0.12">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -29,12 +29,10 @@
       <!-- Segmented Navigation Tabs -->
       <nav class="header-nav-tabs">
         <button type="button" id="tab-btn-players" class="nav-tab-btn active">
-          <span class="nav-tab-icon">⚽</span>
-          <span>นักเตะ & พัฒนาการ (Players)</span>
+          นักเตะ
         </button>
         <button type="button" id="tab-btn-staff" class="nav-tab-btn">
-          <span class="nav-tab-icon">👔</span>
-          <span>ส่องทีมงาน (Staff Scout)</span>
+          ส่องทีมงาน
         </button>
       </nav>
 
@@ -50,14 +48,12 @@
             <span class="date-disclaimer-icon" id="date-disclaimer" style="display:none;" title="วันที่ที่ Tracker อ่านได้จาก FM27 ล่าสุด อาจไม่ตรงกับวันจริงในเกมเนื่องจากข้อจำกัดในการตรวจสอบวันที่">ℹ️</span>
           </div>
           <button id="btn-scan" class="btn btn-primary" title="โหลดข้อมูลล่าสุดจากเกม FM27 ที่กำลังเปิดอยู่ (ตรวจจับเซฟอัตโนมัติ)">
-            <span class="btn-icon">🔄</span>
             <span id="btn-scan-text">โหลดข้อมูลเกม (FM27)</span>
           </button>
         </div>
 
         <div class="header-career-row">
           <div class="info-pill manager-pill" id="manager-badge" title="ผู้จัดการทีม / กุนซือ (Gaffer)">
-            <span class="pill-icon">👔</span>
             <span class="pill-label">กุนซือ:</span>
             <span class="pill-value manager-name" id="info-manager">กำลังโหลด...</span>
           </div>
@@ -70,11 +66,9 @@
             <span class="pill-value text-accent" id="info-baseline">จุดเริ่มอาชีพ</span>
           </div>
           <button id="btn-check-update" class="btn btn-secondary btn-sm" title="ตรวจเช็กเวอร์ชันล่าสุดจาก GitHub">
-            <span>🔄</span>
             <span>เช็กอัปเดต</span>
           </button>
           <button id="btn-reload-ui" class="btn btn-secondary btn-sm" title="รีโหลดหน้าจอแสดงผล (หรือกด F5 / Ctrl+R)">
-            <span>⚡</span>
             <span>รีโหลดหน้าจอ</span>
           </button>
         </div>
@@ -86,13 +80,13 @@
   <div id="update-banner" class="update-banner" style="display:none;">
     <div class="update-banner-container">
       <div class="update-banner-text">
-        <span class="update-badge" id="update-banner-badge">อัปเดตใหม่!</span>
+        <span class="update-badge" id="update-banner-badge">อัปเดตใหม่</span>
         <span id="update-banner-desc">ตรวจพบเวอร์ชันใหม่บน GitHub</span>
       </div>
       <div class="update-banner-actions">
-        <button id="btn-view-changelog" class="btn btn-secondary btn-sm" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">📋 ดูรายการอัปเดต</button>
-        <button id="btn-banner-reload" class="btn btn-update btn-reload" style="display:none;">🔄 รีโหลดหน้าจอเพื่ออัปเดต</button>
-        <button id="btn-apply-update" class="btn btn-update">🚀 อัปเดตทันที (1-Click Update)</button>
+        <button id="btn-view-changelog" class="btn btn-text-action">ดูรายการอัปเดต</button>
+        <button id="btn-banner-reload" class="btn btn-update btn-reload" style="display:none;">รีโหลดหน้าจอ</button>
+        <button id="btn-apply-update" class="btn btn-update">อัปเดตทันที</button>
         <a id="btn-download-update" class="btn btn-update" target="_blank" rel="noopener noreferrer" style="display:none;">ดาวน์โหลดเวอร์ชันใหม่</a>
         <button id="btn-dismiss-update" class="btn-icon-close" title="ปิดการแจ้งเตือน">&times;</button>
       </div>
@@ -109,17 +103,18 @@
       <div class="filter-row search-row">
         <div class="search-box">
           <span class="search-icon">🔍</span>
-          <input type="text" id="filter-search" class="form-input" placeholder="ค้นหาชื่อนักเตะ (เช่น Mainoo, Bellingham, Yamal)...">
+          <input type="text" id="filter-search" class="form-input" placeholder="ค้นหาชื่อนักเตะ" aria-label="ค้นหาชื่อนักเตะ">
           <button id="btn-clear-search" class="btn-clear" style="display:none;">✕</button>
         </div>
 
         <div class="quick-filters">
           <button class="pill-btn active" data-preset="all">ทั้งหมด</button>
-          <button class="pill-btn" data-preset="wonderkids">🌟 Wonderkids (อายุ ≤ 21, PA ≥ 150)</button>
-          <button class="pill-btn" data-preset="explosive">🚀 ก้าวกระโดด</button>
-          <button class="pill-btn" data-preset="declining">📉 เริ่มถดถอย</button>
-          <button class="pill-btn" data-preset="myclub">🔴 นักเตะทีมเรา</button>
-          <button class="pill-btn" data-preset="growth">📈 พัฒนาการสูงสุด</button>
+          <button class="pill-btn" data-preset="wonderkids" aria-describedby="wonderkids-criteria">Wonderkids</button>
+          <button class="pill-btn" data-preset="explosive">ก้าวกระโดด</button>
+          <button class="pill-btn" data-preset="declining">เริ่มถดถอย</button>
+          <button class="pill-btn" data-preset="myclub">นักเตะทีมเรา</button>
+          <button class="pill-btn" data-preset="growth">พัฒนาการสูงสุด</button>
+          <span id="wonderkids-criteria" class="text-muted text-sm">อายุ ≤ 21 · PA ≥ 150</span>
         </div>
       </div>
 
@@ -346,6 +341,7 @@
         <div class="count-display">
           พบนักเตะทั้งหมด <span id="total-count" class="font-bold text-accent">0</span> คน 
           <span class="text-muted text-sm">(แสดงหน้า <span id="current-page">1</span> จาก <span id="total-pages">1</span>)</span>
+          <div id="player-comparison-basis" class="text-muted text-sm">เทียบ CA กับรอบแรกที่พบนักเตะ</div>
         </div>
 
         <div class="table-actions">
@@ -370,7 +366,7 @@
               <th data-sort="ca" class="sortable text-center" title="Current Ability (ค่าพลังปัจจุบัน 1-200)">CA</th>
               <th data-sort="pa" class="sortable text-center" title="Potential Ability (ศักยภาพสูงสุด 1-200)">PA</th>
               <th data-sort="trendScore" class="sortable text-center" title="แนวโน้มพัฒนาการประเมินจากอายุและช่องว่าง CA/PA">แนวโน้ม</th>
-              <th data-sort="growthPercent" class="sortable text-center active-sort desc" title="การเปลี่ยนแปลงและพัฒนาการ CA เทียบกับรอบสแกนก่อนหน้า">พัฒนาการ</th>
+              <th data-sort="growthPercent" class="sortable text-right active-sort desc" aria-describedby="player-comparison-basis">พัฒนาการ CA</th>
               <th data-sort="value" class="sortable text-right" title="มูลค่าประเมินในตลาด">มูลค่า</th>
               <th data-sort="wage" class="sortable text-right" title="ค่าเหนื่อยต่อสัปดาห์">ค่าเหนื่อย</th>
             </tr>
@@ -399,17 +395,17 @@
       <div class="filter-row search-row">
         <div class="search-box">
           <span class="search-icon">🔍</span>
-          <input type="text" id="filter-staff-search" class="form-input" placeholder="ค้นหาชื่อทีมงาน (เช่น Maldini, Edwards, Calafat, Rangnick)...">
+          <input type="text" id="filter-staff-search" class="form-input" placeholder="ค้นหาชื่อทีมงาน" aria-label="ค้นหาชื่อทีมงาน">
           <button id="btn-clear-staff-search" class="btn-clear" style="display:none;">✕</button>
         </div>
 
         <div class="quick-filters">
           <button type="button" class="pill-btn staff-preset-btn active" data-staff-preset="all">ทั้งหมด</button>
-          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="five_star">🌟 โค้ช 5 ดาว (4.5-5.0 ⭐)</button>
-          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="hoyd">👶 ปั้นเยาวชน (HOYD เทพ)</button>
-          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="diamond_scout">🔍 แมวมองตาเพชร (JPA/JPP 18+)</button>
-          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="god_physio">🩺 หมอเทวดา (Physio 18+)</button>
-          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="free_agents">🆓 ว่างงาน</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="five_star">โค้ช 4.5–5 ดาว</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="hoyd">หัวหน้าพัฒนาเยาวชน</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="diamond_scout">แมวมอง JPA/JPP 18+</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="god_physio">นักกายภาพ 18+</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="free_agents">ว่างงาน</button>
         </div>
       </div>
 
@@ -589,11 +585,11 @@
           <div class="modal-ca-pa">
             <div class="ability-block">
               <div class="ability-label">CA (ปัจจุบัน)</div>
-              <div class="ability-number text-accent" id="modal-ca">150</div>
+              <div class="ability-number" id="modal-ca">150</div>
             </div>
             <div class="ability-block">
               <div class="ability-label">PA (ศักยภาพ)</div>
-              <div class="ability-number text-green" id="modal-pa">180</div>
+              <div class="ability-number text-secondary" id="modal-pa">180</div>
             </div>
           </div>
           <button type="button" class="player-modal-close" id="modal-close-btn" aria-label="ปิดโปรไฟล์นักเตะ" title="ปิด">
@@ -605,13 +601,14 @@
           <div>
             <h3 class="ca-progression-label">พัฒนาการ CA</h3>
             <div class="ca-progression-range" id="modal-ca-range"></div>
+            <div id="modal-ca-basis" class="text-muted text-sm"></div>
           </div>
           <strong class="ca-progression-change" id="modal-ca-change"></strong>
         </section>
 
         <!-- Development Forecast Box -->
         <div class="modal-section" id="modal-forecast-section">
-          <h3 class="section-title">🔮 การพยากรณ์และแนวโน้มพัฒนาการ</h3>
+          <h3 class="section-title">แนวโน้มพัฒนาการ</h3>
           <div class="forecast-card" id="modal-forecast-box">
             <!-- Rendered dynamically -->
           </div>
@@ -727,6 +724,6 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.1.8"></script>
+  <script src="app.js?v=1.1.9"></script>
 </body>
 </html>
