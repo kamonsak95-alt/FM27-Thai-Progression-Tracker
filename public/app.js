@@ -208,6 +208,8 @@ const el = {
 let latestUpdateData = null;
 let currentPlayerName = '';
 let currentStaffName = '';
+let playerListRequest;
+let staffListRequest;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -277,13 +279,12 @@ function initEventListeners() {
   });
 
   // Presets
-  document.querySelectorAll('.pill-btn').forEach(btn => {
+  const playerPresetButtons = document.querySelectorAll('[data-preset]');
+  playerPresetButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+      playerPresetButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const preset = btn.dataset.preset;
-      state.preset = preset;
-      applyPreset(preset);
+      applyPreset(btn.dataset.preset);
       state.page = 1;
       loadPlayers();
     });
@@ -801,17 +802,16 @@ function initEventListeners() {
 }
 
 function applyPreset(preset) {
+  const leavingWonderkids = state.preset === 'wonderkids' && preset !== 'wonderkids';
+  state.preset = preset;
   state.trend = '';
-  if (preset === 'all') {
-    el.minAge.value = 15; el.maxAge.value = 45;
-    el.minCA.value = 1; el.maxCA.value = 200;
-    el.minPA.value = 1; el.maxPA.value = 200;
+  if (preset === 'all' || leavingWonderkids) {
     state.minAge = 15; state.maxAge = 45;
-    state.minCA = 1; state.maxCA = 200;
     state.minPA = 1; state.maxPA = 200;
+  }
+  if (preset === 'all') {
+    state.minCA = 1; state.maxCA = 200;
   } else if (preset === 'wonderkids') {
-    el.minAge.value = 15; el.maxAge.value = 21;
-    el.minPA.value = 150; el.maxPA.value = 200;
     state.minAge = 15; state.maxAge = 21;
     state.minPA = 150; state.maxPA = 200;
   } else if (preset === 'explosive') {
@@ -821,6 +821,9 @@ function applyPreset(preset) {
   } else if (preset === 'growth') {
     state.sort = 'growthPercent';
     state.order = 'desc';
+  }
+  for (const field of ['minAge', 'maxAge', 'minCA', 'maxCA', 'minPA', 'maxPA']) {
+    el[field].value = state[field];
   }
   el.valAge.textContent = `${state.minAge} - ${state.maxAge}`;
   el.valCA.textContent = `${state.minCA} - ${state.maxCA}`;
@@ -1123,7 +1126,10 @@ function updatePitchUI() {
 }
 
 async function loadPlayers() {
-  el.tableBody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-muted">กำลังดึงข้อมูลนักเตะ...</td></tr>`;
+  playerListRequest?.abort();
+  const request = new AbortController();
+  playerListRequest = request;
+  el.tableBody.setAttribute('aria-busy', 'true');
 
   const params = new URLSearchParams({
     page: state.page,
@@ -1148,8 +1154,10 @@ async function loadPlayers() {
   if (state.preset === 'myclub') params.set('myClub', '1');
 
   try {
-    const res = await fetch(`/api/players?${params.toString()}`);
+    const res = await fetch(`/api/players?${params.toString()}`, { signal: request.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (request.signal.aborted) return;
 
     state.total = data.total || 0;
     state.totalPages = data.totalPages || 1;
@@ -1172,8 +1180,14 @@ async function loadPlayers() {
       : 'เทียบ CA กับรอบแรกที่พบนักเตะ';
     renderTable(data.players || [], comparisonDate);
   } catch (err) {
+    if (request.signal.aborted) return;
     console.error('Failed to load players:', err);
     el.tableBody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-red">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>`;
+  } finally {
+    if (playerListRequest === request) {
+      playerListRequest = null;
+      el.tableBody.removeAttribute('aria-busy');
+    }
   }
 }
 
@@ -1674,11 +1688,10 @@ async function applyUpdate() {
 
 async function loadStaff() {
   if (!el.staffTableBody) return;
-  el.staffTableBody.innerHTML = `
-    <tr>
-      <td colspan="9" class="text-center py-8 text-muted">กำลังโหลดข้อมูลทีมงาน...</td>
-    </tr>
-  `;
+  staffListRequest?.abort();
+  const request = new AbortController();
+  staffListRequest = request;
+  el.staffTableBody.setAttribute('aria-busy', 'true');
 
   try {
     const params = new URLSearchParams({
@@ -1701,8 +1714,10 @@ async function loadStaff() {
     if (stateStaff.rep && stateStaff.rep !== 'any') params.set('rep', stateStaff.rep);
     if (stateStaff.preset && stateStaff.preset !== 'all') params.set('preset', stateStaff.preset);
 
-    const res = await fetch(`/api/staff?${params.toString()}`);
+    const res = await fetch(`/api/staff?${params.toString()}`, { signal: request.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    if (request.signal.aborted) return;
 
     stateStaff.total = data.total;
     stateStaff.totalPages = data.totalPages;
@@ -1717,6 +1732,7 @@ async function loadStaff() {
 
     renderStaffTable(data.staff);
   } catch (err) {
+    if (request.signal.aborted) return;
     console.error('Failed to load staff:', err);
     el.staffTableBody.innerHTML = `
       <tr>
@@ -1725,6 +1741,11 @@ async function loadStaff() {
         </td>
       </tr>
     `;
+  } finally {
+    if (staffListRequest === request) {
+      staffListRequest = null;
+      el.staffTableBody.removeAttribute('aria-busy');
+    }
   }
 }
 

@@ -2,6 +2,7 @@
 
 :root {
   color-scheme: dark;
+  scrollbar-gutter: stable;
   --bg-main: #0e1725;
   --bg-card: #152235;
   --bg-card-hover: #1e3047;
