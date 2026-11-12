@@ -182,8 +182,17 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const { gameDate, scanId, refCode } = JSON.parse(body || '{}');
-        if (!gameDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(gameDate).trim())) {
-          return sendJson(res, 400, { ok: false, error: 'INVALID_DATE', message: 'กรุณาระบุวันที่ในรูปแบบ YYYY-MM-DD' });
+        const date = typeof gameDate === 'string' ? gameDate.trim() : '';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(date).toJSON()?.slice(0, 10) !== date) {
+          return sendJson(res, 400, { ok: false, error: 'INVALID_DATE', message: 'กรุณาระบุวันที่ที่มีอยู่จริงในรูปแบบ YYYY-MM-DD' });
+        }
+
+        if (typeof scanId !== 'string' || !scanId.trim() || typeof refCode !== 'string' || !refCode.trim()) {
+          return sendJson(res, 400, {
+            ok: false,
+            error: 'MISSING_SCAN_CONTEXT',
+            message: 'ไม่พบรหัสรอบสแกนหรือรหัสเซฟ กรุณาโหลดข้อมูลเกมใหม่ก่อนยืนยันวันที่'
+          });
         }
 
         const dump = getOrLoadDump();
@@ -194,7 +203,7 @@ const server = http.createServer(async (req, res) => {
         const activeRefCode = computeSaveRefCode(dump.meta, dump.staff);
 
         // Verification: ensure confirmation matches the active scan round and save
-        if (scanId && dump.meta.scanId && scanId !== dump.meta.scanId) {
+        if (scanId !== dump.meta.scanId) {
           return sendJson(res, 409, {
             ok: false,
             error: 'STALE_SCAN_ROUND',
@@ -202,7 +211,7 @@ const server = http.createServer(async (req, res) => {
           });
         }
 
-        if (refCode && activeRefCode && refCode !== activeRefCode) {
+        if (refCode !== activeRefCode) {
           return sendJson(res, 409, {
             ok: false,
             error: 'CAREER_MISMATCH',
@@ -214,7 +223,7 @@ const server = http.createServer(async (req, res) => {
         const result = confirmScanRoundDate(
           store,
           dump.meta,
-          String(gameDate).trim(),
+          date,
           dump.players || [],
           dump.staff || [],
           activeRefCode

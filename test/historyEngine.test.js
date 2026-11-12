@@ -633,6 +633,24 @@ test('P1 Regression Case 4: rescan or save switch before confirmation rejects ol
     const currentScanId = statusRes.body.meta?.scanId;
     const currentRefCode = statusRes.body.refCode;
     assert.ok(currentScanId, 'Must have a scanId');
+    assert.ok(currentRefCode, 'Must have a RefCode');
+
+    const historyBefore = fs.existsSync(tempFile) ? fs.readFileSync(tempFile, 'utf8') : null;
+    for (const endpoint of ['/api/confirm-date', '/api/set-date']) {
+      for (const binding of [{}, { scanId: currentScanId }, { refCode: currentRefCode }]) {
+        const response = await post(endpoint, { gameDate: '2026-07-14', ...binding });
+        assert.strictEqual(response.status, 400, `${endpoint} must require both identifiers`);
+        assert.strictEqual(response.body.error, 'MISSING_SCAN_CONTEXT');
+      }
+
+      for (const gameDate of ['2026-02-30', '2026-02-29', '2026-13-01', '2026-07-00']) {
+        const response = await post(endpoint, { gameDate, scanId: currentScanId, refCode: currentRefCode });
+        assert.strictEqual(response.status, 400, `${endpoint} must reject ${gameDate}`);
+        assert.strictEqual(response.body.error, 'INVALID_DATE');
+      }
+    }
+    assert.strictEqual(fs.existsSync(tempFile) ? fs.readFileSync(tempFile, 'utf8') : null, historyBefore);
+    assert.strictEqual((await get('/api/status')).body.meta.gameDate, statusRes.body.meta.gameDate);
 
     // 2. Attempt confirming with a STALE scanId
     const staleConfirm = await post('/api/confirm-date', {
