@@ -89,10 +89,25 @@ const server = http.createServer(async (req, res) => {
       const commitHash = await getLocalCommit();
       currentCommit = commitHash ? commitHash.slice(0, 7) : 'local';
     } catch {}
+
+    // Check if there is a pending .just_updated.json marker from prelaunch
+    let justUpdated = null;
+    const justUpdatedPath = path.join(__dirname, '..', 'data', '.just_updated.json');
+    if (fs.existsSync(justUpdatedPath)) {
+      try {
+        const juData = JSON.parse(fs.readFileSync(justUpdatedPath, 'utf8'));
+        if (Date.now() - juData.timestamp < 10 * 60 * 1000) {
+          justUpdated = juData;
+        }
+        fs.unlinkSync(justUpdatedPath);
+      } catch {}
+    }
+
     return sendJson(res, 200, {
       ...status,
       meta: dump?.meta || null,
       currentCommit,
+      justUpdated,
       totalPlayers: dump?.players?.length || 0,
       snapshots: listSnapshots()
     });

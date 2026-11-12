@@ -6,8 +6,11 @@ cls
 echo ========================================================
 echo    ⚽ FM27 Thai Progression Tracker & Scout Tool
 echo ========================================================
-echo กำลังเริ่มต้นระบบ...
+echo กำลังตรวจสอบอัปเดตและเริ่มต้นระบบ...
 echo.
+
+:: Check and pull latest GitHub updates silently before launch
+node "%~dp0server\prelaunch.js"
 
 :: Start the background Node server
 start /b "" node "%~dp0server\index.js"

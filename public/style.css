@@ -1236,3 +1236,13 @@ body {
   font-family: monospace;
   font-weight: 600;
 }
+
+.changelog-alert-box.success {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: #d1fae5;
+}
+
+.changelog-alert-box.success code {
+  color: #6ee7b7;
+}

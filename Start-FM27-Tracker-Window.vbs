@@ -8,6 +8,10 @@ base = fso.GetParentFolderName(WScript.ScriptFullName)
 
 ' Start background node server silently (0 = hidden window)
 sh.CurrentDirectory = base
+
+' Check and pull latest GitHub updates silently before launch (timeout-safe in Node)
+sh.Run "node """ & base & "\server\prelaunch.js""", 0, True
+
 sh.Run "node """ & base & "\server\index.js""", 0, False
 
 WScript.Sleep 1200

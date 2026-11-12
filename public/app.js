@@ -457,6 +457,12 @@ async function loadStatus() {
     if (!state.loadedCommit && data.currentCommit) {
       state.loadedCommit = data.currentCommit;
     }
+    if (data.justUpdated) {
+      showToast(`🎉 อัปเดตเป็นเวอร์ชันล่าสุดให้เรียบร้อยแล้ว! (${data.justUpdated.newCommit})`);
+      setTimeout(() => {
+        checkForUpdates(false, true);
+      }, 700);
+    }
     if (data.meta) {
       state.myClub = data.meta.myClub || 'ไม่ระบุ';
       state.gameDate = data.meta.gameDate || '';
@@ -818,7 +824,7 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-async function checkForUpdates(silent = false) {
+async function checkForUpdates(silent = false, isCelebration = false) {
   if (!silent && el.btnCheckUpdate) {
     el.btnCheckUpdate.disabled = true;
     el.btnCheckUpdate.innerHTML = '<span>⏳</span><span>กำลังเช็ก...</span>';
@@ -839,6 +845,11 @@ async function checkForUpdates(silent = false) {
     const isDiskAheadOfUI = Boolean(state.loadedCommit && currentCommit && state.loadedCommit !== currentCommit);
     const isRemoteAheadOfDisk = Boolean(data.hasUpdate);
     const isUiStale = Boolean(state.loadedCommit && latestCommit && state.loadedCommit !== latestCommit);
+
+    if (isCelebration) {
+      openChangelogModal(data, true);
+      return;
+    }
 
     if (isRemoteAheadOfDisk) {
       // Case 1: Remote GitHub has an unpulled update
@@ -889,23 +900,42 @@ async function checkForUpdates(silent = false) {
   }
 }
 
-function openChangelogModal(data) {
+function openChangelogModal(data, isCelebration = false) {
   if (!el.changelogModal || !data) return;
 
   const currentCommit = data.currentCommit || '';
   const latestCommit = data.latestCommit || currentCommit;
   const isNew = data.hasUpdate;
-  const isUiStale = Boolean(state.loadedCommit && latestCommit && state.loadedCommit !== latestCommit);
+  const isUiStale = !isCelebration && Boolean(state.loadedCommit && latestCommit && state.loadedCommit !== latestCommit);
 
-  el.changelogMeta.innerHTML = isNew 
-    ? `มีเวอร์ชันใหม่รอให้อัปเดต &bull; Commit เป้าหมาย: <strong class="text-accent">${latestCommit}</strong>`
-    : `เวอร์ชันปัจจุบัน: v${data.currentVersion || '1.0.0'} &bull; Commit ล่าสุด: <strong class="text-green">${latestCommit}</strong>`;
+  if (isCelebration) {
+    el.changelogMeta.innerHTML = `🎉 ยินดีต้อนรับสู่เวอร์ชันใหม่ &bull; Commit ล่าสุด: <strong class="text-green">${latestCommit}</strong>`;
+  } else {
+    el.changelogMeta.innerHTML = isNew 
+      ? `มีเวอร์ชันใหม่รอให้อัปเดต &bull; Commit เป้าหมาย: <strong class="text-accent">${latestCommit}</strong>`
+      : `เวอร์ชันปัจจุบัน: v${data.currentVersion || '1.0.0'} &bull; Commit ล่าสุด: <strong class="text-green">${latestCommit}</strong>`;
+  }
 
-  // Display Stale UI Alert Box if window commit is behind
+  // Display Celebration or Stale UI Alert Box
   if (el.changelogStaleAlert) {
-    if (isUiStale) {
-      if (el.alertLoadedCommit) el.alertLoadedCommit.textContent = state.loadedCommit || 'เดิม';
-      if (el.alertLatestCommit) el.alertLatestCommit.textContent = latestCommit;
+    if (isCelebration) {
+      el.changelogStaleAlert.className = 'changelog-alert-box success';
+      el.changelogStaleAlert.innerHTML = `
+        <span class="alert-icon">✨</span>
+        <div class="alert-text">
+          <strong>อัปเดตเวอร์ชันล่าสุดให้เรียบร้อยแล้ว:</strong> แอปได้ดึงฟีเจอร์และปรับปรุงล่าสุดจาก GitHub ให้คุณอัตโนมัติเรียบร้อยแล้ว สามารถดูรายการที่เพิ่มเข้ามาด้านล่างนี้ได้เลยครับ!
+        </div>
+      `;
+      el.changelogStaleAlert.style.display = 'flex';
+    } else if (isUiStale) {
+      el.changelogStaleAlert.className = 'changelog-alert-box';
+      el.changelogStaleAlert.innerHTML = `
+        <span class="alert-icon">⚠️</span>
+        <div class="alert-text">
+          <strong>หน้าต่างนี้ยังเป็นเวอร์ชันก่อนหน้า:</strong> โหลดไว้ที่ <code>${state.loadedCommit}</code> แต่เวอร์ชันล่าสุดคือ <code>${latestCommit}</code><br>
+          กรุณากดปุ่ม <strong>🔄 รีโหลดหน้าจอ (Reload UI)</strong> ด้านล่างเพื่ออัปเดตการแสดงผลทันที
+        </div>
+      `;
       el.changelogStaleAlert.style.display = 'flex';
     } else {
       el.changelogStaleAlert.style.display = 'none';
@@ -922,11 +952,15 @@ function openChangelogModal(data) {
     el.changelogList.innerHTML = `<li class="changelog-item text-muted">ไม่มีประวัติการเปลี่ยนแปลงระบุไว้</li>`;
   }
 
+  if (el.btnChangelogClose) {
+    el.btnChangelogClose.textContent = isCelebration ? '🚀 ยอดเยี่ยม / เข้าใช้งาน' : 'ปิด';
+  }
+
   if (el.btnChangelogApply) {
     el.btnChangelogApply.style.display = isNew ? 'inline-flex' : 'none';
   }
   if (el.btnChangelogReload) {
-    el.btnChangelogReload.style.display = (isUiStale || !isNew) ? 'inline-flex' : 'none';
+    el.btnChangelogReload.style.display = (isUiStale || (!isNew && !isCelebration)) ? 'inline-flex' : 'none';
   }
 
   el.changelogModal.style.display = 'flex';
