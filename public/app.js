@@ -616,6 +616,9 @@ async function checkForUpdates(silent = false) {
 
   try {
     const res = await fetch('/api/check-update');
+    if (!res.ok) {
+      throw new Error('เซิร์ฟเวอร์ในเครื่องยังเป็นเวอร์ชันเดิม กรุณาปิดแล้วเปิดโปรแกรมใหม่');
+    }
     const data = await res.json();
     latestUpdateData = data;
 
@@ -679,6 +682,9 @@ async function applyUpdate() {
 
   try {
     const res = await fetch('/api/apply-update', { method: 'POST' });
+    if (!res.ok) {
+      throw new Error('เซิร์ฟเวอร์ในเครื่องยังเป็นเวอร์ชันเดิม กรุณาปิดแล้วเปิดโปรแกรมใหม่');
+    }
     const data = await res.json();
 
     if (data.ok) {
