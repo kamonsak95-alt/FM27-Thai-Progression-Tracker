@@ -911,10 +911,10 @@ async function loadStatus() {
       const dateBadgeEl = document.getElementById('date-badge');
       if (dateBadgeEl) {
         if (data.meta.requiresDateConfirmation) {
-          dateBadgeEl.title = `⚠️ วันที่จาก scanner (${data.meta.rawGameDate || state.gameDate}) รอยืนยันสำหรับรอบสแกนนี้ (แนะนำ: ${data.meta.suggestedGameDate || '2026-07-13'}) - คลิกเพื่อยืนยัน`;
+          dateBadgeEl.title = `⚠️ วันที่จาก scanner (${data.meta.rawGameDate || state.gameDate}) รอยืนยันสำหรับรอบสแกนนี้ - คลิกแล้วกรอกวันที่จากหน้าจอ FM27`;
           dateBadgeEl.style.outline = '2px dashed #f59e0b';
         } else if (data.meta.gameDateCorrected) {
-          dateBadgeEl.title = `วันที่ในเกม: ${state.gameDate} (ปรับจากค่า scanner: ${data.meta.rawGameDate} ให้ตรงกับวันเริ่มเซฟ) - คลิกเพื่อแก้ไข`;
+          dateBadgeEl.title = `วันที่ในเกมที่ยืนยันแล้ว: ${state.gameDate} (scanner อ่านได้ ${data.meta.rawGameDate}) - คลิกเพื่อแก้ไข`;
           dateBadgeEl.style.outline = 'none';
         } else {
           dateBadgeEl.title = `วันที่ในเกม: ${state.gameDate} - คลิกเพื่อแก้ไข`;
@@ -925,7 +925,7 @@ async function loadStatus() {
           dateBadgeEl._boundClick = true;
           dateBadgeEl.style.cursor = 'pointer';
           dateBadgeEl.addEventListener('click', async () => {
-            const defaultPrompt = data.meta?.suggestedGameDate || state.gameDate || '2026-07-13';
+            const defaultPrompt = state.gameDate;
             const input = prompt('ยืนยันหรือระบุวันที่ในเกม FM27 สำหรับรอบนี้ (รูปแบบ YYYY-MM-DD):', defaultPrompt);
             if (!input) return;
             const trimmed = input.trim();
@@ -1393,7 +1393,11 @@ async function triggerScan() {
       const sec = (data.elapsed / 1000).toFixed(1);
       const staffMsg = data.staffCount ? ` และทีมงาน ${sCount} คน` : '';
       const refMsg = data.refCode ? ` [เซฟ: ${data.refCode}]` : '';
-      showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
+      if (data.meta?.requiresDateConfirmation) {
+        showToast('⚠️ โหลดข้อมูลแล้ว คลิกป้ายวันที่เพื่อยืนยันวันที่ในเกมก่อนบันทึกประวัติ');
+      } else {
+        showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
+      }
       await loadStatus();
       await loadPlayers();
       if (el.sectionStaff && el.sectionStaff.style.display !== 'none') {

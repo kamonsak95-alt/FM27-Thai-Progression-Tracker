@@ -286,10 +286,7 @@ function isSnapshotMatchingSave(snapshot, targetKey, store = null) {
  * Requirements:
  * 1. Binds date confirmation to the specific career and scan round (scanId).
  * 2. If already confirmed for this scan round, returns confirmed date.
- * 3. If rawGameDate is the known scanner anomaly (2027-01-29):
- *    - Always flags requiresDateConfirmation = true for new scan rounds.
- *    - Uses career.confirmedGameDate (or 2026-07-13) as suggestedGameDate.
- * 4. Normal reliable dates (e.g. 2026-11-07) do not require confirmation.
+ * 3. Scanner dates are suggestions until the user confirms the scan round.
  */
 function resolveEffectiveGameDate(meta, career = null, store = null) {
   if (!meta || !meta.gameDate) return meta ? meta.gameDate : null;
@@ -322,27 +319,14 @@ function resolveEffectiveGameDate(meta, career = null, store = null) {
     return meta.gameDate;
   }
 
-  // 4. Known scanner phantom date (2027-01-29):
-  // Since FM27 memory points to 2027-01-29 fixture whenever early friendlies aren't scheduled,
-  // the system cannot know autonomously if the game is on 13 July, 14 July, or 29 Jan 2027.
-  // Therefore, any unconfirmed scan round with 2027-01-29 MUST require confirmation!
-  if (rawDate === '2027-01-29') {
-    const suggested = career?.confirmedGameDate || '2026-07-13';
-    meta.suggestedGameDate = suggested;
-    meta.gameDate = suggested; // Default display date in UI
-    meta.gameDateCorrected = (suggested !== rawDate);
-    meta.gameDateConfirmed = false;
-    meta.requiresDateConfirmation = true;
-    meta.dateStatus = 'requires_confirmation';
-    return meta.gameDate;
-  }
-
-  // 5. Normal reliable dates (e.g. 2026-11-07, 2026-11-21, 2026-12-01):
-  meta.gameDate = rawDate;
+  // Reuse the last confirmed date as a suggestion for the known scanner anomaly.
+  const suggested = rawDate === '2027-01-29' ? (career?.confirmedGameDate || rawDate) : rawDate;
+  meta.suggestedGameDate = suggested;
+  meta.gameDate = suggested;
   meta.gameDateCorrected = false;
-  meta.gameDateConfirmed = true;
-  meta.requiresDateConfirmation = false;
-  meta.dateStatus = 'confirmed';
+  meta.gameDateConfirmed = false;
+  meta.requiresDateConfirmation = true;
+  meta.dateStatus = 'requires_confirmation';
   return meta.gameDate;
 }
 

@@ -94,8 +94,10 @@ function serveStatic(req, res, pathname) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const parsedUrl = url.parse(req.url, true);
+  const host = req.headers.host || `localhost:${PORT}`;
+  const parsedUrl = new URL(req.url, `http://${host}`);
   const pathname = parsedUrl.pathname;
+  const query = Object.fromEntries(parsedUrl.searchParams.entries());
 
   // API Endpoints
   if (pathname === '/api/status') {
@@ -273,7 +275,7 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    const baselineDate = parsedUrl.query.baseline || '';
+    const baselineDate = query.baseline || '';
     const refCode = computeSaveRefCode(dump.meta, dump.staff);
     const activeSaveKey = refCode || `${dump.meta?.manager || ''}__${dump.meta?.myClub || ''}`;
     if (baselineDate !== currentBaselineDate || activeSaveKey !== currentSaveKey || !cachedPlayersWithDeltas) {
@@ -308,32 +310,32 @@ const server = http.createServer(async (req, res) => {
     let result = cachedPlayersWithDeltas;
 
     // Filter by name
-    const q = (parsedUrl.query.q || '').trim().toLowerCase();
+    const q = (query.q || '').trim().toLowerCase();
     if (q) {
       result = result.filter(p => p.name && p.name.toLowerCase().includes(q));
     }
 
     // Filter by Age
-    const minAge = parseInt(parsedUrl.query.minAge, 10);
-    const maxAge = parseInt(parsedUrl.query.maxAge, 10);
+    const minAge = parseInt(query.minAge, 10);
+    const maxAge = parseInt(query.maxAge, 10);
     if (!isNaN(minAge)) result = result.filter(p => p.age >= minAge);
     if (!isNaN(maxAge)) result = result.filter(p => p.age <= maxAge);
 
     // Filter by CA
-    const minCA = parseInt(parsedUrl.query.minCA, 10);
-    const maxCA = parseInt(parsedUrl.query.maxCA, 10);
+    const minCA = parseInt(query.minCA, 10);
+    const maxCA = parseInt(query.maxCA, 10);
     if (!isNaN(minCA)) result = result.filter(p => p.ca >= minCA);
     if (!isNaN(maxCA)) result = result.filter(p => p.ca <= maxCA);
 
     // Filter by PA
-    const minPA = parseInt(parsedUrl.query.minPA, 10);
-    const maxPA = parseInt(parsedUrl.query.maxPA, 10);
+    const minPA = parseInt(query.minPA, 10);
+    const maxPA = parseInt(query.maxPA, 10);
     if (!isNaN(minPA)) result = result.filter(p => p.pa >= minPA);
     if (!isNaN(maxPA)) result = result.filter(p => p.pa <= maxPA);
 
     // Filter by Position (Categories or specific positions e.g. DC, AML, ST, MC)
-    const posQuery = (parsedUrl.query.pos || '').trim();
-    const natOnly = parsedUrl.query.natOnly === '1';
+    const posQuery = (query.pos || '').trim();
+    const natOnly = query.natOnly === '1';
     if (posQuery && posQuery !== 'ALL') {
       const selectedPositions = posQuery.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
       if (selectedPositions.length > 0) {
@@ -353,24 +355,24 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Filter by Trend
-    const trendFilter = (parsedUrl.query.trend || '').trim().toLowerCase();
+    const trendFilter = (query.trend || '').trim().toLowerCase();
     if (trendFilter) {
       result = result.filter(p => p.trend && p.trend.code === trendFilter);
     }
 
     // Wonderkids shortcut: age <= 21 and pa >= 150
-    if (parsedUrl.query.wonderkids === '1') {
+    if (query.wonderkids === '1') {
       result = result.filter(p => p.age <= 21 && p.pa >= 150);
     }
 
     // My Club only
-    if (parsedUrl.query.myClub === '1' && dump.meta?.myClub) {
+    if (query.myClub === '1' && dump.meta?.myClub) {
       result = result.filter(p => p.club === dump.meta.myClub);
     }
 
     // Sorting
-    const sortBy = parsedUrl.query.sort || 'growthPercent';
-    const order = parsedUrl.query.order === 'asc' ? 1 : -1;
+    const sortBy = query.sort || 'growthPercent';
+    const order = query.order === 'asc' ? 1 : -1;
 
     result.sort((a, b) => {
       let va = a[sortBy];
@@ -382,8 +384,8 @@ const server = http.createServer(async (req, res) => {
     });
 
     const totalCount = result.length;
-    const page = Math.max(1, parseInt(parsedUrl.query.page, 10) || 1);
-    const limit = Math.min(200, Math.max(10, parseInt(parsedUrl.query.limit, 10) || 50));
+    const page = Math.max(1, parseInt(query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(10, parseInt(query.limit, 10) || 50));
     const offset = (page - 1) * limit;
 
     const paginated = result.slice(offset, offset + limit).map(p => ({
@@ -472,11 +474,12 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    const query = {
-      ...parsedUrl.query,
+    const query = Object.fromEntries(parsedUrl.searchParams.entries());
+    const filterParams = {
+      ...query,
       myClub: dump.meta?.myClub || ''
     };
-    const result = filterStaff(dump.staff, query);
+    const result = filterStaff(dump.staff, filterParams);
     return sendJson(res, 200, {
       meta: dump.meta,
       ...result
@@ -499,6 +502,16 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (require.main === module) {
+  process.on('uncaughtException', (err) => {
+    console.error('[SERVER ERROR] Uncaught exception:', err);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('[SERVER ERROR] Unhandled rejection:', reason);
+  });
+  server.on('error', (err) => {
+    console.error('[SERVER ERROR] HTTP Server error:', err);
+  });
+
   server.listen(PORT, () => {
     console.log(`=======================================================`);
     console.log(`⚽ FM27 Thai Progression Tracker & Scout Tool`);
