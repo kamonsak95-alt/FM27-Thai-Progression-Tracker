@@ -63,10 +63,20 @@ function migrateStore(store) {
     } else if (s.saveKey === '#MU-556432' && !s.careerId) {
       s.careerId = 'career_556432';
     } else if (!s.careerId) {
-      const matchingCareer = store.careers.find(c => c.refCode === s.saveKey || (c.managerName === s.manager && (c.currentClub === s.club || c.initialClub === s.club)));
-      if (matchingCareer) {
-        s.careerId = matchingCareer.id;
-        if (!s.saveKey) s.saveKey = matchingCareer.refCode;
+      if (s.saveKey) {
+        const matchingCareer = store.careers.find(c => c.refCode === s.saveKey || c.id === s.saveKey);
+        if (matchingCareer) s.careerId = matchingCareer.id;
+      } else {
+        const candidates = store.careers.filter(c =>
+          (c.managerName || '').trim().toLowerCase() === (s.manager || '').trim().toLowerCase() &&
+          ((c.currentClub || '').trim().toLowerCase() === (s.club || '').trim().toLowerCase() ||
+           (c.initialClub || '').trim().toLowerCase() === (s.club || '').trim().toLowerCase())
+        );
+        // Only assign if completely unambiguous (exactly 1 candidate). If multiple exist, pause assignment!
+        if (candidates.length === 1) {
+          s.careerId = candidates[0].id;
+          s.saveKey = candidates[0].refCode;
+        }
       }
     }
   }
@@ -169,8 +179,13 @@ function resolveCareer(store, meta = {}, staff = [], explicitRefCode = '') {
       }
       return career;
     } else if (matched.length > 1) {
-      const exactMatch = matched.find(c => c.currentClub === clubName || c.initialClub === clubName);
-      if (exactMatch) return exactMatch;
+      const exactClubMatches = matched.filter(c => c.currentClub === clubName || c.initialClub === clubName);
+      if (exactClubMatches.length === 1) {
+        return exactClubMatches[0];
+      }
+      // If multiple careers share the same manager and club, DO NOT blindly select career 1!
+      // Return null so pairing is paused until confirmed with Manager ID or RefCode.
+      return null;
     }
   }
 
@@ -230,21 +245,30 @@ function isSnapshotMatchingSave(snapshot, targetKey, store = null) {
 
   // Cross check with careers table if available
   if (store && Array.isArray(store.careers)) {
-    const targetCareer = store.careers.find(c =>
-      c.id === targetKey ||
-      c.refCode === targetKey ||
-      (c.managerName && c.currentClub && getSaveKey(c.managerName, c.currentClub) === targetKey) ||
-      (c.managerName && c.initialClub && getSaveKey(c.managerName, c.initialClub) === targetKey) ||
-      (c.managerName && targetKey.startsWith(c.managerName.trim().toLowerCase() + '__'))
-    );
-    if (targetCareer) {
-      if (snapshot.careerId && snapshot.careerId === targetCareer.id) return true;
-      if (snapshot.saveKey && snapshot.saveKey === targetCareer.refCode) return true;
+    const exactCareer = store.careers.find(c => c.id === targetKey || c.refCode === targetKey);
+    if (exactCareer) {
+      if (snapshot.careerId && snapshot.careerId === exactCareer.id) return true;
+      if (snapshot.saveKey && snapshot.saveKey === exactCareer.refCode) return true;
+    } else {
+      // If targetKey is a legacy manager__club string, only match if UNAMBIGUOUS (exactly 1 career)
+      const matchingCareers = store.careers.filter(c =>
+        (c.managerName && c.currentClub && getSaveKey(c.managerName, c.currentClub) === targetKey) ||
+        (c.managerName && c.initialClub && getSaveKey(c.managerName, c.initialClub) === targetKey) ||
+        (c.managerName && targetKey.startsWith((c.managerName || '').trim().toLowerCase() + '__'))
+      );
+      if (matchingCareers.length === 1) {
+        const targetCareer = matchingCareers[0];
+        if (snapshot.careerId && snapshot.careerId === targetCareer.id) return true;
+        if (snapshot.saveKey && snapshot.saveKey === targetCareer.refCode) return true;
+      }
     }
   }
 
-  const legacyKey = getSaveKey(snapshot.manager, snapshot.club);
-  if (legacyKey === targetKey) return true;
+  // Fallback to snapshot's legacyKey ONLY if snapshot itself has no careerId or saveKey
+  if (!snapshot.careerId && !snapshot.saveKey) {
+    const legacyKey = getSaveKey(snapshot.manager, snapshot.club);
+    if (legacyKey === targetKey) return true;
+  }
   return false;
 }
 
@@ -257,6 +281,16 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', 
   const career = resolveCareer(store, { manager, myClub: club }, staff, refCode);
   const saveKey = career ? career.refCode : getSaveKey(manager, club, refCode);
   const careerId = career ? career.id : null;
+
+  // Guard against scanner's phantom date 2027-01-29 on fresh / 2026 saves
+  if (gameDate === '2027-01-29') {
+    const existingSnaps = store.snapshots.filter(s => isSnapshotMatchingSave(s, saveKey, store));
+    const has2026_07 = existingSnaps.some(s => s.gameDate === '2026-07-13');
+    const isDayOneOrFresh = existingSnaps.length === 0 || (existingSnaps.length === 1 && has2026_07);
+    if (isDayOneOrFresh) {
+      gameDate = '2026-07-13';
+    }
+  }
 
   const playerMap = {};
   for (const p of players) {
@@ -330,32 +364,59 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', 
 
 function renameSnapshotDate(oldGameDate, newGameDate, manager = '', club = '', refCode = '', players = null) {
   const store = loadHistoryStore();
-  const targetKey = getSaveKey(manager, club, refCode);
-  const snap = store.snapshots.find(s => s.gameDate === oldGameDate && isSnapshotMatchingSave(s, targetKey, store));
-  if (snap) {
-    snap.gameDate = newGameDate;
-    snap.id = `snap_${newGameDate.replace(/[^0-9]/g, '')}_${Date.now()}`;
-    snap.timestamp = new Date().toISOString();
-    if (players && Array.isArray(players) && players.length > 0) {
-      const playerMap = {};
-      for (const p of players) {
-        if (!p || !p.id || (p.name && (p.name.trim() === '?' || p.name.trim() === ''))) continue;
-        playerMap[String(p.id)] = {
-          ca: p.ca || 0,
-          pa: p.pa || 0,
-          age: p.age || 0,
-          club: p.club || '',
-          pos: p.pos || ''
-        };
-      }
-      snap.players = playerMap;
-      snap.totalPlayers = players.length;
+  const career = resolveCareer(store, { manager, myClub: club }, null, refCode);
+  const targetKey = career ? career.id : getSaveKey(manager, club, refCode);
+
+  const oldSnapIdx = store.snapshots.findIndex(s => s.gameDate === oldGameDate && isSnapshotMatchingSave(s, targetKey, store));
+  if (oldSnapIdx < 0) return null;
+
+  let playerMap = null;
+  if (players && Array.isArray(players) && players.length > 0) {
+    playerMap = {};
+    for (const p of players) {
+      if (!p || !p.id || (p.name && (p.name.trim() === '?' || p.name.trim() === ''))) continue;
+      playerMap[String(p.id)] = {
+        ca: p.ca || 0,
+        pa: p.pa || 0,
+        age: p.age || 0,
+        club: p.club || '',
+        pos: p.pos || ''
+      };
     }
+  }
+
+  // Check if a snapshot for newGameDate already exists for this save
+  const existingTargetIdx = store.snapshots.findIndex(s => s.gameDate === newGameDate && isSnapshotMatchingSave(s, targetKey, store));
+
+  if (existingTargetIdx >= 0 && existingTargetIdx !== oldSnapIdx) {
+    // A snapshot for newGameDate already exists!
+    // Merge: update target snapshot and eliminate the redundant old snapshot so no duplicates exist!
+    const targetSnap = store.snapshots[existingTargetIdx];
+    if (playerMap) {
+      targetSnap.players = playerMap;
+      targetSnap.totalPlayers = players.length;
+    } else if (store.snapshots[oldSnapIdx].players) {
+      targetSnap.players = store.snapshots[oldSnapIdx].players;
+      targetSnap.totalPlayers = store.snapshots[oldSnapIdx].totalPlayers;
+    }
+    targetSnap.timestamp = new Date().toISOString();
+    store.snapshots.splice(oldSnapIdx, 1);
     store.snapshots.sort((a, b) => a.gameDate.localeCompare(b.gameDate));
     saveHistoryStore(store);
-    return snap;
+    return targetSnap;
   }
-  return null;
+
+  const snap = store.snapshots[oldSnapIdx];
+  snap.gameDate = newGameDate;
+  snap.id = `snap_${newGameDate.replace(/[^0-9]/g, '')}_${Date.now()}`;
+  snap.timestamp = new Date().toISOString();
+  if (playerMap) {
+    snap.players = playerMap;
+    snap.totalPlayers = players.length;
+  }
+  store.snapshots.sort((a, b) => a.gameDate.localeCompare(b.gameDate));
+  saveHistoryStore(store);
+  return snap;
 }
 
 function listSnapshots(manager = '', club = '', refCode = '') {
@@ -499,6 +560,7 @@ function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDat
         prevCA: null,
         firstSeenDate: currentGameDate,
         isNew: true,
+        isNewgen: !!p.isNewgen,
         isFirstScan: false
       };
     }
@@ -522,6 +584,7 @@ function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDat
 
 module.exports = {
   loadHistoryStore,
+  saveHistoryStore,
   computeSaveRefCode,
   getSaveKey,
   isSnapshotMatchingSave,

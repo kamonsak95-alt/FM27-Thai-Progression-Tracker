@@ -1097,8 +1097,8 @@ function renderTable(players) {
     if (p.isFirstScan) {
       growthBadge = `<span class="badge badge-growth-neutral text-muted" title="สแกนครั้งแรก (ยังไม่มีประวัติรอบเปรียบเทียบ)">- (รอบแรก)</span>`;
     } else if (p.isNew) {
-      if (p.age && p.age <= 18) {
-        growthBadge = `<span class="badge badge-growth-new" title="เพิ่งพบครั้งแรกในรอบนี้ (เด็กเกิดใหม่ / อคาเดมีอายุ ${p.age} ปี)">👶 เกิดใหม่</span>`;
+      if (p.isNewgen) {
+        growthBadge = `<span class="badge badge-growth-new" title="เพิ่งพบครั้งแรกในรอบนี้ (เด็กเกิดใหม่ / Youth Intake)">👶 เกิดใหม่</span>`;
       } else {
         growthBadge = `<span class="badge badge-growth-neutral" title="เพิ่งพบครั้งแรกในฐานข้อมูล (อายุ ${p.age || '-'} ปี)">🆕 พบครั้งแรก</span>`;
       }

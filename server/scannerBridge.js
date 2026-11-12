@@ -46,6 +46,23 @@ function getScannerStatus() {
 }
 
 /**
+ * Normalizes gameDate from scanner to handle known memory scanner quirks.
+ * On unadvanced / fresh saves in season 2026, the memory scanner reads the winter
+ * transfer deadline (2027-01-29) from SCHED_NEXT_MATCH. This detects and corrects it to 2026-07-13.
+ */
+function normalizeGameDate(meta) {
+  if (!meta || !meta.gameDate) return meta;
+
+  if (meta.gameDate === '2027-01-29' && (meta.gameYear === 2026 || !meta.gameYear)) {
+    meta.gameDate = '2026-07-13';
+    meta.gameDateCorrected = true;
+    meta.gameDateOriginal = '2027-01-29';
+  }
+
+  return meta;
+}
+
+/**
  * Reads the latest dump.json from local AppData
  */
 function getLatestDump() {
@@ -55,6 +72,11 @@ function getLatestDump() {
   try {
     const raw = fs.readFileSync(DUMP_FILE, 'utf8');
     const data = JSON.parse(raw);
+
+    // Normalize gameDate if anomalous
+    if (data.meta) {
+      normalizeGameDate(data.meta);
+    }
 
     // Filter out FM memory stubs / placeholder entities without valid names (name: '?')
     if (Array.isArray(data.players)) {
@@ -139,6 +161,7 @@ module.exports = {
   getScannerStatus,
   getLatestDump,
   runScan,
+  normalizeGameDate,
   SCANNER_EXE,
   DUMP_FILE
 };

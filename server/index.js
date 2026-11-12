@@ -335,6 +335,7 @@ const server = http.createServer(async (req, res) => {
       deltaCA: p.deltaCA,
       growthPercent: p.growthPercent,
       isNew: !!p.isNew,
+      isNewgen: !!p.isNewgen,
       isFirstScan: !!p.isFirstScan,
       firstSeenDate: p.firstSeenDate || null,
       trend: p.trend,
