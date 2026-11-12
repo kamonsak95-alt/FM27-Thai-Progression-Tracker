@@ -1,4 +1,7 @@
 const http = require('node:http');
+const { spawn } = require('node:child_process');
+const { randomUUID } = require('node:crypto');
+const { once } = require('node:events');
 const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
@@ -17,11 +20,15 @@ const {
 } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
+const { stageUpdate, removeStage } = require('./zipInstaller');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
 const { decodeSnapshotAttributes } = require('./snapshotAttributes');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const PROJECT_ROOT = path.dirname(__dirname);
+let zipUpdateInProgress = false;
+let shuttingDownForUpdate = false;
 
 // In-memory cache of current parsed dump
 let cachedDump = null;
@@ -110,6 +117,57 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${host}`);
   const pathname = parsedUrl.pathname;
   const query = Object.fromEntries(parsedUrl.searchParams.entries());
+
+  if (shuttingDownForUpdate) {
+    return sendJson(res, 503, { error: 'Tracker กำลังเปิดใหม่หลังอัปเดต' });
+  }
+
+  if (pathname === '/api/update-state') {
+    return sendJson(res, 200, {
+      updateId: process.env.FM27_UPDATE_ID || null,
+      rolledBack: process.env.FM27_UPDATE_ROLLBACK === '1'
+    });
+  }
+
+  if (pathname === '/api/install-release' && req.method === 'POST') {
+    const localHost = ['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname);
+    const localClient = ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+    if (!localHost || !localClient || req.headers['x-fm27-install'] !== '1' ||
+        (req.headers.origin && req.headers.origin !== parsedUrl.origin)) {
+      return sendJson(res, 403, { error: 'เปิด Tracker บนเครื่องนี้เพื่ออัปเดต' });
+    }
+    if (zipUpdateInProgress) return sendJson(res, 409, { error: 'กำลังติดตั้งอัปเดตอยู่' });
+    zipUpdateInProgress = true;
+    let staging;
+    try {
+      const update = await checkForUpdates();
+      if (!update.canInstall) throw new Error(update.error || 'รุ่นนี้ต้องดาวน์โหลดและติดตั้งด้วยตนเอง');
+      staging = await stageUpdate(PROJECT_ROOT, update);
+      const updateId = randomUUID();
+      const installer = spawn(process.execPath, [
+        path.join(staging, 'installer.js'), PROJECT_ROOT, staging, updateId
+      ], { cwd: PROJECT_ROOT, windowsHide: true, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+      await once(installer, 'spawn');
+      shuttingDownForUpdate = true;
+      res.setHeader('Connection', 'close');
+      res.once('finish', () => {
+        server.close(() => {
+          installer.disconnect();
+          installer.unref();
+          process.exit(0);
+        });
+        server.closeIdleConnections?.();
+      });
+      return sendJson(res, 202, { ok: true, updateId });
+    } catch (error) {
+      zipUpdateInProgress = false;
+      if (staging) {
+        try { removeStage(PROJECT_ROOT, staging); }
+        catch (cleanupError) { console.error(cleanupError); }
+      }
+      return sendJson(res, 500, { error: error.message });
+    }
+  }
 
   // API Endpoints
   if (pathname === '/api/status') {
@@ -504,9 +562,11 @@ if (require.main === module) {
   });
   server.on('error', (err) => {
     console.error('[SERVER ERROR] HTTP Server error:', err);
+    if (process.send) process.exit(1);
   });
 
   server.listen(PORT, () => {
+    if (process.send) process.send('fm27-ready');
     console.log(`=======================================================`);
     console.log(`⚽ FM27 Thai Progression Tracker & Scout Tool`);
     console.log(`🌐 Server running at: http://localhost:${PORT}`);

@@ -1,6 +1,6 @@
 {
   "name": "fm27-thai-tracker",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Football Manager 27 Thai Player Progression Tracker and Scout Tool",
   "main": "server/index.js",
   "scripts": {

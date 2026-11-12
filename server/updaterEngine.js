@@ -64,7 +64,8 @@ async function checkReleaseUpdate(currentVersion, request = fetch) {
     const difference = latest.slice(1).map((part, index) => Number(part) - Number(installed[index + 1])).find(Boolean);
     const hasUpdate = difference > 0;
     const assetUrl = `${RELEASES_URL}/download/${release.tag_name}/FM27-Tracker-Windows-v${latestVersion}.zip`;
-    const downloadUrl = release.assets?.some(asset => asset.browser_download_url === assetUrl)
+    const asset = release.assets?.find(asset => asset.browser_download_url === assetUrl);
+    const downloadUrl = asset
       ? assetUrl
       : `${RELEASES_URL}/tag/${release.tag_name}`;
 
@@ -73,6 +74,12 @@ async function checkReleaseUpdate(currentVersion, request = fetch) {
       hasUpdate,
       latestVersion,
       downloadUrl,
+      canInstall: hasUpdate && process.platform === 'win32' && Boolean(
+        /^sha256:[a-f0-9]{64}$/.test(asset?.digest) &&
+        Number.isSafeInteger(asset?.size) && asset.size > 0
+      ),
+      assetDigest: asset?.digest,
+      assetSize: asset?.size,
       changes: release.name ? [release.name] : [],
       message: hasUpdate ? `FM27 Tracker v${latestVersion} พร้อมดาวน์โหลด` : 'โปรแกรมเป็นเวอร์ชันล่าสุดแล้ว'
     };

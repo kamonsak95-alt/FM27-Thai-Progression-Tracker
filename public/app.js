@@ -1451,6 +1451,12 @@ function showUpdateDownload(link, data) {
   else link.removeAttribute('href');
 }
 
+function showUpdateInstall(button, data) {
+  const visible = data.hasUpdate && (data.isGit || data.canInstall);
+  button.style.display = visible ? 'inline-flex' : 'none';
+  button.textContent = data.canInstall ? 'อัปเดตและเปิดใหม่' : 'อัปเดตทันที';
+}
+
 async function checkForUpdates(silent = false, isCelebration = false) {
   if (!silent && el.btnCheckUpdate) {
     el.btnCheckUpdate.disabled = true;
@@ -1488,7 +1494,7 @@ async function checkForUpdates(silent = false, isCelebration = false) {
       }
       if (data.isGit === false) el.updateDesc.textContent = data.message;
       else el.updateDesc.innerHTML = `ตรวจพบเวอร์ชันใหม่บน GitHub (${latestCommit})${summaryText}`;
-      if (el.btnApplyUpdate) el.btnApplyUpdate.style.display = data.isGit === false ? 'none' : 'inline-flex';
+      showUpdateInstall(el.btnApplyUpdate, data);
       if (el.btnBannerReload) el.btnBannerReload.style.display = 'none';
       el.updateBanner.style.display = 'block';
 
@@ -1588,9 +1594,7 @@ function openChangelogModal(data, isCelebration = false) {
     el.btnChangelogClose.textContent = isCelebration ? '🚀 ยอดเยี่ยม / เข้าใช้งาน' : 'ปิด';
   }
 
-  if (el.btnChangelogApply) {
-    el.btnChangelogApply.style.display = isNew && data.isGit !== false ? 'inline-flex' : 'none';
-  }
+  showUpdateInstall(el.btnChangelogApply, data);
   showUpdateDownload(el.btnChangelogDownload, data);
   if (el.btnChangelogReload) {
     el.btnChangelogReload.style.display = data.isGit !== false && (isUiStale || (!isNew && !isCelebration)) ? 'inline-flex' : 'none';
@@ -1599,8 +1603,42 @@ function openChangelogModal(data, isCelebration = false) {
   el.changelogModal.style.display = 'flex';
 }
 
+async function installZipUpdate() {
+  const buttons = [el.btnApplyUpdate, el.btnChangelogApply];
+  buttons.forEach(button => { button.disabled = true; });
+  el.btnApplyUpdate.textContent = 'กำลังดาวน์โหลดและตรวจไฟล์';
+  showToast('กำลังดาวน์โหลดและตรวจไฟล์อัปเดต');
+  try {
+    const response = await fetch('/api/install-release', {
+      method: 'POST', headers: { 'X-FM27-Install': '1' }
+    });
+    const result = await response.json();
+    if (!response.ok || !result.updateId) throw new Error(result.error || 'เริ่มติดตั้งไม่ได้');
+
+    el.btnApplyUpdate.textContent = 'กำลังเปิด Tracker ใหม่';
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const state = await fetch('/api/update-state', {
+        cache: 'no-store', signal: AbortSignal.timeout(2000)
+      }).then(res => res.json()).catch(() => null);
+      if (state?.updateId !== result.updateId) continue;
+      if (state.rolledBack) throw new Error('รุ่นใหม่เปิดไม่ได้ ระบบคืนไฟล์โปรแกรมเดิมแล้ว');
+      window.location.reload();
+      return;
+    }
+    throw new Error('ยังเชื่อมต่อ Tracker ไม่ได้ กรุณาลองเปิดโปรแกรมจากตัวเปิดเดิม');
+  } catch (error) {
+    showToast(`ติดตั้งอัปเดตไม่สำเร็จ (${error.message})`, true);
+  } finally {
+    buttons.forEach(button => { button.disabled = false; });
+    el.btnApplyUpdate.textContent = 'อัปเดตและเปิดใหม่';
+  }
+}
+
 async function applyUpdate() {
   if (!confirm('ต้องการเริ่มการอัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดทันทีใช่หรือไม่?')) return;
+  if (latestUpdateData?.canInstall) return installZipUpdate();
 
   el.btnApplyUpdate.disabled = true;
   el.btnApplyUpdate.textContent = 'กำลังดาวน์โหลดและอัปเดตไฟล์...';
