@@ -51,6 +51,7 @@
         <span id="update-banner-desc">ตรวจพบเวอร์ชันใหม่บน GitHub</span>
       </div>
       <div class="update-banner-actions">
+        <button id="btn-view-changelog" class="btn btn-secondary btn-sm" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">📋 ดูรายการอัปเดต</button>
         <button id="btn-apply-update" class="btn btn-update">อัปเดตทันที (1-Click Update)</button>
         <button id="btn-dismiss-update" class="btn-icon-close" title="ปิดการแจ้งเตือน">&times;</button>
       </div>
@@ -261,6 +262,34 @@
             <!-- Ambition, Professionalism, etc. -->
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Changelog / Update Details Modal -->
+  <div id="changelog-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="max-width: 620px;">
+      <button class="modal-close" id="changelog-modal-close">&times;</button>
+      
+      <div class="modal-header">
+        <div class="player-avatar" style="font-size: 1.5rem;">📦</div>
+        <div>
+          <h2 class="modal-player-name" style="font-size: 1.25rem;">รายการอัปเดต (What's New)</h2>
+          <div class="text-sm text-muted" id="changelog-meta">ข้อมูลการเปลี่ยนแปลงล่าสุด</div>
+        </div>
+      </div>
+
+      <div class="modal-body" style="padding-top: 0.5rem;">
+        <div class="modal-section">
+          <ul id="changelog-list" class="changelog-list">
+            <!-- Dynamically populated -->
+          </ul>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+        <button id="btn-changelog-close" class="btn btn-secondary">ปิด</button>
+        <button id="btn-changelog-apply" class="btn btn-primary" style="display:none;">🚀 อัปเดตทันที</button>
       </div>
     </div>
   </div>

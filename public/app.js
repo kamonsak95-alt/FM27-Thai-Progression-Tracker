@@ -94,8 +94,17 @@ const el = {
   updateDesc: document.getElementById('update-banner-desc'),
   btnApplyUpdate: document.getElementById('btn-apply-update'),
   btnDismissUpdate: document.getElementById('btn-dismiss-update'),
-  btnCheckUpdate: document.getElementById('btn-check-update')
+  btnCheckUpdate: document.getElementById('btn-check-update'),
+  btnViewChangelog: document.getElementById('btn-view-changelog'),
+  changelogModal: document.getElementById('changelog-modal'),
+  changelogClose: document.getElementById('changelog-modal-close'),
+  btnChangelogClose: document.getElementById('btn-changelog-close'),
+  btnChangelogApply: document.getElementById('btn-changelog-apply'),
+  changelogMeta: document.getElementById('changelog-meta'),
+  changelogList: document.getElementById('changelog-list')
 };
+
+let latestUpdateData = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -236,6 +245,34 @@ function initEventListeners() {
   }
   if (el.btnApplyUpdate) {
     el.btnApplyUpdate.addEventListener('click', applyUpdate);
+  }
+  if (el.btnViewChangelog) {
+    el.btnViewChangelog.addEventListener('click', () => {
+      openChangelogModal(latestUpdateData);
+    });
+  }
+  if (el.changelogClose) {
+    el.changelogClose.addEventListener('click', () => {
+      el.changelogModal.style.display = 'none';
+    });
+  }
+  if (el.btnChangelogClose) {
+    el.btnChangelogClose.addEventListener('click', () => {
+      el.changelogModal.style.display = 'none';
+    });
+  }
+  if (el.btnChangelogApply) {
+    el.btnChangelogApply.addEventListener('click', () => {
+      el.changelogModal.style.display = 'none';
+      applyUpdate();
+    });
+  }
+  if (el.changelogModal) {
+    el.changelogModal.addEventListener('click', (e) => {
+      if (e.target === el.changelogModal) {
+        el.changelogModal.style.display = 'none';
+      }
+    });
   }
 
   // Modal Close
@@ -580,15 +617,21 @@ async function checkForUpdates(silent = false) {
   try {
     const res = await fetch('/api/check-update');
     const data = await res.json();
+    latestUpdateData = data;
 
     if (data.hasUpdate) {
-      el.updateDesc.innerHTML = `ตรวจพบเวอร์ชันใหม่บน GitHub (Commit: <strong>${data.latestCommit}</strong>)!`;
+      const summaryText = data.latestMessage ? `: <strong class="text-white">${escapeHtml(data.latestMessage)}</strong>` : '';
+      el.updateDesc.innerHTML = `ตรวจพบการอัปเดตใหม่บน GitHub${summaryText}`;
       el.updateBanner.style.display = 'block';
-      if (!silent) showToast(`🚀 พบการอัปเดตใหม่บน GitHub! (Commit: ${data.latestCommit})`);
+      if (!silent) {
+        showToast(`🚀 พบการอัปเดตใหม่!`);
+        openChangelogModal(data);
+      }
     } else {
       el.updateBanner.style.display = 'none';
       if (!silent) {
         showToast(data.message || '✅ โปรแกรมของคุณเป็นเวอร์ชันล่าสุดแล้ว');
+        openChangelogModal(data);
       }
     }
   } catch (err) {
@@ -599,6 +642,32 @@ async function checkForUpdates(silent = false) {
       el.btnCheckUpdate.innerHTML = '<span>🔄</span><span>เช็กอัปเดต</span>';
     }
   }
+}
+
+function openChangelogModal(data) {
+  if (!el.changelogModal || !data) return;
+
+  const isNew = data.hasUpdate;
+  const targetCommit = data.latestCommit || data.currentCommit || '-';
+  el.changelogMeta.innerHTML = isNew 
+    ? `มีเวอร์ชันใหม่รอให้อัปเดต &bull; Commit เป้าหมาย: <strong class="text-accent">${targetCommit}</strong>`
+    : `เวอร์ชันปัจจุบัน: v${data.currentVersion || '1.0.0'} &bull; Commit ล่าสุด: <strong class="text-green">${targetCommit}</strong>`;
+
+  if (data.changes && data.changes.length > 0) {
+    el.changelogList.innerHTML = data.changes.map(c => `
+      <li class="changelog-item">
+        <span>${escapeHtml(c)}</span>
+      </li>
+    `).join('');
+  } else {
+    el.changelogList.innerHTML = `<li class="changelog-item text-muted">ไม่มีประวัติการเปลี่ยนแปลงระบุไว้</li>`;
+  }
+
+  if (el.btnChangelogApply) {
+    el.btnChangelogApply.style.display = isNew ? 'inline-flex' : 'none';
+  }
+
+  el.changelogModal.style.display = 'flex';
 }
 
 async function applyUpdate() {

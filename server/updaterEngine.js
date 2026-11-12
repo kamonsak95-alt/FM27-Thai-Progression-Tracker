@@ -31,8 +31,19 @@ async function getLocalCommit() {
   }
 }
 
+function formatCommitMessage(msg) {
+  if (!msg) return '';
+  return msg
+    .replace(/^feat(\(.*\))?:\s*/i, '✨ [ฟีเจอร์ใหม่] ')
+    .replace(/^fix(\(.*\))?:\s*/i, '🐛 [แก้ไขข้อผิดพลาด] ')
+    .replace(/^perf(\(.*\))?:\s*/i, '⚡ [เพิ่มประสิทธิภาพ] ')
+    .replace(/^docs(\(.*\))?:\s*/i, '📝 [เอกสารและเครดิต] ')
+    .replace(/^chore(\(.*\))?:\s*/i, '🔧 [ปรับปรุงระบบ] ')
+    .replace(/^refactor(\(.*\))?:\s*/i, '♻️ [ปรับโครงสร้างโค้ด] ');
+}
+
 /**
- * Checks for updates against the remote repository
+ * Checks for updates against the remote repository and returns changelog/commit details
  */
 async function checkForUpdates() {
   const currentVersion = getLocalVersion();
@@ -45,14 +56,18 @@ async function checkForUpdates() {
       isGit: false,
       currentVersion,
       currentCommit: currentCommit.slice(0, 7),
+      changes: [],
       message: 'โปรแกรมรันในโหมดโฟลเดอร์แบบ Standalone (ไม่มี Git)'
     };
   }
 
   try {
-    // Check remote commit using git ls-remote (fast, read-only network check)
-    const remoteOut = await execPromise('git ls-remote origin main');
-    const remoteCommit = (remoteOut.split(/\s+/)[0] || '').trim();
+    // Fetch remote branch info silently without altering worktree
+    await execPromise('git fetch origin main --quiet');
+
+    // Get remote HEAD
+    const remoteOut = await execPromise('git rev-parse origin/main');
+    const remoteCommit = (remoteOut || '').trim();
 
     if (!remoteCommit) {
       return {
@@ -60,13 +75,26 @@ async function checkForUpdates() {
         isGit: true,
         currentVersion,
         currentCommit: currentCommit.slice(0, 7),
+        changes: [],
         message: 'ไม่พบข้อมูล Branch main บน Remote'
       };
     }
 
     const hasUpdate = remoteCommit !== currentCommit;
-    let updateMessage = hasUpdate 
-      ? 'ตรวจพบเวอร์ชันใหม่บน GitHub!' 
+    let changes = [];
+
+    if (hasUpdate) {
+      const logs = await execPromise('git log HEAD..origin/main --pretty=format:"%s"');
+      changes = logs.split('\n').map(s => s.trim()).filter(Boolean).map(formatCommitMessage);
+    } else {
+      // Return 5 recent installed changes
+      const logs = await execPromise('git log -n 5 --pretty=format:"%s"');
+      changes = logs.split('\n').map(s => s.trim()).filter(Boolean).map(formatCommitMessage);
+    }
+
+    const latestMessage = changes.length > 0 ? changes[0] : 'การปรับปรุงทั่วไป';
+    const updateMessage = hasUpdate 
+      ? `ตรวจพบเวอร์ชันใหม่บน GitHub: ${latestMessage}`
       : 'โปรแกรมเป็นเวอร์ชันล่าสุดแล้ว';
 
     return {
@@ -75,6 +103,8 @@ async function checkForUpdates() {
       currentVersion,
       currentCommit: currentCommit.slice(0, 7),
       latestCommit: remoteCommit.slice(0, 7),
+      latestMessage,
+      changes,
       message: updateMessage
     };
   } catch (err) {
@@ -83,6 +113,7 @@ async function checkForUpdates() {
       isGit: true,
       currentVersion,
       currentCommit: currentCommit.slice(0, 7),
+      changes: [],
       error: `ตรวจสอบอัปเดตไม่สำเร็จ: ${err.message}`
     };
   }
@@ -120,5 +151,6 @@ async function applyUpdate() {
 module.exports = {
   checkForUpdates,
   applyUpdate,
-  getLocalVersion
+  getLocalVersion,
+  formatCommitMessage
 };
