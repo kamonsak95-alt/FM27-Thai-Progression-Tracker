@@ -911,7 +911,7 @@ async function loadStatus() {
     if (el.infoBaseline) {
       if (data.snapshots && data.snapshots.length > 1) {
         const earliest = data.snapshots[0].gameDate;
-        el.infoBaseline.textContent = `${earliest} (วันเริ่มเซฟ)`;
+        el.infoBaseline.textContent = `${earliest} (วันเริ่มบันทึกข้อมูล)`;
       } else if (data.snapshots && data.snapshots.length === 1) {
         el.infoBaseline.textContent = `รอบแรก (${data.snapshots[0].gameDate})`;
       } else {
@@ -1099,15 +1099,15 @@ function renderTable(players) {
     } else if (p.isNew) {
       growthBadge = `<span class="badge badge-growth-new" title="เพิ่งพบครั้งแรกในรอบนี้ (เด็กเกิดใหม่ / สแกนครั้งแรก)">👶 เกิดใหม่</span>`;
     } else if (p.deltaCA > 0) {
-      const originDate = p.firstSeenDate || 'เริ่มเซฟ';
+      const originDate = p.firstSeenDate || 'เริ่มบันทึก';
       const tooltip = `เติบโต +${p.deltaCA} CA ตั้งแต่ ${originDate} (เดิม ${p.prevCA || '-'})`;
       growthBadge = `<span class="badge badge-growth-up" title="${tooltip}">+${p.deltaCA} CA (+${p.growthPercent}%)</span>`;
     } else if (p.deltaCA < 0) {
-      const originDate = p.firstSeenDate || 'เริ่มเซฟ';
+      const originDate = p.firstSeenDate || 'เริ่มบันทึก';
       const tooltip = `ลดลง ${p.deltaCA} CA ตั้งแต่ ${originDate} (เดิม ${p.prevCA || '-'})`;
       growthBadge = `<span class="badge badge-growth-down" title="${tooltip}">${p.deltaCA} CA (${p.growthPercent}%)</span>`;
     } else {
-      const originDate = p.firstSeenDate || 'เริ่มเซฟ';
+      const originDate = p.firstSeenDate || 'เริ่มบันทึก';
       growthBadge = `<span class="badge badge-growth-neutral" title="ค่าพลังคงที่ตั้งแต่ ${originDate}">คงที่ (0 CA)</span>`;
     }
 
