@@ -283,15 +283,16 @@ function isSnapshotMatchingSave(snapshot, targetKey, store = null) {
  * Used identically across Header UI, API /api/players, snapshot saving,
  * First Seen baseline calculation, and player timeline.
  *
- * Requirements:
- * 1. Binds date confirmation to the specific career and scan round (scanId).
- * 2. If already confirmed for this scan round, returns confirmed date.
- * 3. Scanner dates are suggestions until the user confirms the scan round.
+ * Uses the last confirmed date for the career whenever the scanner reports an unreliable date.
+ * No manual confirmation required — displays with a disclaimer in the UI instead.
+ *
+ * gameDateEstimated = true  → scanner date was unreliable; using last confirmed date as best guess.
+ * gameDateEstimated = false → scanner date is accepted as-is.
  */
 function resolveEffectiveGameDate(meta, career = null, store = null) {
   if (!meta || !meta.gameDate) return meta ? meta.gameDate : null;
 
-  // 1. Preserve original scanner date for analysis/auditability
+  // 1. Preserve original scanner date for auditability
   if (!meta.rawGameDate) meta.rawGameDate = meta.gameDate;
   if (meta.gameYear !== undefined && meta.rawGameYear === undefined) {
     meta.rawGameYear = meta.gameYear;
@@ -302,31 +303,46 @@ function resolveEffectiveGameDate(meta, career = null, store = null) {
     meta.scanId = `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  if (!store) {
-    store = loadHistoryStore();
-  }
-
-  if (!career) {
-    career = resolveCareer(store, meta);
-  }
+  if (!store) store = loadHistoryStore();
+  if (!career) career = resolveCareer(store, meta);
 
   const rawDate = meta.rawGameDate || meta.gameDate;
 
-  // 3. If this specific scan round was already explicitly confirmed:
+  // 3. Already resolved for this scan round — keep as-is
   if (meta.gameDateConfirmed === true) {
     meta.requiresDateConfirmation = false;
-    meta.dateStatus = 'confirmed';
+    meta.gameDateEstimated = meta.gameDateEstimated || false;
+    meta.dateStatus = meta.dateStatus || 'confirmed';
     return meta.gameDate;
   }
 
-  // Reuse the last confirmed date as a suggestion for the known scanner anomaly.
-  const suggested = rawDate === '2027-01-29' ? (career?.confirmedGameDate || rawDate) : rawDate;
-  meta.suggestedGameDate = suggested;
-  meta.gameDate = suggested;
+  // 4. Known unreliable scanner date (2027-01-29 phantom during Pre-season):
+  //    Fall back to last confirmed date, or raw date if no history yet.
+  if (rawDate === '2027-01-29') {
+    const fallback = career?.confirmedGameDate || null;
+    meta.gameDate = fallback || rawDate;
+    meta.gameDateEstimated = true;
+    meta.gameDateCorrected = !!fallback;
+    meta.gameDateConfirmed = true;
+    meta.requiresDateConfirmation = false;
+    meta.dateStatus = fallback ? 'estimated' : 'estimated_no_history';
+    return meta.gameDate;
+  }
+
+  // 5. Normal reliable date — accept as confirmed and update career's last known date
+  meta.gameDate = rawDate;
+  meta.gameDateEstimated = false;
   meta.gameDateCorrected = false;
-  meta.gameDateConfirmed = false;
-  meta.requiresDateConfirmation = true;
-  meta.dateStatus = 'requires_confirmation';
+  meta.gameDateConfirmed = true;
+  meta.requiresDateConfirmation = false;
+  meta.dateStatus = 'confirmed';
+
+  if (career) {
+    career.confirmedGameDate = rawDate;
+    career.updatedAt = new Date().toISOString();
+    saveHistoryStore(store);
+  }
+
   return meta.gameDate;
 }
 

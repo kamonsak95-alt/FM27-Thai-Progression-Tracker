@@ -32,8 +32,8 @@ function getOrLoadDump() {
       cachedDump.meta.scanId = cachedDump.meta.scanId || `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       syncDumpWithCareer(cachedDump);
     }
-    // Only auto-save snapshot if date does NOT require confirmation
-    if (cachedDump?.meta?.gameDate && cachedDump?.players && !cachedDump?.meta?.requiresDateConfirmation) {
+    // Auto-save snapshot whenever we have valid data (no manual confirmation needed)
+    if (cachedDump?.meta?.gameDate && cachedDump?.players) {
       const refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
       saveSnapshot(
         cachedDump.meta.gameDate,
@@ -146,8 +146,8 @@ const server = http.createServer(async (req, res) => {
           cachedDump.meta.gameDateConfirmed = false;
           syncDumpWithCareer(cachedDump);
         }
-        // Only auto-save snapshot if date does NOT require confirmation
-        if (cachedDump?.meta?.gameDate && cachedDump?.players && !cachedDump?.meta?.requiresDateConfirmation) {
+        // Auto-save snapshot after every scan (no manual confirmation needed)
+        if (cachedDump?.meta?.gameDate && cachedDump?.players) {
           refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
           saveSnapshot(
             cachedDump.meta.gameDate,

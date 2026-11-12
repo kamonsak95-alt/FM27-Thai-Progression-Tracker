@@ -899,34 +899,42 @@ async function loadStatus() {
       state.scanId = data.meta.scanId || '';
       state.refCode = data.refCode || '';
       el.infoClub.textContent = state.myClub;
-      if (data.meta.requiresDateConfirmation) {
-        el.infoDate.textContent = `${state.gameDate || data.meta.suggestedGameDate || '-'} (⚠️ รอยืนยัน)`;
-      } else {
-        el.infoDate.textContent = state.gameDate || '-';
-      }
+      el.infoDate.textContent = state.gameDate || 'ไม่ทราบวันที่';
       if (el.infoManager) {
         el.infoManager.textContent = data.meta.manager || 'ไม่ระบุ';
       }
 
       const dateBadgeEl = document.getElementById('date-badge');
+      const disclaimerEl = document.getElementById('date-disclaimer');
       if (dateBadgeEl) {
-        if (data.meta.requiresDateConfirmation) {
-          dateBadgeEl.title = `⚠️ วันที่จาก scanner (${data.meta.rawGameDate || state.gameDate}) รอยืนยันสำหรับรอบสแกนนี้ - คลิกแล้วกรอกวันที่จากหน้าจอ FM27`;
-          dateBadgeEl.style.outline = '2px dashed #f59e0b';
-        } else if (data.meta.gameDateCorrected) {
-          dateBadgeEl.title = `วันที่ในเกมที่ยืนยันแล้ว: ${state.gameDate} (scanner อ่านได้ ${data.meta.rawGameDate}) - คลิกเพื่อแก้ไข`;
-          dateBadgeEl.style.outline = 'none';
-        } else {
-          dateBadgeEl.title = `วันที่ในเกม: ${state.gameDate} - คลิกเพื่อแก้ไข`;
-          dateBadgeEl.style.outline = 'none';
+        const isEstimated = data.meta.gameDateEstimated === true;
+        const noHistory = data.meta.dateStatus === 'estimated_no_history';
+
+        // Show/hide disclaimer icon
+        if (disclaimerEl) {
+          if (isEstimated) {
+            disclaimerEl.style.display = 'inline';
+            if (noHistory) {
+              disclaimerEl.title = 'วันที่ที่ Tracker อ่านได้จาก FM27 ล่าสุด อาจไม่ตรงกับวันจริงในเกมเนื่องจากข้อจำกัดในการตรวจสอบวันที่ (ยังไม่มีวันที่ยืนยันก่อนหน้า — ลองกดโหลดข้อมูลหลังจากเกมเริ่มซีซันจริง)';
+            } else {
+              disclaimerEl.title = 'วันที่ที่ Tracker อ่านได้จาก FM27 ล่าสุด อาจไม่ตรงกับวันจริงในเกมเนื่องจากข้อจำกัดในการตรวจสอบวันที่';
+            }
+          } else {
+            disclaimerEl.style.display = 'none';
+          }
         }
+
+        dateBadgeEl.style.outline = 'none';
+        dateBadgeEl.title = isEstimated
+          ? `วันที่ยืนยันได้ล่าสุด: ${state.gameDate} — คลิกเพื่อแก้ไขหากรู้ว่าเกมเดินไปแล้ว`
+          : `วันที่ในเกม: ${state.gameDate} — คลิกเพื่อแก้ไข`;
 
         if (!dateBadgeEl._boundClick) {
           dateBadgeEl._boundClick = true;
           dateBadgeEl.style.cursor = 'pointer';
           dateBadgeEl.addEventListener('click', async () => {
             const defaultPrompt = state.gameDate;
-            const input = prompt('ยืนยันหรือระบุวันที่ในเกม FM27 สำหรับรอบนี้ (รูปแบบ YYYY-MM-DD):', defaultPrompt);
+            const input = prompt('ระบุวันที่ในเกม FM27 (รูปแบบ YYYY-MM-DD)\nดูจากมุมบนซ้ายของหน้าจอเกม:', defaultPrompt);
             if (!input) return;
             const trimmed = input.trim();
             if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -945,11 +953,11 @@ async function loadStatus() {
               });
               const result = await res.json();
               if (res.ok && result.ok) {
-                showToast(`✅ ยืนยันวันที่ในเกมเป็น ${trimmed} และบันทึกประวัติเรียบร้อยแล้ว`);
+                showToast(`✅ อัปเดตวันที่เป็น ${trimmed} และบันทึกประวัติเรียบร้อยแล้ว`);
                 await loadStatus();
                 await loadPlayers();
               } else {
-                showToast(`❌ ${result.message || result.error || 'ไม่สามารถยืนยันวันที่ได้'}`, true);
+                showToast(`❌ ${result.message || result.error || 'ไม่สามารถอัปเดตวันที่ได้'}`, true);
               }
             } catch (err) {
               showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, true);
@@ -1393,11 +1401,7 @@ async function triggerScan() {
       const sec = (data.elapsed / 1000).toFixed(1);
       const staffMsg = data.staffCount ? ` และทีมงาน ${sCount} คน` : '';
       const refMsg = data.refCode ? ` [เซฟ: ${data.refCode}]` : '';
-      if (data.meta?.requiresDateConfirmation) {
-        showToast('⚠️ โหลดข้อมูลแล้ว คลิกป้ายวันที่เพื่อยืนยันวันที่ในเกมก่อนบันทึกประวัติ');
-      } else {
-        showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
-      }
+      showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
       await loadStatus();
       await loadPlayers();
       if (el.sectionStaff && el.sectionStaff.style.display !== 'none') {

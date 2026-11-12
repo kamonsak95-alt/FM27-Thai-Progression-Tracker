@@ -404,7 +404,7 @@ test('P1 Regression: ambiguous careers without Manager ID are paused and never f
   }
 });
 
-test('P1 Regression Case 1: rescan on same day + user confirms 2026-07-13 leaves exactly 1 snapshot', () => {
+test('P1 Regression Case 1: rescan on same day — Tracker auto-uses last confirmed date, leaves exactly 1 snapshot', () => {
   const tempFile = path.join(os.tmpdir(), `fm27_test_case1_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
   process.env.FM27_HISTORY_FILE = tempFile;
 
@@ -414,6 +414,7 @@ test('P1 Regression Case 1: rescan on same day + user confirms 2026-07-13 leaves
       resolveCareer,
       resolveEffectiveGameDate,
       confirmScanRoundDate,
+      saveSnapshot,
       listSnapshots,
       calculateFirstSeenDeltas
     } = require('../server/historyEngine');
@@ -426,7 +427,7 @@ test('P1 Regression Case 1: rescan on same day + user confirms 2026-07-13 leaves
       { id: 92091170, name: 'Matthias Köbbing', ca: 85, pa: 100 }
     ];
 
-    // Scan Round 1: Day 1 (13 July 2026) - scanner returns 2027-01-29 with gameYear: 2027
+    // Scan Round 1: Day 1 (13 July 2026) — scanner returns phantom 2027-01-29, no prior confirmed date
     const scan1Meta = {
       gameDate: '2027-01-29',
       gameYear: 2027,
@@ -435,16 +436,18 @@ test('P1 Regression Case 1: rescan on same day + user confirms 2026-07-13 leaves
       myClub: 'Manchester United'
     };
     resolveEffectiveGameDate(scan1Meta, career, store);
-    assert.strictEqual(scan1Meta.requiresDateConfirmation, true, 'Round 1 must require date confirmation');
-    assert.strictEqual(scan1Meta.suggestedGameDate, '2027-01-29');
+    // New behavior: no manual confirmation required. Date is estimated (falls back to raw since no history yet).
+    assert.strictEqual(scan1Meta.requiresDateConfirmation, false, 'No manual confirmation needed');
+    assert.strictEqual(scan1Meta.gameDateEstimated, true, 'Must flag as estimated');
+    assert.strictEqual(scan1Meta.gameDateConfirmed, true, 'Must be auto-confirmed');
 
-    // User confirms 13 July 2026
+    // User manually overrides to 13 July 2026 (optional click-to-edit)
     confirmScanRoundDate(store, scan1Meta, '2026-07-13', players, staff, '#MU-556432');
     let snaps = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
     assert.strictEqual(snaps.length, 1);
     assert.strictEqual(snaps[0].gameDate, '2026-07-13');
 
-    // Scan Round 2: Rescan on same day without advancing, scanner emits same payload
+    // Scan Round 2: Rescan same day — scanner still emits 2027-01-29, career now has confirmedGameDate=2026-07-13
     const scan2Meta = {
       gameDate: '2027-01-29',
       gameYear: 2027,
@@ -453,12 +456,15 @@ test('P1 Regression Case 1: rescan on same day + user confirms 2026-07-13 leaves
       myClub: 'Manchester United'
     };
     const updatedStore = loadHistoryStore();
-    resolveEffectiveGameDate(scan2Meta, updatedStore.careers.find(c => c.id === career.id), updatedStore);
-    assert.strictEqual(scan2Meta.requiresDateConfirmation, true, 'Rescan must require confirmation again for the new scan round');
-    assert.strictEqual(scan2Meta.suggestedGameDate, '2026-07-13');
+    const updatedCareer = updatedStore.careers.find(c => c.id === career.id);
+    resolveEffectiveGameDate(scan2Meta, updatedCareer, updatedStore);
+    // Now has confirmedGameDate, so falls back to 2026-07-13 automatically
+    assert.strictEqual(scan2Meta.requiresDateConfirmation, false);
+    assert.strictEqual(scan2Meta.gameDateEstimated, true);
+    assert.strictEqual(scan2Meta.gameDate, '2026-07-13', 'Must auto-use last confirmed date');
 
-    // User confirms 13 July 2026 again
-    confirmScanRoundDate(store, scan2Meta, '2026-07-13', players, staff, '#MU-556432');
+    // Auto-save with the estimated date — same day same CA → no duplicate
+    saveSnapshot('2026-07-13', players, 'MY Mind', 'Manchester United', '#MU-556432', staff);
     snaps = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
     assert.strictEqual(snaps.length, 1, 'Must still have exactly 1 snapshot at 2026-07-13 after rescan');
     assert.strictEqual(snaps[0].gameDate, '2026-07-13');
@@ -475,7 +481,7 @@ test('P1 Regression Case 1: rescan on same day + user confirms 2026-07-13 leaves
   }
 });
 
-test('P1 Regression Case 2: a scan reporting 14 July waits for confirmation of 16 July and preserves 13 July', () => {
+test('P1 Regression Case 2: game advances to new day — Tracker auto-uses last confirmed date, then override saves correctly', () => {
   const tempFile = path.join(os.tmpdir(), `fm27_test_case2_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
   process.env.FM27_HISTORY_FILE = tempFile;
 
@@ -496,7 +502,7 @@ test('P1 Regression Case 2: a scan reporting 14 July waits for confirmation of 1
       { id: 2000508789, name: 'Omari Zion', ca: 55, pa: 160 }
     ];
 
-    // Day 1 (13 July 2026) is confirmed and recorded
+    // Day 1 (13 July 2026): scanner returns phantom 2027-01-29, user manually overrides to 13 July
     const scan1 = { gameDate: '2027-01-29', gameYear: 2027, manager: 'MY Mind', myClub: 'Manchester United' };
     resolveEffectiveGameDate(scan1, career, store);
     confirmScanRoundDate(store, scan1, '2026-07-13', playersDay1, staff, '#MU-556432');
@@ -505,30 +511,28 @@ test('P1 Regression Case 2: a scan reporting 14 July waits for confirmation of 1
     assert.strictEqual(snaps.length, 1);
     assert.strictEqual(snaps[0].gameDate, '2026-07-13');
 
-    // FM27 is on 16 July, but the scanner reports 14 July.
+    // Day 2: game is on 16 July. Scanner still reports phantom 2027-01-29.
+    // career.confirmedGameDate is now 2026-07-13, so Tracker auto-falls back to it.
     const playersDay2 = [
       { id: 2000508789, name: 'Omari Zion', ca: 56, pa: 160 } // CA improved by 1!
     ];
-    const scan2 = { gameDate: '2026-07-14', gameYear: 2026, gameDateSource: 'memory', manager: 'MY Mind', myClub: 'Manchester United' };
-    resolveEffectiveGameDate(scan2, career, store);
+    const scan2 = { gameDate: '2027-01-29', gameYear: 2027, gameDateSource: 'memory', manager: 'MY Mind', myClub: 'Manchester United' };
+    const updatedStore = loadHistoryStore();
+    const updatedCareer = updatedStore.careers.find(c => c.id === career.id);
+    resolveEffectiveGameDate(scan2, updatedCareer, updatedStore);
 
-    // 1. Before Confirmation:
-    assert.strictEqual(scan2.requiresDateConfirmation, true, 'New scan round must require confirmation');
-    assert.strictEqual(scan2.suggestedGameDate, '2026-07-14');
-    assert.strictEqual(scan2.rawGameDate, '2026-07-14');
-    // Crucial: Snapshot writing is paused before confirmation!
-    snaps = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
-    assert.strictEqual(snaps.length, 1, 'Before confirmation: history file must NOT change');
-    assert.strictEqual(snaps[0].gameDate, '2026-07-13');
+    assert.strictEqual(scan2.requiresDateConfirmation, false, 'No manual confirmation in new flow');
+    assert.strictEqual(scan2.gameDateEstimated, true, 'Must be flagged as estimated');
+    assert.strictEqual(scan2.gameDate, '2026-07-13', 'Auto falls back to last confirmed date');
 
-    // 2. After the user confirms 16 July:
-    confirmScanRoundDate(store, scan2, '2026-07-16', playersDay2, staff, '#MU-556432');
+    // User notices and manually overrides to 16 July via click-to-edit
+    confirmScanRoundDate(updatedStore, scan2, '2026-07-16', playersDay2, staff, '#MU-556432');
     assert.strictEqual(scan2.gameDate, '2026-07-16');
     assert.strictEqual(scan2.gameDateConfirmed, true);
     assert.strictEqual(scan2.requiresDateConfirmation, false);
 
     snaps = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
-    assert.strictEqual(snaps.length, 2, 'After confirmation: must have 2 snapshots');
+    assert.strictEqual(snaps.length, 2, 'After override: must have 2 snapshots');
     assert.strictEqual(snaps[0].gameDate, '2026-07-13', '13 July snapshot must be preserved');
     assert.strictEqual(snaps[1].gameDate, '2026-07-16', '16 July snapshot must be added');
 
@@ -546,7 +550,7 @@ test('P1 Regression Case 2: a scan reporting 14 July waits for confirmation of 1
   }
 });
 
-test('P1 Regression Case 3: same career genuinely reaches 29 Jan 2027: user confirms 29 Jan 2027 and saves snapshot', () => {
+test('P1 Regression Case 3: same career genuinely reaches 29 Jan 2027 — auto-saves with estimated flag, manual override saves correctly', () => {
   const tempFile = path.join(os.tmpdir(), `fm27_test_case3_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
   process.env.FM27_HISTORY_FILE = tempFile;
 
@@ -556,6 +560,7 @@ test('P1 Regression Case 3: same career genuinely reaches 29 Jan 2027: user conf
       resolveCareer,
       resolveEffectiveGameDate,
       confirmScanRoundDate,
+      saveSnapshot,
       listSnapshots
     } = require('../server/historyEngine');
 
@@ -563,12 +568,24 @@ test('P1 Regression Case 3: same career genuinely reaches 29 Jan 2027: user conf
     const staff = [{ name: 'MY Mind', job: 'Manager', id: 2002084795 }];
     const career = resolveCareer(store, { manager: 'MY Mind', myClub: 'Manchester United' }, staff, '#MU-556432');
 
-    // Initial snapshot at 13 July 2026
+    // Initial snapshot at 13 July 2026 (manual override after phantom date)
     const scan1 = { gameDate: '2027-01-29', gameYear: 2027, manager: 'MY Mind', myClub: 'Manchester United' };
     resolveEffectiveGameDate(scan1, career, store);
     confirmScanRoundDate(store, scan1, '2026-07-13', [{ id: 1, name: 'Player A', ca: 100 }], staff, '#MU-556432');
 
-    // Months later, save genuinely reaches 2027-01-29
+    // Months pass: career gets a regular scan at a known reliable date (2026-11-01)
+    // This must go through resolveEffectiveGameDate to update confirmedGameDate
+    const scanNov = { gameDate: '2026-11-01', gameDateSource: 'memory', manager: 'MY Mind', myClub: 'Manchester United' };
+    const storeAfterJuly = loadHistoryStore();
+    const careerAfterJuly = storeAfterJuly.careers.find(c => c.id === career.id);
+    resolveEffectiveGameDate(scanNov, careerAfterJuly, storeAfterJuly);
+    // scanNov.gameDate should be '2026-11-01' (reliable) and confirmedGameDate updated
+    assert.strictEqual(scanNov.gameDate, '2026-11-01');
+    assert.strictEqual(scanNov.gameDateEstimated, false);
+    saveSnapshot('2026-11-01', [{ id: 1, name: 'Player A', ca: 105 }], 'MY Mind', 'Manchester United', '#MU-556432', staff);
+
+    // Now game genuinely reaches 2027-01-29. Scanner still emits '2027-01-29'.
+    // career.confirmedGameDate is '2026-11-01' (last good date). Tracker auto-falls back to it.
     const scanJan2027 = {
       gameDate: '2027-01-29',
       gameYear: 2027,
@@ -576,17 +593,22 @@ test('P1 Regression Case 3: same career genuinely reaches 29 Jan 2027: user conf
       manager: 'MY Mind',
       myClub: 'Manchester United'
     };
-    resolveEffectiveGameDate(scanJan2027, career, store);
-    assert.strictEqual(scanJan2027.requiresDateConfirmation, true);
+    const updatedStore = loadHistoryStore();
+    const updatedCareer = updatedStore.careers.find(c => c.id === career.id);
+    resolveEffectiveGameDate(scanJan2027, updatedCareer, updatedStore);
 
-    // User confirms 2027-01-29
-    confirmScanRoundDate(store, scanJan2027, '2027-01-29', [{ id: 1, name: 'Player A', ca: 110 }], staff, '#MU-556432');
+    assert.strictEqual(scanJan2027.requiresDateConfirmation, false, 'No manual confirmation needed in new flow');
+    assert.strictEqual(scanJan2027.gameDateEstimated, true, 'Must be flagged as estimated');
+    assert.strictEqual(scanJan2027.gameDate, '2026-11-01', 'Auto falls back to last confirmed date');
+
+    // User notices it is now genuinely 2027-01-29, manually corrects via click-to-edit
+    confirmScanRoundDate(updatedStore, scanJan2027, '2027-01-29', [{ id: 1, name: 'Player A', ca: 110 }], staff, '#MU-556432');
     assert.strictEqual(scanJan2027.gameDate, '2027-01-29');
 
     const snaps = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
-    assert.strictEqual(snaps.length, 2);
-    assert.strictEqual(snaps[0].gameDate, '2026-07-13');
-    assert.strictEqual(snaps[1].gameDate, '2027-01-29', 'Snapshot for 2027-01-29 must be recorded');
+    assert.ok(snaps.length >= 2, 'Must have at least 2 snapshots');
+    assert.ok(snaps.some(s => s.gameDate === '2026-07-13'), 'Original 13 July snapshot must be preserved');
+    assert.ok(snaps.some(s => s.gameDate === '2027-01-29'), 'Snapshot for 2027-01-29 must be recorded');
   } finally {
     if (fs.existsSync(tempFile)) {
       try { fs.unlinkSync(tempFile); } catch {}
@@ -690,7 +712,7 @@ test('P1 Regression Case 4: rescan or save switch before confirmation rejects ol
   }
 });
 
-test('P1 Regression Control Case 1: legitimate 2027-01-29 with gameYear: 2027 is confirmed and preserved', () => {
+test('P1 Regression Control Case 1: career with prior history — scanner phantom date auto-uses last confirmed, manual override to 2027-01-29 preserved', () => {
   const tempFile = path.join(os.tmpdir(), `fm27_test_control_2027_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
   process.env.FM27_HISTORY_FILE = tempFile;
 
@@ -708,10 +730,12 @@ test('P1 Regression Control Case 1: legitimate 2027-01-29 with gameYear: 2027 is
     const staff = [{ name: 'Alex Ferguson', job: 'Manager', id: 10001 }];
     const career = resolveCareer(store, { manager: 'Alex Ferguson', myClub: 'Aberdeen' }, staff, '#AB-010001');
 
-    // Simulate career that progressed to 2026-11-15 earlier
+    // Career has a prior scan at 2026-11-15 (reliable date) — goes through resolveEffectiveGameDate to update confirmedGameDate
+    const scanNov15 = { gameDate: '2026-11-15', gameDateSource: 'memory', manager: 'Alex Ferguson', myClub: 'Aberdeen' };
+    resolveEffectiveGameDate(scanNov15, career, store);
     saveSnapshot('2026-11-15', [{ id: 1, name: 'Player 1', ca: 100 }], 'Alex Ferguson', 'Aberdeen', '#AB-010001', staff);
 
-    // Now game genuinely advances to 2027-01-29
+    // Scanner emits 2027-01-29 — Tracker auto-falls back to last confirmed date (2026-11-15)
     const payload = {
       gameDate: '2027-01-29',
       gameYear: 2027,
@@ -720,11 +744,16 @@ test('P1 Regression Control Case 1: legitimate 2027-01-29 with gameYear: 2027 is
       myClub: 'Aberdeen'
     };
 
-    resolveEffectiveGameDate(payload, career, store);
-    assert.strictEqual(payload.requiresDateConfirmation, true);
+    const updatedStore = loadHistoryStore();
+    const updatedCareer = updatedStore.careers.find(c => c.id === career.id);
+    resolveEffectiveGameDate(payload, updatedCareer, updatedStore);
+    assert.strictEqual(payload.requiresDateConfirmation, false, 'No manual confirmation required');
+    assert.strictEqual(payload.gameDateEstimated, true, 'Must be flagged estimated');
+    assert.strictEqual(payload.gameDate, '2026-11-15', 'Auto falls back to last confirmed date');
 
-    confirmScanRoundDate(store, payload, '2027-01-29', [{ id: 1, name: 'Player 1', ca: 105 }], staff, '#AB-010001');
-    assert.strictEqual(payload.gameDate, '2027-01-29', 'Legitimate 2027-01-29 must NOT be pulled back to 2026');
+    // User manually overrides to confirm it really is 2027-01-29
+    confirmScanRoundDate(updatedStore, payload, '2027-01-29', [{ id: 1, name: 'Player 1', ca: 105 }], staff, '#AB-010001');
+    assert.strictEqual(payload.gameDate, '2027-01-29', 'Manual override must set 2027-01-29');
 
     const snaps = listSnapshots('Alex Ferguson', 'Aberdeen', '#AB-010001');
     assert.strictEqual(snaps.length, 2);
@@ -738,7 +767,7 @@ test('P1 Regression Control Case 1: legitimate 2027-01-29 with gameYear: 2027 is
   }
 });
 
-test('P1 Regression Control Case 2: legitimate 2027-01-29 without gameYear is confirmed and preserved', () => {
+test('P1 Regression Control Case 2: phantom date without prior history — auto-uses raw date and can be overridden', () => {
   const tempFile = path.join(os.tmpdir(), `fm27_test_control_noyear_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
   process.env.FM27_HISTORY_FILE = tempFile;
 
@@ -756,10 +785,12 @@ test('P1 Regression Control Case 2: legitimate 2027-01-29 without gameYear is co
     const staff = [{ name: 'Pep Guardiola', job: 'Manager', id: 20002 }];
     const career = resolveCareer(store, { manager: 'Pep Guardiola', myClub: 'Manchester City' }, staff, '#MC-020002');
 
-    // Simulate career with previous history in 2026
+    // Career has prior scan at 2026-10-01 (reliable) — through resolveEffectiveGameDate to update confirmedGameDate
+    const scanOct = { gameDate: '2026-10-01', gameDateSource: 'memory', manager: 'Pep Guardiola', myClub: 'Manchester City' };
+    resolveEffectiveGameDate(scanOct, career, store);
     saveSnapshot('2026-10-01', [{ id: 2, name: 'Rodri', ca: 180 }], 'Pep Guardiola', 'Manchester City', '#MC-020002', staff);
 
-    // Legitimate 2027-01-29 without gameYear property
+    // Scanner emits 2027-01-29 without gameYear — Tracker auto-falls back to 2026-10-01
     const payload = {
       gameDate: '2027-01-29',
       gameDateSource: 'memory',
@@ -767,11 +798,16 @@ test('P1 Regression Control Case 2: legitimate 2027-01-29 without gameYear is co
       myClub: 'Manchester City'
     };
 
-    resolveEffectiveGameDate(payload, career, store);
-    assert.strictEqual(payload.requiresDateConfirmation, true);
+    const updatedStore = loadHistoryStore();
+    const updatedCareer = updatedStore.careers.find(c => c.id === career.id);
+    resolveEffectiveGameDate(payload, updatedCareer, updatedStore);
+    assert.strictEqual(payload.requiresDateConfirmation, false);
+    assert.strictEqual(payload.gameDateEstimated, true);
+    assert.strictEqual(payload.gameDate, '2026-10-01', 'Auto falls back to last confirmed date');
 
-    confirmScanRoundDate(store, payload, '2027-01-29', [{ id: 2, name: 'Rodri', ca: 182 }], staff, '#MC-020002');
-    assert.strictEqual(payload.gameDate, '2027-01-29', 'Legitimate 2027-01-29 without gameYear must NOT be pulled back to 2026');
+    // User manually overrides to confirm it really is 2027-01-29
+    confirmScanRoundDate(updatedStore, payload, '2027-01-29', [{ id: 2, name: 'Rodri', ca: 182 }], staff, '#MC-020002');
+    assert.strictEqual(payload.gameDate, '2027-01-29', 'Must accept manual override to 2027-01-29');
 
     const snaps = listSnapshots('Pep Guardiola', 'Manchester City', '#MC-020002');
     assert.strictEqual(snaps.length, 2);
