@@ -24,7 +24,11 @@ function loadHistoryStore() {
 
 function saveHistoryStore(store) {
   ensureDataDir();
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(store, null, 2), 'utf8');
+  try {
+    fs.writeFileSync(HISTORY_FILE, JSON.stringify(store, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Warning: could not write history store:', err.message);
+  }
 }
 
 /**
