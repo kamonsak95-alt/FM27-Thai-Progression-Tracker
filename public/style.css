@@ -121,9 +121,24 @@ body {
 
 .header-status {
   display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.header-action-row,
+.header-career-row {
+  display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
+}
+
+@media (max-width: 930px) {
+  .header-status {
+    width: 100%;
+    align-items: flex-start;
+  }
 }
 
 .info-pill {

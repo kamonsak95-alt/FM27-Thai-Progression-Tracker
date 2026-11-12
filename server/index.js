@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
-const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore, computeSaveRefCode } = require('./historyEngine');
+const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore, computeSaveRefCode, renameSnapshotDate } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
@@ -28,7 +28,8 @@ function getOrLoadDump() {
         cachedDump.players,
         cachedDump.meta.manager,
         cachedDump.meta.myClub,
-        refCode
+        refCode,
+        cachedDump.staff
       );
     }
   }
@@ -132,7 +133,8 @@ const server = http.createServer(async (req, res) => {
             cachedDump.players,
             cachedDump.meta.manager,
             cachedDump.meta.myClub,
-            refCode
+            refCode,
+            cachedDump.staff
           );
         }
       }
@@ -158,12 +160,15 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       try {
-        const { gameDate } = JSON.parse(body || '{}');
+        const { gameDate, oldDate } = JSON.parse(body || '{}');
         if (!gameDate) return sendJson(res, 400, { ok: false, error: 'Missing gameDate' });
         const dump = getOrLoadDump();
         if (dump && dump.meta) {
+          const oldGameDate = oldDate || dump.meta.gameDate;
           dump.meta.gameDate = gameDate;
-          saveSnapshot(gameDate, dump.players, dump.meta.manager, dump.meta.myClub);
+          const refCode = computeSaveRefCode(dump.meta, dump.staff);
+          renameSnapshotDate(oldGameDate, gameDate, dump.meta.manager, dump.meta.myClub, refCode, dump.players);
+          cachedPlayersWithDeltas = null;
         }
         sendJson(res, 200, { ok: true, gameDate });
       } catch (e) {
@@ -329,7 +334,9 @@ const server = http.createServer(async (req, res) => {
       prevCA: p.prevCA,
       deltaCA: p.deltaCA,
       growthPercent: p.growthPercent,
-      isNew: p.isNew,
+      isNew: !!p.isNew,
+      isFirstScan: !!p.isFirstScan,
+      firstSeenDate: p.firstSeenDate || null,
       trend: p.trend,
       trendScore: p.trendScore,
       value: p.value,
@@ -360,8 +367,10 @@ const server = http.createServer(async (req, res) => {
     const store = require('./historyEngine');
     const refCode = dump?.meta ? store.computeSaveRefCode(dump.meta, dump.staff) : null;
     const allSnaps = store.listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode);
+    const currentGameDate = dump?.meta?.gameDate || '9999-99-99';
     const historyPoints = [];
     for (const snapInfo of allSnaps) {
+      if (snapInfo.gameDate > currentGameDate) continue;
       const snapData = store.getSnapshot(snapInfo.gameDate, dump?.meta?.manager, dump?.meta?.myClub, refCode);
       if (snapData && snapData.players[String(id)]) {
         historyPoints.push({

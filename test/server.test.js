@@ -29,6 +29,9 @@ test('Server responds to /api/status and /api/players', async () => {
     assert.ok(Array.isArray(playersRes.body.players));
     assert.strictEqual(playersRes.body.players.length, 10);
     assert.ok(playersRes.body.total > 0);
+    // Verify firstSeenDate and isFirstScan fields are included
+    assert.ok('isFirstScan' in playersRes.body.players[0], 'Must include isFirstScan field');
+    assert.ok('firstSeenDate' in playersRes.body.players[0], 'Must include firstSeenDate field');
 
     // Test granular position filtering (e.g. DC)
     const dcRes = await get('/api/players?pos=DC&limit=5');

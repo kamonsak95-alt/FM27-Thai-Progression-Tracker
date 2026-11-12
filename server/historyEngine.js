@@ -19,16 +19,72 @@ function ensureDataDir() {
   }
 }
 
+function migrateStore(store) {
+  if (!store.careers) {
+    store.careers = [];
+  }
+  if (!Array.isArray(store.snapshots)) {
+    store.snapshots = [];
+    return store;
+  }
+
+  // Pre-populate known test/real saves if present
+  const hasMU55649B = store.snapshots.some(s => s.saveKey === '#MU-55649B');
+  if (hasMU55649B && !store.careers.some(c => c.refCode === '#MU-55649B')) {
+    store.careers.push({
+      id: 'career_55649b',
+      refCode: '#MU-55649B',
+      initialClub: 'Manchester United',
+      currentClub: 'Manchester United',
+      managerName: 'MY Mind',
+      managerId: 2002084900,
+      createdAt: '2026-11-07T00:00:00.000Z',
+      updatedAt: '2026-12-01T00:00:00.000Z'
+    });
+  }
+
+  const hasMU556432 = store.snapshots.some(s => s.saveKey === '#MU-556432');
+  if (hasMU556432 && !store.careers.some(c => c.refCode === '#MU-556432')) {
+    store.careers.push({
+      id: 'career_556432',
+      refCode: '#MU-556432',
+      initialClub: 'Manchester United',
+      currentClub: 'Manchester United',
+      managerName: 'MY Mind',
+      managerId: 2002084795,
+      createdAt: '2026-07-13T00:00:00.000Z',
+      updatedAt: '2026-07-13T00:00:00.000Z'
+    });
+  }
+
+  for (const s of store.snapshots) {
+    if (s.saveKey === '#MU-55649B' && !s.careerId) {
+      s.careerId = 'career_55649b';
+    } else if (s.saveKey === '#MU-556432' && !s.careerId) {
+      s.careerId = 'career_556432';
+    } else if (!s.careerId) {
+      const matchingCareer = store.careers.find(c => c.refCode === s.saveKey || (c.managerName === s.manager && (c.currentClub === s.club || c.initialClub === s.club)));
+      if (matchingCareer) {
+        s.careerId = matchingCareer.id;
+        if (!s.saveKey) s.saveKey = matchingCareer.refCode;
+      }
+    }
+  }
+
+  return store;
+}
+
 function loadHistoryStore() {
   ensureDataDir();
   const filePath = getHistoryFilePath();
   if (!fs.existsSync(filePath)) {
-    return { snapshots: [] };
+    return { careers: [], snapshots: [] };
   }
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return migrateStore(raw);
   } catch {
-    return { snapshots: [] };
+    return { careers: [], snapshots: [] };
   }
 }
 
@@ -42,8 +98,93 @@ function saveHistoryStore(store) {
   }
 }
 
+function resolveCareer(store, meta = {}, staff = [], explicitRefCode = '') {
+  if (!store.careers) store.careers = [];
+
+  const managerName = (meta.manager || '').trim().toLowerCase();
+  const clubName = (meta.myClub || '').trim();
+
+  // 1. Look for manager staff entity by job and name
+  const managerStaff = Array.isArray(staff)
+    ? staff.find(s => s && s.name && s.name.trim().toLowerCase() === managerName && s.job === 'Manager')
+    : null;
+
+  if (managerStaff && managerStaff.id) {
+    const rawId = parseInt(managerStaff.id, 10);
+    let career = store.careers.find(c => c.managerId === rawId);
+    if (!career) {
+      const hex = (rawId % 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0');
+      const words = clubName.split(/\s+/).filter(Boolean);
+      let clubPrefix = '';
+      if (words.length > 1) {
+        clubPrefix = words.map(w => w[0].toUpperCase()).slice(0, 3).join('');
+      } else {
+        clubPrefix = (clubName || 'FM').slice(0, 3).toUpperCase();
+      }
+      const refCode = explicitRefCode || `#${clubPrefix}-${hex}`;
+      career = {
+        id: `career_${hex.toLowerCase()}`,
+        refCode,
+        initialClub: clubName,
+        currentClub: clubName,
+        managerName: meta.manager || '',
+        managerId: rawId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      store.careers.push(career);
+      saveHistoryStore(store);
+    } else {
+      if (clubName && career.currentClub !== clubName) {
+        career.currentClub = clubName;
+        career.updatedAt = new Date().toISOString();
+        saveHistoryStore(store);
+      }
+    }
+    return career;
+  }
+
+  // 2. If explicitRefCode is provided, check existing careers
+  if (explicitRefCode && explicitRefCode !== 'DEFAULT') {
+    let career = store.careers.find(c => c.refCode === explicitRefCode || c.id === explicitRefCode);
+    if (career) {
+      if (clubName && career.currentClub !== clubName) {
+        career.currentClub = clubName;
+        career.updatedAt = new Date().toISOString();
+        saveHistoryStore(store);
+      }
+      return career;
+    }
+  }
+
+  // 3. Match by manager name and club
+  if (managerName && clubName) {
+    const matched = store.careers.filter(c => (c.managerName || '').trim().toLowerCase() === managerName);
+    if (matched.length === 1) {
+      const career = matched[0];
+      if (career.currentClub !== clubName) {
+        career.currentClub = clubName;
+        career.updatedAt = new Date().toISOString();
+        saveHistoryStore(store);
+      }
+      return career;
+    } else if (matched.length > 1) {
+      const exactMatch = matched.find(c => c.currentClub === clubName || c.initialClub === clubName);
+      if (exactMatch) return exactMatch;
+    }
+  }
+
+  return null;
+}
+
 function computeSaveRefCode(meta = {}, staff = []) {
   if (!meta || !meta.myClub) return 'DEFAULT';
+
+  const store = loadHistoryStore();
+  const career = resolveCareer(store, meta, staff);
+  if (career && career.refCode) {
+    return career.refCode;
+  }
 
   const words = (meta.myClub || '').trim().split(/\s+/).filter(Boolean);
   let clubPrefix = '';
@@ -79,9 +220,29 @@ function getSaveKey(manager = '', club = '', refCode = '') {
   return 'default';
 }
 
-function isSnapshotMatchingSave(snapshot, targetKey) {
+function isSnapshotMatchingSave(snapshot, targetKey, store = null) {
   if (!targetKey || targetKey === 'default' || targetKey === 'DEFAULT') return true;
+  if (!snapshot) return false;
+
+  // Exact careerId or saveKey match
+  if (snapshot.careerId && snapshot.careerId === targetKey) return true;
   if (snapshot.saveKey && snapshot.saveKey === targetKey) return true;
+
+  // Cross check with careers table if available
+  if (store && Array.isArray(store.careers)) {
+    const targetCareer = store.careers.find(c =>
+      c.id === targetKey ||
+      c.refCode === targetKey ||
+      (c.managerName && c.currentClub && getSaveKey(c.managerName, c.currentClub) === targetKey) ||
+      (c.managerName && c.initialClub && getSaveKey(c.managerName, c.initialClub) === targetKey) ||
+      (c.managerName && targetKey.startsWith(c.managerName.trim().toLowerCase() + '__'))
+    );
+    if (targetCareer) {
+      if (snapshot.careerId && snapshot.careerId === targetCareer.id) return true;
+      if (snapshot.saveKey && snapshot.saveKey === targetCareer.refCode) return true;
+    }
+  }
+
   const legacyKey = getSaveKey(snapshot.manager, snapshot.club);
   if (legacyKey === targetKey) return true;
   return false;
@@ -89,11 +250,13 @@ function isSnapshotMatchingSave(snapshot, targetKey) {
 
 /**
  * Saves a new snapshot by gameDate and save/career.
- * Only keeps minimal mapping (id -> { ca, pa, age, club, pos }) to keep file size efficient.
+ * Updates snapshot if CA/PA or player details changed on same game date.
  */
-function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '') {
+function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', staff = []) {
   const store = loadHistoryStore();
-  const saveKey = getSaveKey(manager, club, refCode);
+  const career = resolveCareer(store, { manager, myClub: club }, staff, refCode);
+  const saveKey = career ? career.refCode : getSaveKey(manager, club, refCode);
+  const careerId = career ? career.id : null;
 
   const playerMap = {};
   for (const p of players) {
@@ -107,21 +270,40 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '') 
     };
   }
 
-  // Check if snapshot for this gameDate and saveKey already exists
+  // Check if snapshot for this gameDate and career already exists
   const existingIdx = store.snapshots.findIndex(s => {
-    return s.gameDate === gameDate && isSnapshotMatchingSave(s, saveKey);
+    return s.gameDate === gameDate && isSnapshotMatchingSave(s, saveKey, store);
   });
 
   if (existingIdx >= 0) {
     const existing = store.snapshots[existingIdx];
-    if (existing.club === club && existing.manager === manager && existing.totalPlayers === players.length) {
-      const existingKeys = Object.keys(existing.players || {});
+    let isIdentical = (existing.totalPlayers === players.length) &&
+      (existing.manager === manager) &&
+      (existing.club === club);
+
+    if (isIdentical) {
+      const oldP = existing.players || {};
+      const oldKeys = Object.keys(oldP);
       const newKeys = Object.keys(playerMap);
-      if (existingKeys.length === newKeys.length) {
-        return existing; // Already identical, no write needed
+      if (oldKeys.length !== newKeys.length) {
+        isIdentical = false;
+      } else {
+        for (const k of newKeys) {
+          const np = playerMap[k];
+          const op = oldP[k];
+          if (!op || op.ca !== np.ca || op.pa !== np.pa || op.club !== np.club || op.pos !== np.pos || op.age !== np.age) {
+            isIdentical = false;
+            break;
+          }
+        }
       }
     }
+
+    if (isIdentical) {
+      return existing; // Truly identical, no disk write needed
+    }
   }
+
   const snapObj = {
     id: `snap_${gameDate.replace(/[^0-9]/g, '')}_${Date.now()}`,
     gameDate,
@@ -129,6 +311,7 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '') 
     manager,
     club,
     saveKey,
+    careerId,
     totalPlayers: players.length,
     players: playerMap
   };
@@ -139,19 +322,49 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '') 
     store.snapshots.push(snapObj);
   }
 
-  // Sort by gameDate ascending
   store.snapshots.sort((a, b) => a.gameDate.localeCompare(b.gameDate));
   saveHistoryStore(store);
 
   return snapObj;
 }
 
-function listSnapshots(manager = '', club = '', refCode = '') {
+function renameSnapshotDate(oldGameDate, newGameDate, manager = '', club = '', refCode = '', players = null) {
   const store = loadHistoryStore();
   const targetKey = getSaveKey(manager, club, refCode);
+  const snap = store.snapshots.find(s => s.gameDate === oldGameDate && isSnapshotMatchingSave(s, targetKey, store));
+  if (snap) {
+    snap.gameDate = newGameDate;
+    snap.id = `snap_${newGameDate.replace(/[^0-9]/g, '')}_${Date.now()}`;
+    snap.timestamp = new Date().toISOString();
+    if (players && Array.isArray(players) && players.length > 0) {
+      const playerMap = {};
+      for (const p of players) {
+        if (!p || !p.id || (p.name && (p.name.trim() === '?' || p.name.trim() === ''))) continue;
+        playerMap[String(p.id)] = {
+          ca: p.ca || 0,
+          pa: p.pa || 0,
+          age: p.age || 0,
+          club: p.club || '',
+          pos: p.pos || ''
+        };
+      }
+      snap.players = playerMap;
+      snap.totalPlayers = players.length;
+    }
+    store.snapshots.sort((a, b) => a.gameDate.localeCompare(b.gameDate));
+    saveHistoryStore(store);
+    return snap;
+  }
+  return null;
+}
+
+function listSnapshots(manager = '', club = '', refCode = '') {
+  const store = loadHistoryStore();
+  const career = resolveCareer(store, { manager, myClub: club }, null, refCode);
+  const targetKey = career ? career.id : getSaveKey(manager, club, refCode);
   const filtered = (targetKey === 'default')
     ? store.snapshots
-    : store.snapshots.filter(s => isSnapshotMatchingSave(s, targetKey));
+    : store.snapshots.filter(s => isSnapshotMatchingSave(s, targetKey, store));
 
   return filtered.map(s => ({
     id: s.id,
@@ -160,16 +373,18 @@ function listSnapshots(manager = '', club = '', refCode = '') {
     manager: s.manager,
     club: s.club,
     saveKey: s.saveKey || getSaveKey(s.manager, s.club),
+    careerId: s.careerId,
     totalPlayers: s.totalPlayers
   }));
 }
 
 function getSnapshot(gameDate, manager = '', club = '', refCode = '') {
   const store = loadHistoryStore();
-  const targetKey = getSaveKey(manager, club, refCode);
+  const career = resolveCareer(store, { manager, myClub: club }, null, refCode);
+  const targetKey = career ? career.id : getSaveKey(manager, club, refCode);
   return store.snapshots.find(s => {
     if (s.gameDate !== gameDate) return false;
-    return isSnapshotMatchingSave(s, targetKey);
+    return isSnapshotMatchingSave(s, targetKey, store);
   }) || null;
 }
 
@@ -211,10 +426,12 @@ function calculateDeltas(currentPlayers, baselineMap = {}) {
  * If manager/club/refCode provided, restricts search to snapshots of that save career.
  */
 function buildFirstSeenMap(snapshots = [], currentGameDate = '', manager = '', club = '', refCode = '') {
-  const targetKey = getSaveKey(manager, club, refCode);
+  const store = loadHistoryStore();
+  const career = resolveCareer(store, { manager, myClub: club }, null, refCode);
+  const targetKey = career ? career.id : getSaveKey(manager, club, refCode);
   const careerSnapshots = (targetKey === 'default')
     ? (snapshots || [])
-    : (snapshots || []).filter(s => isSnapshotMatchingSave(s, targetKey));
+    : (snapshots || []).filter(s => isSnapshotMatchingSave(s, targetKey, store));
 
   const priorSnapshots = careerSnapshots
     .filter(s => !currentGameDate || s.gameDate < currentGameDate)
@@ -246,10 +463,12 @@ function buildFirstSeenMap(snapshots = [], currentGameDate = '', manager = '', c
  * - Different career saves remain isolated and do not contaminate each other.
  */
 function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDate = '', manager = '', club = '', refCode = '') {
-  const targetKey = getSaveKey(manager, club, refCode);
+  const store = loadHistoryStore();
+  const career = resolveCareer(store, { manager, myClub: club }, null, refCode);
+  const targetKey = career ? career.id : getSaveKey(manager, club, refCode);
   const careerSnapshots = (targetKey === 'default')
     ? (snapshots || [])
-    : (snapshots || []).filter(s => isSnapshotMatchingSave(s, targetKey));
+    : (snapshots || []).filter(s => isSnapshotMatchingSave(s, targetKey, store));
 
   const priorSnapshots = careerSnapshots
     .filter(s => !currentGameDate || s.gameDate < currentGameDate)
@@ -312,6 +531,8 @@ module.exports = {
   calculateDeltas,
   buildFirstSeenMap,
   calculateFirstSeenDeltas,
+  renameSnapshotDate,
+  resolveCareer,
   getHistoryFilePath,
   get HISTORY_FILE() { return getHistoryFilePath(); }
 };

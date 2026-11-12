@@ -179,19 +179,165 @@ test('multi-save career isolation: different saves do not overwrite or contamina
 });
 
 test('computeSaveRefCode produces unique human-readable RefCodes from club and manager ID', () => {
-  const { computeSaveRefCode } = require('../server/historyEngine');
+  const tempFile = path.join(os.tmpdir(), `fm27_test_refcode_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
 
-  const meta1 = { myClub: 'Manchester United', manager: 'MY Mind' };
-  const staff1 = [{ name: 'MY Mind', job: 'Manager', id: 2002084900 }];
-  const refCode1 = computeSaveRefCode(meta1, staff1);
+  try {
+    const { computeSaveRefCode } = require('../server/historyEngine');
 
-  assert.strictEqual(refCode1, '#MU-55649B');
+    const meta1 = { myClub: 'Manchester United', manager: 'MY Mind' };
+    const staff1 = [{ name: 'MY Mind', job: 'Manager', id: 2002084900 }];
+    const refCode1 = computeSaveRefCode(meta1, staff1);
 
-  // Save 2: same manager name and same club, but different manager ID from fresh save
-  const meta2 = { myClub: 'Manchester United', manager: 'MY Mind' };
-  const staff2 = [{ name: 'MY Mind', job: 'Manager', id: 2002099999 }];
-  const refCode2 = computeSaveRefCode(meta2, staff2);
+    assert.strictEqual(refCode1, '#MU-55649B');
 
-  assert.strictEqual(refCode2, '#MU-559F96');
-  assert.notStrictEqual(refCode1, refCode2, 'Different manager IDs must generate distinct RefCodes even for the same club and name');
+    // Save 2: same manager name and same club, but different manager ID from fresh save
+    const meta2 = { myClub: 'Manchester United', manager: 'MY Mind' };
+    const staff2 = [{ name: 'MY Mind', job: 'Manager', id: 2002099999 }];
+    const refCode2 = computeSaveRefCode(meta2, staff2);
+
+    assert.strictEqual(refCode2, '#MU-559F96');
+    assert.notStrictEqual(refCode1, refCode2, 'Different manager IDs must generate distinct RefCodes even for the same club and name');
+  } finally {
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
+    delete process.env.FM27_HISTORY_FILE;
+  }
+});
+
+test('P1 Regression: rescan on same date updates snapshot if CA changed or player ID changed', () => {
+  const tempFile = path.join(os.tmpdir(), `fm27_test_rescan_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
+
+  try {
+    const { saveSnapshot, getSnapshot } = require('../server/historyEngine');
+
+    // 1. Initial scan on 2026-11-20: Player 1 has CA 105
+    saveSnapshot('2026-11-20', [{ id: 1, name: 'Player 1', ca: 105, pa: 150 }], 'Test Manager', 'Test Club', '#TC-111111');
+    const first = getSnapshot('2026-11-20', 'Test Manager', 'Test Club', '#TC-111111');
+    assert.strictEqual(first.players['1'].ca, 105);
+
+    // 2. Rescan on same date: same player count (1), but CA updated to 109!
+    saveSnapshot('2026-11-20', [{ id: 1, name: 'Player 1', ca: 109, pa: 150 }], 'Test Manager', 'Test Club', '#TC-111111');
+    const updated = getSnapshot('2026-11-20', 'Test Manager', 'Test Club', '#TC-111111');
+    assert.strictEqual(updated.players['1'].ca, 109, 'Rescan with changed CA must update snapshot');
+
+    // 3. Rescan on same date: same player count (1), but player ID replaced (1 -> 2)
+    saveSnapshot('2026-11-20', [{ id: 2, name: 'Player 2', ca: 112, pa: 160 }], 'Test Manager', 'Test Club', '#TC-111111');
+    const replaced = getSnapshot('2026-11-20', 'Test Manager', 'Test Club', '#TC-111111');
+    assert.strictEqual(replaced.players['1'], undefined, 'Old player ID must no longer exist');
+    assert.strictEqual(replaced.players['2'].ca, 112, 'New player ID must be saved');
+  } finally {
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
+    delete process.env.FM27_HISTORY_FILE;
+  }
+});
+
+test('P1 Regression: career history continues when manager moves clubs', () => {
+  const tempFile = path.join(os.tmpdir(), `fm27_test_club_move_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
+
+  try {
+    const { saveSnapshot, listSnapshots, calculateFirstSeenDeltas } = require('../server/historyEngine');
+
+    const staff = [{ name: 'MY Mind', job: 'Manager', id: 2002084900 }];
+
+    // Snapshot 1: At Manchester United
+    saveSnapshot('2026-11-01', [{ id: 10, name: 'Mainoo', ca: 150, pa: 175 }], 'MY Mind', 'Manchester United', '', staff);
+
+    // Manager moves to Real Madrid!
+    saveSnapshot('2026-12-01', [{ id: 10, name: 'Mainoo', ca: 155, pa: 175 }], 'MY Mind', 'Real Madrid', '', staff);
+
+    // List snapshots for active career at Real Madrid
+    const careerSnaps = listSnapshots('MY Mind', 'Real Madrid');
+    assert.strictEqual(careerSnaps.length, 2, 'Should keep both snapshots across club move');
+    assert.strictEqual(careerSnaps[0].gameDate, '2026-11-01');
+    assert.strictEqual(careerSnaps[1].gameDate, '2026-12-01');
+
+    // First seen deltas should track continuous development across clubs
+    const { loadHistoryStore } = require('../server/historyEngine');
+    const store = loadHistoryStore();
+    const deltas = calculateFirstSeenDeltas(
+      [{ id: 10, name: 'Mainoo', ca: 155, pa: 175 }],
+      store.snapshots,
+      '2026-12-01',
+      'MY Mind',
+      'Real Madrid'
+    );
+    assert.strictEqual(deltas[0].firstSeenDate, '2026-11-01');
+    assert.strictEqual(deltas[0].deltaCA, 5); // 150 -> 155
+  } finally {
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
+    delete process.env.FM27_HISTORY_FILE;
+  }
+});
+
+test('P2 Regression: first scan returns isFirstScan=true, new player distinguishes youth vs older', () => {
+  const { calculateFirstSeenDeltas } = require('../server/historyEngine');
+
+  // Case 1: First career scan (no prior snapshots)
+  const round1 = calculateFirstSeenDeltas(
+    [{ id: 1, name: 'Senior Player', ca: 140, age: 30 }],
+    [],
+    '2026-07-13'
+  );
+  assert.strictEqual(round1[0].isFirstScan, true, 'Round 1 must mark isFirstScan: true');
+  assert.strictEqual(round1[0].isNew, false);
+  assert.strictEqual(round1[0].deltaCA, 0);
+
+  // Case 2: Subsequent scan with newly loaded players
+  const snapshots = [
+    {
+      gameDate: '2026-07-13',
+      players: { '1': { ca: 140, age: 30 } }
+    }
+  ];
+  const round2 = calculateFirstSeenDeltas(
+    [
+      { id: 1, name: 'Senior Player', ca: 140, age: 30 },
+      { id: 2, name: 'Youth Intake', ca: 70, age: 16 },
+      { id: 3, name: 'New Senior Signing', ca: 135, age: 29 }
+    ],
+    snapshots,
+    '2026-11-01'
+  );
+
+  assert.strictEqual(round2[0].isFirstScan, false);
+  assert.strictEqual(round2[0].isNew, false);
+
+  assert.strictEqual(round2[1].isNew, true);
+  assert.strictEqual(round2[1].age, 16); // Will show 👶 เกิดใหม่ in UI
+
+  assert.strictEqual(round2[2].isNew, true);
+  assert.strictEqual(round2[2].age, 29); // Will show 🆕 พบครั้งแรก in UI
+});
+
+test('P2 Regression: renameSnapshotDate corrects misdetected snapshot dates', () => {
+  const tempFile = path.join(os.tmpdir(), `fm27_test_rename_date_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
+
+  try {
+    const { saveSnapshot, getSnapshot, renameSnapshotDate } = require('../server/historyEngine');
+
+    saveSnapshot('2027-01-29', [{ id: 1, name: 'Omari Zion', ca: 55, pa: 160 }], 'MY Mind', 'Manchester United', '#MU-556432');
+    assert.ok(getSnapshot('2027-01-29', 'MY Mind', 'Manchester United', '#MU-556432'));
+
+    // Rename date from 2027-01-29 to 2026-07-13
+    const renamed = renameSnapshotDate('2027-01-29', '2026-07-13', 'MY Mind', 'Manchester United', '#MU-556432');
+    assert.ok(renamed);
+    assert.strictEqual(renamed.gameDate, '2026-07-13');
+
+    assert.strictEqual(getSnapshot('2027-01-29', 'MY Mind', 'Manchester United', '#MU-556432'), null);
+    assert.ok(getSnapshot('2026-07-13', 'MY Mind', 'Manchester United', '#MU-556432'));
+  } finally {
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
+    delete process.env.FM27_HISTORY_FILE;
+  }
 });

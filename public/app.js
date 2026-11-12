@@ -1097,7 +1097,11 @@ function renderTable(players) {
     if (p.isFirstScan) {
       growthBadge = `<span class="badge badge-growth-neutral text-muted" title="สแกนครั้งแรก (ยังไม่มีประวัติรอบเปรียบเทียบ)">- (รอบแรก)</span>`;
     } else if (p.isNew) {
-      growthBadge = `<span class="badge badge-growth-new" title="เพิ่งพบครั้งแรกในรอบนี้ (เด็กเกิดใหม่ / สแกนครั้งแรก)">👶 เกิดใหม่</span>`;
+      if (p.age && p.age <= 18) {
+        growthBadge = `<span class="badge badge-growth-new" title="เพิ่งพบครั้งแรกในรอบนี้ (เด็กเกิดใหม่ / อคาเดมีอายุ ${p.age} ปี)">👶 เกิดใหม่</span>`;
+      } else {
+        growthBadge = `<span class="badge badge-growth-neutral" title="เพิ่งพบครั้งแรกในฐานข้อมูล (อายุ ${p.age || '-'} ปี)">🆕 พบครั้งแรก</span>`;
+      }
     } else if (p.deltaCA > 0) {
       const originDate = p.firstSeenDate || 'เริ่มบันทึก';
       const tooltip = `เติบโต +${p.deltaCA} CA ตั้งแต่ ${originDate} (เดิม ${p.prevCA || '-'})`;
