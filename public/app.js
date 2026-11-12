@@ -1438,6 +1438,7 @@ function fallbackCopy(text, callback) {
 }
 
 function formatSaveRefCode(refCode) {
+  if (refCode === 'UNIDENTIFIED') return 'ยังระบุเซฟไม่ได้';
   return refCode?.replace(/^#[^-]+-([0-9a-f]{6})$/i, '#FM-$1') || '-';
 }
 

@@ -854,6 +854,24 @@ body {
   text-align: left;
 }
 
+#players-table {
+  table-layout: fixed;
+  min-width: 960px;
+}
+
+.player-col-name { width: 17%; }
+.player-col-age { width: 5%; }
+.player-col-position { width: 14%; }
+.player-col-club { width: 18%; }
+.player-col-ability { width: 5%; }
+.player-col-trend { width: 10%; }
+.player-col-growth { width: 12%; }
+.player-col-money { width: 7%; }
+
+#players-table td {
+  overflow-wrap: anywhere;
+}
+
 .data-table thead {
   background: #19293e;
 }

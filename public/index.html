@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.15">
+  <link rel="stylesheet" href="style.css?v=1.0.16">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -357,6 +357,16 @@
       <!-- Responsive Table Container -->
       <div class="table-wrapper">
         <table class="data-table" id="players-table">
+          <colgroup>
+            <col class="player-col-name">
+            <col class="player-col-age">
+            <col class="player-col-position">
+            <col class="player-col-club">
+            <col class="player-col-ability" span="2">
+            <col class="player-col-trend">
+            <col class="player-col-growth">
+            <col class="player-col-money" span="2">
+          </colgroup>
           <thead>
             <tr>
               <th data-sort="name" class="sortable col-name" title="ชื่อนักเตะและสัญชาติ">นักเตะ</th>
@@ -724,6 +734,6 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.1.11"></script>
+  <script src="app.js?v=1.1.12"></script>
 </body>
 </html>

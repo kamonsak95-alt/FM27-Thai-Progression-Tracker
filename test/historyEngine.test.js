@@ -6,6 +6,37 @@ const os = require('node:os');
 const http = require('node:http');
 const { decodeSnapshotAttributes } = require('../server/snapshotAttributes');
 
+test('unemployed careers use scanner IDs, keep separate history, and retain their code after joining a club', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fm27-unemployed-'));
+  const file = path.join(dir, 'history.json');
+  process.env.FM27_HISTORY_FILE = file;
+  t.after(() => {
+    delete process.env.FM27_HISTORY_FILE;
+    fs.unlinkSync(file);
+    fs.rmdirSync(dir);
+  });
+  const { computeSaveRefCode, saveSnapshot, listSnapshots, getSnapshot, loadHistoryStore } = require('../server/historyEngine');
+  const meta = { manager: 'Same Manager', myClub: null };
+  const first = [{ name: meta.manager, job: 'Staflid', club: null, id: 2002069493 }];
+  const second = [{ ...first[0], id: 2002069494 }];
+  fs.writeFileSync(file, JSON.stringify({ snapshots: [{ manager: meta.manager, club: null, saveKey: 'same manager', gameDate: '2024-11-13' }] }));
+  const firstRef = computeSaveRefCode(meta, first);
+  const secondRef = computeSaveRefCode(meta, second);
+  assert.match(firstRef, /^#FM-[A-F0-9]+$/);
+  assert.notEqual(firstRef, secondRef);
+  const date = '2024-11-13';
+  saveSnapshot(date, [{ id: 1, ca: 100 }], meta.manager, null, firstRef, first);
+  saveSnapshot(date, [{ id: 1, ca: 120 }], meta.manager, null, secondRef, second);
+  assert.equal(getSnapshot(date, meta.manager, null, firstRef).players[1].ca, 100);
+  assert.equal(getSnapshot(date, meta.manager, null, secondRef).players[1].ca, 120);
+  const unknown = computeSaveRefCode(meta, [...first, ...second]);
+  assert.notEqual(unknown, 'DEFAULT');
+  assert.equal(saveSnapshot(date, [], meta.manager, null, unknown), null);
+  assert.deepEqual(listSnapshots(meta.manager, null, unknown), []);
+  assert.equal(loadHistoryStore().snapshots.length, 3);
+  assert.equal(computeSaveRefCode({ ...meta, myClub: 'United' }, [{ ...first[0], job: 'Manager' }]), firstRef);
+});
+
 test('Attribute baselines skip legacy snapshots and persist same-day attribute changes', () => {
   const tempFile = path.join(os.tmpdir(), `fm27-attrs-${process.pid}-${Date.now()}.json`);
   process.env.FM27_HISTORY_FILE = tempFile;

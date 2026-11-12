@@ -2,9 +2,35 @@ process.env.NODE_ENV = 'test';
 const assert = require('node:assert');
 const test = require('node:test');
 const http = require('node:http');
-const server = require('../server/index');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
-test('Staff Engine and API endpoints', async () => {
+test('Staff Engine and API endpoints', async t => {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'fm27-staff-'));
+  const dumpDir = path.join(fixture, 'FMSuperScout');
+  const jobs = ['Hoofd jeugdopleiding', 'Scout', 'Fysiotherapeut'];
+  const staff = Array.from({ length: 12 }, (_, index) => ({
+    id: index + 1,
+    name: `Staff ${index + 1}`,
+    job: jobs[index % jobs.length],
+    club: index % 2 === 0 ? 'United' : null,
+    age: 35 + index,
+    ca: 180 - index,
+    pa: 180,
+    worldRep: 8000 - index * 200,
+    staffAttrs: { Oordeel_vermogen: 18, Oordeel_potentie: 19, Fysiotherapie: 18 }
+  }));
+  fs.mkdirSync(dumpDir);
+  fs.writeFileSync(path.join(dumpDir, 'dump.json'), JSON.stringify({ staff, players: [] }));
+  const originalLocalAppData = process.env.LOCALAPPDATA;
+  process.env.LOCALAPPDATA = fixture;
+  const server = require('../server/index');
+  t.after(() => {
+    if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA;
+    else process.env.LOCALAPPDATA = originalLocalAppData;
+    fs.rmSync(fixture, { recursive: true, force: true });
+  });
   await new Promise(resolve => server.listen(0, resolve));
   const port = server.address().port;
 
@@ -20,7 +46,7 @@ test('Staff Engine and API endpoints', async () => {
     // 1. Test staff list
     const staffRes = await get('/api/staff?limit=10');
     assert.strictEqual(staffRes.status, 200);
-    assert.ok(staffRes.body.total > 20000);
+    assert.strictEqual(staffRes.body.total, staff.length);
     assert.strictEqual(staffRes.body.staff.length, 10);
     const firstStaff = staffRes.body.staff[0];
     assert.ok(firstStaff.name);

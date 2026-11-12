@@ -3,6 +3,7 @@ const path = require('node:path');
 const { encodeSnapshotAttributes } = require('./snapshotAttributes');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
+const UNIDENTIFIED_SAVE = 'UNIDENTIFIED';
 
 function getHistoryFilePath() {
   if (process.env.FM27_HISTORY_FILE) return process.env.FM27_HISTORY_FILE;
@@ -73,7 +74,7 @@ function migrateStore(store) {
       if (s.saveKey) {
         const matchingCareer = store.careers.find(c => c.refCode === s.saveKey || c.id === s.saveKey);
         if (matchingCareer) s.careerId = matchingCareer.id;
-      } else {
+      } else if (s.club?.trim()) {
         const candidates = store.careers.filter(c =>
           (c.managerName || '').trim().toLowerCase() === (s.manager || '').trim().toLowerCase() &&
           ((c.currentClub || '').trim().toLowerCase() === (s.club || '').trim().toLowerCase() ||
@@ -116,21 +117,27 @@ function saveHistoryStore(store) {
 }
 
 function resolveCareer(store, meta = {}, staff = [], explicitRefCode = '') {
+  if (explicitRefCode === UNIDENTIFIED_SAVE) return null;
   if (!store.careers) store.careers = [];
 
   const managerName = (meta.manager || '').trim().toLowerCase();
   const clubName = (meta.myClub || '').trim();
 
-  // 1. Look for manager staff entity by job and name
-  const managerStaff = Array.isArray(staff)
-    ? staff.find(s => s && s.name && s.name.trim().toLowerCase() === managerName && s.job === 'Manager')
-    : null;
+  // The scanner labels an unemployed human manager "Staflid".
+  const candidates = managerName && Array.isArray(staff) ? staff.filter(s =>
+    s?.name?.trim().toLowerCase() === managerName &&
+    (s.job === 'Manager' || (!clubName && s.job === 'Staflid' && !s.club?.trim())) &&
+    Number.isSafeInteger(Number(s.id)) && Number(s.id) > 0
+  ) : [];
+  const managerStaff = clubName ? candidates[0] : candidates.length === 1 ? candidates[0] : null;
 
   if (managerStaff && managerStaff.id) {
-    const rawId = parseInt(managerStaff.id, 10);
+    const rawId = Number(managerStaff.id);
     let career = store.careers.find(c => c.managerId === rawId);
     if (!career) {
-      const hex = (rawId % 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0');
+      const hex = clubName
+        ? (rawId % 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0')
+        : rawId.toString(16).toUpperCase().padStart(8, '0');
       const words = clubName.split(/\s+/).filter(Boolean);
       let clubPrefix = '';
       if (words.length > 1) {
@@ -200,13 +207,14 @@ function resolveCareer(store, meta = {}, staff = [], explicitRefCode = '') {
 }
 
 function computeSaveRefCode(meta = {}, staff = []) {
-  if (!meta || !meta.myClub) return 'DEFAULT';
+  if (!meta) return UNIDENTIFIED_SAVE;
 
   const store = loadHistoryStore();
   const career = resolveCareer(store, meta, staff);
   if (career && career.refCode) {
     return career.refCode;
   }
+  if (!meta.myClub?.trim()) return UNIDENTIFIED_SAVE;
 
   const words = (meta.myClub || '').trim().split(/\s+/).filter(Boolean);
   let clubPrefix = '';
@@ -243,6 +251,7 @@ function getSaveKey(manager = '', club = '', refCode = '') {
 }
 
 function isSnapshotMatchingSave(snapshot, targetKey, store = null) {
+  if (targetKey === UNIDENTIFIED_SAVE) return false;
   if (!targetKey || targetKey === 'default' || targetKey === 'DEFAULT') return true;
   if (!snapshot) return false;
 
@@ -418,6 +427,7 @@ function buildSnapshotPlayerMap(players) {
  * Updates snapshot if CA/PA or player details changed on same game date.
  */
 function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', staff = []) {
+  if (refCode === UNIDENTIFIED_SAVE) return null;
   const store = loadHistoryStore();
   const career = resolveCareer(store, { manager, myClub: club }, staff, refCode);
   const saveKey = career ? career.refCode : getSaveKey(manager, club, refCode);
