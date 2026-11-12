@@ -3,7 +3,22 @@ const path = require('node:path');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
 
-const SCANNER_EXE = process.env.FMSS_SCANNER || 'C:\\Program Files\\FMSuperScout\\FMSuperScout.Scanner.exe';
+function resolveScannerPath() {
+  if (process.env.FMSS_SCANNER && fs.existsSync(process.env.FMSS_SCANNER)) {
+    return process.env.FMSS_SCANNER;
+  }
+  const bundledPath = path.join(__dirname, '..', 'bin', 'FMSuperScout.Scanner.exe');
+  if (fs.existsSync(bundledPath)) {
+    return bundledPath;
+  }
+  const defaultInstallPath = 'C:\\Program Files\\FMSuperScout\\FMSuperScout.Scanner.exe';
+  if (fs.existsSync(defaultInstallPath)) {
+    return defaultInstallPath;
+  }
+  return bundledPath;
+}
+
+const SCANNER_EXE = resolveScannerPath();
 const DUMP_DIR = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'FMSuperScout');
 const DUMP_FILE = path.join(DUMP_DIR, 'dump.json');
 

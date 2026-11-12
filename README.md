@@ -54,8 +54,8 @@
 ### ความต้องการของระบบ:
 * ระบบปฏิบัติการ **Windows 10 หรือ Windows 11 (64-bit)**
 * ตัวเกม **Football Manager 2027 (FM27)**
-* โปรแกรม [FMSuperScout](https://github.com/mavarobli/FMSuperScout) (ติดตั้งอยู่ที่ `C:\Program Files\FMSuperScout`) เพื่อเป็นสะพานอ่าน Memory
 * ติดตั้ง **Node.js** (v18 ขึ้นไป)
+* *(มีเครื่องยนต์สแกนหน่วยความจำแถมมาในตัวในโฟลเดอร์ `bin/` พร้อมใช้งานทันที ไม่จำเป็นต้องติดตั้ง FMSuperScout แยกต่างหาก)*
 
 ### ขั้นตอนการเปิดใช้งาน:
 1. เปิดเกม **FM27** และโหลดเซฟเกมของคุณให้เรียบร้อย
@@ -88,6 +88,7 @@
 
 ```text
 FM27-Tracker/
+├── bin/                     # เครื่องยนต์สแกน Memory แบบ Standalone (FMSuperScout.Scanner.exe)
 ├── data/                    # ฐานข้อมูลประวัติ Snapshot ประจำแต่ละเซฟ (history.json)
 ├── public/                  # หน้าบ้านเว็บแอป (HTML5, CSS3, Vanilla JS)
 │   ├── index.html           # โครงสร้างหน้าเว็บหลักและ Modal ต่างๆ
