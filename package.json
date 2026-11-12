@@ -1,0 +1,20 @@
+{
+  "name": "fm27-thai-tracker",
+  "version": "1.0.0",
+  "description": "Football Manager 27 Thai Player Progression Tracker and Scout Tool",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "football-manager",
+    "fm27",
+    "scout",
+    "wonderkids",
+    "progression-tracker",
+    "thai"
+  ],
+  "author": "",
+  "license": "MIT"
+}
