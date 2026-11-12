@@ -122,6 +122,7 @@ const el = {
   updateBannerBadge: document.getElementById('update-banner-badge'),
   updateDesc: document.getElementById('update-banner-desc'),
   btnApplyUpdate: document.getElementById('btn-apply-update'),
+  btnDownloadUpdate: document.getElementById('btn-download-update'),
   btnBannerReload: document.getElementById('btn-banner-reload'),
   btnDismissUpdate: document.getElementById('btn-dismiss-update'),
   btnCheckUpdate: document.getElementById('btn-check-update'),
@@ -130,6 +131,7 @@ const el = {
   changelogClose: document.getElementById('changelog-modal-close'),
   btnChangelogClose: document.getElementById('btn-changelog-close'),
   btnChangelogApply: document.getElementById('btn-changelog-apply'),
+  btnChangelogDownload: document.getElementById('btn-changelog-download'),
   btnChangelogReload: document.getElementById('btn-changelog-reload'),
   btnReloadUI: document.getElementById('btn-reload-ui'),
   changelogMeta: document.getElementById('changelog-meta'),
@@ -217,7 +219,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStatus();
   loadPlayers();
   checkForUpdates(true); // check quietly in background
-  setInterval(() => checkForUpdates(true), 60000); // periodically check every 60s
+  setInterval(() => {
+    if (latestUpdateData?.isGit === true) checkForUpdates(true);
+  }, 60000);
 });
 
 function getPositionGroup(position = '') {
@@ -1435,6 +1439,13 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+function showUpdateDownload(link, data) {
+  const url = data.isGit === false && data.hasUpdate ? data.downloadUrl : '';
+  link.style.display = url ? 'inline-flex' : 'none';
+  if (url) link.href = url;
+  else link.removeAttribute('href');
+}
+
 async function checkForUpdates(silent = false, isCelebration = false) {
   if (!silent && el.btnCheckUpdate) {
     el.btnCheckUpdate.disabled = true;
@@ -1447,7 +1458,9 @@ async function checkForUpdates(silent = false, isCelebration = false) {
       throw new Error('เซิร์ฟเวอร์ในเครื่องยังเป็นเวอร์ชันเดิม กรุณาปิดแล้วเปิดโปรแกรมใหม่');
     }
     const data = await res.json();
+    if (data.error) throw new Error(data.error);
     latestUpdateData = data;
+    showUpdateDownload(el.btnDownloadUpdate, data);
 
     const currentCommit = data.currentCommit || '';
     const latestCommit = data.latestCommit || currentCommit;
@@ -1455,7 +1468,6 @@ async function checkForUpdates(silent = false, isCelebration = false) {
     // Detect if window UI is older than what's on disk, or if remote GitHub has new commits
     const isDiskAheadOfUI = Boolean(state.loadedCommit && currentCommit && state.loadedCommit !== currentCommit);
     const isRemoteAheadOfDisk = Boolean(data.hasUpdate);
-    const isUiStale = Boolean(state.loadedCommit && latestCommit && state.loadedCommit !== latestCommit);
 
     if (isCelebration) {
       openChangelogModal(data, true);
@@ -1469,8 +1481,9 @@ async function checkForUpdates(silent = false, isCelebration = false) {
         el.updateBannerBadge.textContent = '🚀 อัปเดตใหม่!';
         el.updateBannerBadge.className = 'update-badge';
       }
-      el.updateDesc.innerHTML = `ตรวจพบเวอร์ชันใหม่บน GitHub (${latestCommit})${summaryText}`;
-      if (el.btnApplyUpdate) el.btnApplyUpdate.style.display = 'inline-flex';
+      if (data.isGit === false) el.updateDesc.textContent = data.message;
+      else el.updateDesc.innerHTML = `ตรวจพบเวอร์ชันใหม่บน GitHub (${latestCommit})${summaryText}`;
+      if (el.btnApplyUpdate) el.btnApplyUpdate.style.display = data.isGit === false ? 'none' : 'inline-flex';
       if (el.btnBannerReload) el.btnBannerReload.style.display = 'none';
       el.updateBanner.style.display = 'block';
 
@@ -1519,7 +1532,10 @@ function openChangelogModal(data, isCelebration = false) {
   const isNew = data.hasUpdate;
   const isUiStale = !isCelebration && Boolean(state.loadedCommit && latestCommit && state.loadedCommit !== latestCommit);
 
-  if (isCelebration) {
+  if (data.isGit === false) {
+    const version = `เวอร์ชันปัจจุบัน v${data.currentVersion}`;
+    el.changelogMeta.textContent = isNew ? `${version} · ${data.message}` : version;
+  } else if (isCelebration) {
     el.changelogMeta.innerHTML = `🎉 ยินดีต้อนรับสู่เวอร์ชันใหม่ &bull; Commit ล่าสุด: <strong class="text-green">${latestCommit}</strong>`;
   } else {
     el.changelogMeta.innerHTML = isNew 
@@ -1568,10 +1584,11 @@ function openChangelogModal(data, isCelebration = false) {
   }
 
   if (el.btnChangelogApply) {
-    el.btnChangelogApply.style.display = isNew ? 'inline-flex' : 'none';
+    el.btnChangelogApply.style.display = isNew && data.isGit !== false ? 'inline-flex' : 'none';
   }
+  showUpdateDownload(el.btnChangelogDownload, data);
   if (el.btnChangelogReload) {
-    el.btnChangelogReload.style.display = (isUiStale || (!isNew && !isCelebration)) ? 'inline-flex' : 'none';
+    el.btnChangelogReload.style.display = data.isGit !== false && (isUiStale || (!isNew && !isCelebration)) ? 'inline-flex' : 'none';
   }
 
   el.changelogModal.style.display = 'flex';

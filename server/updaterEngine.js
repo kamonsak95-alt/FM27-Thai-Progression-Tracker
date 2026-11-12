@@ -4,6 +4,9 @@ const fs = require('node:fs');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
 const PKG_FILE = path.join(PROJECT_ROOT, 'package.json');
+const REPO = 'kamonsak95-alt/FM27-Thai-Progression-Tracker';
+const RELEASES_URL = `https://github.com/${REPO}/releases`;
+const STABLE_VERSION = /^v?(\d+)\.(\d+)\.(\d+)$/;
 
 function execPromise(cmd, cwd = PROJECT_ROOT) {
   return new Promise((resolve, reject) => {
@@ -42,25 +45,54 @@ function formatCommitMessage(msg) {
     .replace(/^refactor(\(.*\))?:\s*/i, '♻️ [ปรับโครงสร้างโค้ด] ');
 }
 
+async function checkReleaseUpdate(currentVersion, request = fetch) {
+  const base = { hasUpdate: false, isGit: false, currentVersion, changes: [] };
+
+  try {
+    const response = await request(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'FM27-Thai-Tracker' },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`);
+
+    const release = await response.json();
+    const latest = STABLE_VERSION.exec(release.tag_name);
+    const installed = STABLE_VERSION.exec(currentVersion);
+    if (!latest || !installed) throw new Error('รูปแบบเวอร์ชันไม่ถูกต้อง');
+
+    const latestVersion = latest.slice(1).join('.');
+    const difference = latest.slice(1).map((part, index) => Number(part) - Number(installed[index + 1])).find(Boolean);
+    const hasUpdate = difference > 0;
+    const assetUrl = `${RELEASES_URL}/download/${release.tag_name}/FM27-Tracker-Windows-v${latestVersion}.zip`;
+    const downloadUrl = release.assets?.some(asset => asset.browser_download_url === assetUrl)
+      ? assetUrl
+      : `${RELEASES_URL}/tag/${release.tag_name}`;
+
+    return {
+      ...base,
+      hasUpdate,
+      latestVersion,
+      downloadUrl,
+      changes: release.name ? [release.name] : [],
+      message: hasUpdate ? `FM27 Tracker v${latestVersion} พร้อมดาวน์โหลด` : 'โปรแกรมเป็นเวอร์ชันล่าสุดแล้ว'
+    };
+  } catch (err) {
+    return { ...base, error: `ตรวจสอบ GitHub Releases ไม่สำเร็จ (${err.message})` };
+  }
+}
+
 /**
  * Checks for updates against the remote repository and returns changelog/commit details
  */
 async function checkForUpdates() {
   const currentVersion = getLocalVersion();
-  const currentCommit = await getLocalCommit();
   const isGitRepo = fs.existsSync(path.join(PROJECT_ROOT, '.git'));
 
   if (!isGitRepo) {
-    return {
-      hasUpdate: false,
-      isGit: false,
-      currentVersion,
-      currentCommit: currentCommit.slice(0, 7),
-      changes: [],
-      message: 'โปรแกรมรันในโหมดโฟลเดอร์แบบ Standalone (ไม่มี Git)'
-    };
+    return checkReleaseUpdate(currentVersion);
   }
 
+  const currentCommit = await getLocalCommit();
   try {
     // Fetch remote branch info silently without altering worktree
     await execPromise('git fetch origin main --quiet');
@@ -150,6 +182,7 @@ async function applyUpdate() {
 
 module.exports = {
   checkForUpdates,
+  checkReleaseUpdate,
   applyUpdate,
   getLocalVersion,
   getLocalCommit,
