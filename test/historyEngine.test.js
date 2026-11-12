@@ -119,3 +119,61 @@ test('calculateFirstSeenDeltas tracks original players from Day 1 and newgens fr
   assert.strictEqual(result[2].deltaCA, 0);
   assert.strictEqual(result[2].isNew, true);
 });
+
+test('multi-save career isolation: different saves do not overwrite or contaminate each other', () => {
+  const { saveSnapshot, listSnapshots, calculateFirstSeenDeltas } = require('../server/historyEngine');
+
+  const tempFile = path.join(os.tmpdir(), `fm27_test_multisave_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
+
+  try {
+    // Save 1: Manchester United (Manager: "MY Mind")
+    saveSnapshot('2026-11-07', [{ id: 10, name: 'Mainoo', ca: 150, pa: 175 }], 'MY Mind', 'Manchester United');
+    saveSnapshot('2026-11-28', [{ id: 10, name: 'Mainoo', ca: 154, pa: 175 }], 'MY Mind', 'Manchester United');
+
+    // Save 2: Arsenal (Manager: "Mikel", started fresh on 2026-07-01, and reached 2026-11-07 too!)
+    saveSnapshot('2026-07-01', [{ id: 20, name: 'Saka', ca: 165, pa: 180 }], 'Mikel', 'Arsenal');
+    saveSnapshot('2026-11-07', [{ id: 20, name: 'Saka', ca: 167, pa: 180 }], 'Mikel', 'Arsenal');
+
+    // Check listSnapshots per save
+    const manUtdSnaps = listSnapshots('MY Mind', 'Manchester United');
+    assert.strictEqual(manUtdSnaps.length, 2, 'Man Utd should only see its own 2 snapshots');
+    assert.strictEqual(manUtdSnaps[0].gameDate, '2026-11-07');
+    assert.strictEqual(manUtdSnaps[1].gameDate, '2026-11-28');
+
+    const arsenalSnaps = listSnapshots('Mikel', 'Arsenal');
+    assert.strictEqual(arsenalSnaps.length, 2, 'Arsenal should only see its own 2 snapshots');
+    assert.strictEqual(arsenalSnaps[0].gameDate, '2026-07-01');
+
+    // Check calculation: when in Save 1 (Man Utd) at 2026-11-28
+    // Should NOT use Arsenal's 2026-07-01 as baseline!
+    const { loadHistoryStore } = require('../server/historyEngine');
+    const store = loadHistoryStore();
+    const manUtdDeltas = calculateFirstSeenDeltas(
+      [{ id: 10, name: 'Mainoo', ca: 154, pa: 175 }],
+      store.snapshots,
+      '2026-11-28',
+      'MY Mind',
+      'Manchester United'
+    );
+
+    assert.strictEqual(manUtdDeltas[0].firstSeenDate, '2026-11-07', 'Man Utd baseline remains 2026-11-07 (not contaminated by Arsenal)');
+    assert.strictEqual(manUtdDeltas[0].deltaCA, 4); // 150 -> 154
+
+    // Check calculation: when in Save 2 (Arsenal) at 2026-11-07
+    const arsenalDeltas = calculateFirstSeenDeltas(
+      [{ id: 20, name: 'Saka', ca: 167, pa: 180 }],
+      store.snapshots,
+      '2026-11-07',
+      'Mikel',
+      'Arsenal'
+    );
+    assert.strictEqual(arsenalDeltas[0].firstSeenDate, '2026-07-01');
+    assert.strictEqual(arsenalDeltas[0].deltaCA, 2); // 165 -> 167
+  } finally {
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
+    delete process.env.FM27_HISTORY_FILE;
+  }
+});

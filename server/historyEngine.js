@@ -42,12 +42,23 @@ function saveHistoryStore(store) {
   }
 }
 
+function getSaveKey(manager = '', club = '') {
+  const m = (manager || '').trim().toLowerCase();
+  const c = (club || '').trim().toLowerCase();
+  if (m && c) return `${m}__${c}`;
+  if (m) return m;
+  if (c) return c;
+  return 'default';
+}
+
 /**
- * Saves a new snapshot by gameDate.
+ * Saves a new snapshot by gameDate and save/career.
  * Only keeps minimal mapping (id -> { ca, pa, age, club, pos }) to keep file size efficient.
  */
 function saveSnapshot(gameDate, players, manager = '', club = '') {
   const store = loadHistoryStore();
+  const saveKey = getSaveKey(manager, club);
+
   const playerMap = {};
   for (const p of players) {
     if (!p || !p.id || (p.name && (p.name.trim() === '?' || p.name.trim() === ''))) continue;
@@ -60,8 +71,12 @@ function saveSnapshot(gameDate, players, manager = '', club = '') {
     };
   }
 
-  // Check if snapshot for this gameDate already exists
-  const existingIdx = store.snapshots.findIndex(s => s.gameDate === gameDate);
+  // Check if snapshot for this gameDate and saveKey already exists
+  const existingIdx = store.snapshots.findIndex(s => {
+    const sKey = s.saveKey || getSaveKey(s.manager, s.club);
+    return s.gameDate === gameDate && (saveKey === 'default' || sKey === saveKey);
+  });
+
   if (existingIdx >= 0) {
     const existing = store.snapshots[existingIdx];
     if (existing.club === club && existing.manager === manager && existing.totalPlayers === players.length) {
@@ -78,6 +93,7 @@ function saveSnapshot(gameDate, players, manager = '', club = '') {
     timestamp: new Date().toISOString(),
     manager,
     club,
+    saveKey,
     totalPlayers: players.length,
     players: playerMap
   };
@@ -95,21 +111,32 @@ function saveSnapshot(gameDate, players, manager = '', club = '') {
   return snapObj;
 }
 
-function listSnapshots() {
+function listSnapshots(manager = '', club = '') {
   const store = loadHistoryStore();
-  return store.snapshots.map(s => ({
+  const targetKey = getSaveKey(manager, club);
+  const filtered = (targetKey === 'default')
+    ? store.snapshots
+    : store.snapshots.filter(s => (s.saveKey || getSaveKey(s.manager, s.club)) === targetKey);
+
+  return filtered.map(s => ({
     id: s.id,
     gameDate: s.gameDate,
     timestamp: s.timestamp,
     manager: s.manager,
     club: s.club,
+    saveKey: s.saveKey || getSaveKey(s.manager, s.club),
     totalPlayers: s.totalPlayers
   }));
 }
 
-function getSnapshot(gameDate) {
+function getSnapshot(gameDate, manager = '', club = '') {
   const store = loadHistoryStore();
-  return store.snapshots.find(s => s.gameDate === gameDate) || null;
+  const targetKey = getSaveKey(manager, club);
+  return store.snapshots.find(s => {
+    if (s.gameDate !== gameDate) return false;
+    if (targetKey === 'default') return true;
+    return (s.saveKey || getSaveKey(s.manager, s.club)) === targetKey;
+  }) || null;
 }
 
 /**
@@ -147,9 +174,15 @@ function calculateDeltas(currentPlayers, baselineMap = {}) {
 /**
  * Builds a map of playerId -> { ca, pa, gameDate } representing the earliest known
  * appearance (First Seen / Intake Date) of each player before the current game date.
+ * If manager/club provided, restricts search to snapshots of that save career.
  */
-function buildFirstSeenMap(snapshots = [], currentGameDate = '') {
-  const priorSnapshots = (snapshots || [])
+function buildFirstSeenMap(snapshots = [], currentGameDate = '', manager = '', club = '') {
+  const targetKey = getSaveKey(manager, club);
+  const careerSnapshots = (targetKey === 'default')
+    ? (snapshots || [])
+    : (snapshots || []).filter(s => (s.saveKey || getSaveKey(s.manager, s.club)) === targetKey);
+
+  const priorSnapshots = careerSnapshots
     .filter(s => !currentGameDate || s.gameDate < currentGameDate)
     .sort((a, b) => a.gameDate.localeCompare(b.gameDate));
 
@@ -174,16 +207,22 @@ function buildFirstSeenMap(snapshots = [], currentGameDate = '') {
 
 /**
  * Automatically calculates career progression from each player's First Seen date.
- * - Original players compare against Day 1 (save start).
+ * - Original players compare against Day 1 of their career save.
  * - Youth intake / newgens compare against the exact round they were first born/scanned.
+ * - Different career saves remain isolated and do not contaminate each other.
  */
-function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDate = '') {
-  const priorSnapshots = (snapshots || [])
+function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDate = '', manager = '', club = '') {
+  const targetKey = getSaveKey(manager, club);
+  const careerSnapshots = (targetKey === 'default')
+    ? (snapshots || [])
+    : (snapshots || []).filter(s => (s.saveKey || getSaveKey(s.manager, s.club)) === targetKey);
+
+  const priorSnapshots = careerSnapshots
     .filter(s => !currentGameDate || s.gameDate < currentGameDate)
     .sort((a, b) => a.gameDate.localeCompare(b.gameDate));
 
   const hasPriorHistory = priorSnapshots.length > 0;
-  const firstSeenMap = buildFirstSeenMap(snapshots, currentGameDate);
+  const firstSeenMap = buildFirstSeenMap(snapshots, currentGameDate, manager, club);
 
   return currentPlayers.map(p => {
     if (!hasPriorHistory) {
@@ -230,6 +269,7 @@ function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDat
 
 module.exports = {
   loadHistoryStore,
+  getSaveKey,
   saveSnapshot,
   listSnapshots,
   getSnapshot,

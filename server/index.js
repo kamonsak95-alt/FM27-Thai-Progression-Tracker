@@ -15,6 +15,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 let cachedDump = null;
 let cachedPlayersWithDeltas = null;
 let currentBaselineDate = null;
+let currentSaveKey = null;
 
 function getOrLoadDump() {
   if (!cachedDump) {
@@ -110,7 +111,7 @@ const server = http.createServer(async (req, res) => {
       currentCommit,
       justUpdated,
       totalPlayers: dump?.players?.length || 0,
-      snapshots: listSnapshots()
+      snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub)
     });
   }
 
@@ -136,7 +137,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === '/api/snapshots') {
-    return sendJson(res, 200, { snapshots: listSnapshots() });
+    const dump = getOrLoadDump();
+    return sendJson(res, 200, { snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub) });
   }
 
   if (pathname === '/api/set-date' && req.method === 'POST') {
@@ -188,16 +190,24 @@ const server = http.createServer(async (req, res) => {
     }
 
     const baselineDate = parsedUrl.query.baseline || '';
-    if (baselineDate !== currentBaselineDate || !cachedPlayersWithDeltas) {
+    const activeSaveKey = `${dump.meta?.manager || ''}__${dump.meta?.myClub || ''}`;
+    if (baselineDate !== currentBaselineDate || activeSaveKey !== currentSaveKey || !cachedPlayersWithDeltas) {
       currentBaselineDate = baselineDate;
+      currentSaveKey = activeSaveKey;
       const validPlayers = dump.players.filter(p => p && p.name && p.name.trim() && p.name.trim() !== '?');
       let deltas;
       if (baselineDate) {
-        const snap = getSnapshot(baselineDate);
+        const snap = getSnapshot(baselineDate, dump.meta?.manager, dump.meta?.myClub);
         deltas = calculateDeltas(validPlayers, snap ? snap.players : {});
       } else {
         const store = loadHistoryStore();
-        deltas = calculateFirstSeenDeltas(validPlayers, store.snapshots, dump.meta?.gameDate);
+        deltas = calculateFirstSeenDeltas(
+          validPlayers,
+          store.snapshots,
+          dump.meta?.gameDate,
+          dump.meta?.manager,
+          dump.meta?.myClub
+        );
       }
       cachedPlayersWithDeltas = deltas.map(p => {
         const trend = predictDevelopmentTrend(p, p.deltaCA);
