@@ -1222,6 +1222,58 @@ body {
   gap: 0.5rem;
 }
 
+.section-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.btn-timeline-toggle {
+  background: rgba(168, 85, 247, 0.08);
+  color: var(--accent-purple);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  font-size: 0.785rem;
+  font-weight: 500;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-timeline-toggle:hover {
+  background: rgba(168, 85, 247, 0.18);
+  border-color: var(--accent-purple);
+}
+
+.history-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid var(--accent-purple);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.timeline-item.timeline-milestone {
+  background: rgba(168, 85, 247, 0.08);
+  border-left: 3px solid var(--accent-purple);
+}
+
+.timeline-item.timeline-baseline {
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid var(--text-muted);
+}
+
 /* Attributes Grid */
 .attributes-grid {
   display: grid;

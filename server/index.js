@@ -356,12 +356,13 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 404, { error: 'ไม่พบข้อมูลนักเตะ' });
     }
 
-    // Gather history points across snapshots
+    // Gather history points across snapshots for the active save
     const store = require('./historyEngine');
-    const allSnaps = store.listSnapshots();
+    const refCode = dump?.meta ? store.computeSaveRefCode(dump.meta, dump.staff) : null;
+    const allSnaps = store.listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode);
     const historyPoints = [];
     for (const snapInfo of allSnaps) {
-      const snapData = store.getSnapshot(snapInfo.gameDate);
+      const snapData = store.getSnapshot(snapInfo.gameDate, dump?.meta?.manager, dump?.meta?.myClub, refCode);
       if (snapData && snapData.players[String(id)]) {
         historyPoints.push({
           gameDate: snapInfo.gameDate,

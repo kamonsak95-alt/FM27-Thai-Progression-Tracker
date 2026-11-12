@@ -594,7 +594,12 @@
       <div class="modal-body">
         <!-- Progression History for this player -->
         <div class="modal-section" id="modal-history-section">
-          <h3 class="section-title">📈 ประวัติพัฒนาการตามช่วงเวลา</h3>
+          <div class="section-header-flex">
+            <h3 class="section-title" style="margin-bottom:0;">📈 ประวัติพัฒนาการตามช่วงเวลา</h3>
+            <button type="button" id="btn-toggle-timeline" class="btn-timeline-toggle" style="display:none;" title="สลับแสดงประวัติทุกรอบสแกน">
+              ดูประวัติทุกรอบ
+            </button>
+          </div>
           <div id="modal-history-timeline" class="history-timeline">
             <!-- Filled dynamically -->
           </div>
@@ -713,6 +718,6 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.1.0"></script>
+  <script src="app.js?v=1.1.1"></script>
 </body>
 </html>

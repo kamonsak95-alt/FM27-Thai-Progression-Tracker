@@ -1178,29 +1178,100 @@ async function openPlayerModal(id) {
       `;
     }
 
-    // Render Timeline
+    // Render Timeline (Milestones only by default)
     const timelineEl = document.getElementById('modal-history-timeline');
-    if (historyPoints && historyPoints.length > 0) {
-      timelineEl.innerHTML = historyPoints.map((pt, idx) => {
-        let diffText = '';
-        if (idx > 0) {
-          const prev = historyPoints[idx - 1];
-          const diff = pt.ca - prev.ca;
-          if (diff > 0) diffText = `<span class="text-green font-bold">(+${diff} CA)</span>`;
-          else if (diff < 0) diffText = `<span class="text-red font-bold">(${diff} CA)</span>`;
+    const btnToggle = document.getElementById('btn-toggle-timeline');
+    let isShowingAllTimeline = false;
+    const rawHistory = historyPoints || [];
+
+    function renderTimeline() {
+      if (!timelineEl) return;
+      if (!rawHistory || rawHistory.length === 0) {
+        timelineEl.innerHTML = `<span class="text-muted text-sm">ยังไม่มีประวัติรอบอื่นๆ</span>`;
+        if (btnToggle) btnToggle.style.display = 'none';
+        return;
+      }
+
+      // Compute milestones (only dates where CA changed + baseline)
+      const milestones = [];
+      const firstPt = rawHistory[0];
+      milestones.push({
+        ...firstPt,
+        isBaseline: true,
+        diffText: `<span class="badge badge-growth-neutral text-xs text-muted">(จุดเริ่มบันทึก)</span>`
+      });
+
+      let prevCA = firstPt.ca;
+      for (let i = 1; i < rawHistory.length; i++) {
+        const pt = rawHistory[i];
+        if (pt.ca !== prevCA) {
+          const diff = pt.ca - prevCA;
+          const diffText = diff > 0
+            ? `<span class="text-green font-bold">(+${diff} CA)</span>`
+            : `<span class="text-red font-bold">(${diff} CA)</span>`;
+          milestones.push({
+            ...pt,
+            diffText,
+            isMilestone: true
+          });
+          prevCA = pt.ca;
         }
+      }
+
+      if (milestones.length === 1 && rawHistory.length > 1) {
+        milestones[0].diffText = `<span class="badge badge-growth-neutral text-xs text-muted">(จุดเริ่มบันทึก - ค่าพลังคงที่ตลอด ${rawHistory.length} รอบ)</span>`;
+      }
+
+      const hasRedundant = rawHistory.length > milestones.length;
+      if (btnToggle) {
+        if (hasRedundant) {
+          btnToggle.style.display = 'inline-block';
+          btnToggle.textContent = isShowingAllTimeline
+            ? `ย่อเหลือเฉพาะที่เปลี่ยน (${milestones.length} รอบ)`
+            : `ดูทุกรอบ (${rawHistory.length} รอบ)`;
+        } else {
+          btnToggle.style.display = 'none';
+        }
+      }
+
+      const pointsToDisplay = isShowingAllTimeline
+        ? rawHistory.map((pt, idx) => {
+            let diffText = '';
+            if (idx === 0) {
+              diffText = `<span class="badge badge-growth-neutral text-xs text-muted">(จุดเริ่มบันทึก)</span>`;
+            } else {
+              const prev = rawHistory[idx - 1];
+              const diff = pt.ca - prev.ca;
+              if (diff > 0) diffText = `<span class="text-green font-bold">(+${diff} CA)</span>`;
+              else if (diff < 0) diffText = `<span class="text-red font-bold">(${diff} CA)</span>`;
+              else diffText = `<span class="text-muted text-xs">(คงที่)</span>`;
+            }
+            return { ...pt, diffText };
+          })
+        : milestones;
+
+      timelineEl.innerHTML = pointsToDisplay.map(pt => {
+        const itemClass = pt.isMilestone ? 'timeline-milestone' : (pt.isBaseline ? 'timeline-baseline' : '');
         return `
-          <div class="timeline-item">
+          <div class="timeline-item ${itemClass}">
             <span class="timeline-date font-semibold">${pt.gameDate}:</span>
             <span>CA: <strong class="text-accent">${pt.ca}</strong></span>
             <span>PA: <strong class="text-green">${pt.pa}</strong></span>
-            ${diffText}
+            ${pt.diffText || ''}
           </div>
         `;
       }).join('');
-    } else {
-      timelineEl.innerHTML = `<span class="text-muted text-sm">ยังไม่มีประวัติรอบอื่นๆ</span>`;
     }
+
+    if (btnToggle) {
+      btnToggle.onclick = (e) => {
+        e.stopPropagation();
+        isShowingAllTimeline = !isShowingAllTimeline;
+        renderTimeline();
+      };
+    }
+
+    renderTimeline();
 
     // Render Attributes
     const attrs = player.attrs || {};
