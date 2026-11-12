@@ -1246,3 +1246,187 @@ body {
 .changelog-alert-box.success code {
   color: #6ee7b7;
 }
+
+/* ==========================================================================
+   Header Nav Tabs (Segmented Switcher: Players vs Staff Scout)
+   ========================================================================== */
+.header-nav-tabs {
+  display: flex;
+  align-items: center;
+  background: #131520;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  gap: 4px;
+}
+
+.nav-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.nav-tab-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-tab-btn.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.4);
+}
+
+.nav-tab-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* ==========================================================================
+   Staff Scouting UI Styles
+   ========================================================================== */
+.staff-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.staff-select {
+  width: 100%;
+}
+
+.staff-select optgroup {
+  background: #181b26;
+  color: var(--accent-purple);
+  font-weight: 700;
+  padding: 0.35rem 0;
+}
+
+.staff-select option {
+  background: #12141e;
+  color: var(--text-main);
+  font-weight: 400;
+  padding: 0.35rem 0.5rem;
+}
+
+/* Staff Role & Category Badges */
+.badge-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-role-coaching {
+  background: rgba(139, 92, 246, 0.15);
+  color: #c4b5fd;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.badge-role-recruitment {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.badge-role-medical {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+/* Free Agent Pill */
+.badge-free {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+/* Staff Stars & Key Skills */
+.staff-stars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.stars-gold {
+  color: #fbbf24;
+  letter-spacing: -1px;
+}
+
+.stars-val {
+  font-weight: 700;
+  color: #fbbf24;
+  font-size: 0.85rem;
+}
+
+.staff-mini-skills {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.skill-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.skill-pill strong {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.skill-pill.highlight {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
+  color: #ddd6fe;
+}
+
+.skill-pill.highlight strong {
+  color: #c4b5fd;
+}
+
+/* Staff Modal Container & Grids */
+.modal-card-lg {
+  max-width: 960px;
+  width: 95%;
+}
+
+.staff-attrs-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+}
+
+.text-orange {
+  color: var(--stat-orange);
+}

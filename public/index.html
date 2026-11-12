@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FM27 Thai Progression Tracker & Scout</title>
-  <link rel="stylesheet" href="style.css?v=1.0.2">
+  <link rel="stylesheet" href="style.css?v=1.0.3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -21,6 +21,18 @@
           <p class="brand-subtitle">ระบบติดตามพัฒนาการนักเตะและสเกาต์ Wonderkid สำหรับ Football Manager 27</p>
         </div>
       </div>
+
+      <!-- Segmented Navigation Tabs -->
+      <nav class="header-nav-tabs">
+        <button type="button" id="tab-btn-players" class="nav-tab-btn active">
+          <span class="nav-tab-icon">⚽</span>
+          <span>นักเตะ & พัฒนาการ (Players)</span>
+        </button>
+        <button type="button" id="tab-btn-staff" class="nav-tab-btn">
+          <span class="nav-tab-icon">👔</span>
+          <span>ส่องทีมงาน (Staff Scout)</span>
+        </button>
+      </nav>
 
       <div class="header-status">
         <div class="info-pill" id="club-badge">
@@ -66,8 +78,10 @@
   <!-- Main Content Layout -->
   <main class="app-main">
     
-    <!-- Snapshot Comparison Bar -->
-    <section class="snapshot-bar card">
+    <!-- Tab 1: Players & Progression Section -->
+    <div id="section-players">
+      <!-- Snapshot Comparison Bar -->
+      <section class="snapshot-bar card">
       <div class="snapshot-bar-left">
         <span class="icon">⏱️</span>
         <span class="font-medium">เปรียบเทียบพัฒนาการกับรอบ:</span>
@@ -333,6 +347,168 @@
         <button id="btn-next-page" class="btn btn-secondary btn-sm" disabled>หน้าถัดไป ▶</button>
       </div>
     </section>
+  </div> <!-- /section-players -->
+
+  <!-- Tab 2: Staff Scouting Section (ส่องทีมงาน) -->
+  <div id="section-staff" style="display:none;">
+    <!-- Staff Filters Section -->
+    <section class="filters-card card">
+      <div class="filter-row search-row">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="filter-staff-search" class="form-input" placeholder="ค้นหาชื่อทีมงาน (เช่น Maldini, Edwards, Calafat, Rangnick)...">
+          <button id="btn-clear-staff-search" class="btn-clear" style="display:none;">✕</button>
+        </div>
+
+        <div class="quick-filters">
+          <button type="button" class="pill-btn staff-preset-btn active" data-staff-preset="all">ทั้งหมด</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="five_star">🌟 โค้ช 5 ดาว (4.5-5.0 ⭐)</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="hoyd">👶 ปั้นเยาวชน (HOYD เทพ)</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="diamond_scout">🔍 แมวมองตาเพชร (JPA/JPP 18+)</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="god_physio">🩺 หมอเทวดา (Physio 18+)</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="free_agents">🆓 ว่างงาน (Free Agents)</button>
+        </div>
+      </div>
+
+      <!-- 3 FM-Style Dropdowns & Sliders Grid matching User Screenshots -->
+      <div class="filter-grid staff-filter-grid">
+        <!-- Dropdown 1: ตำแหน่งเจ้าหน้าที่ (Role / Category) -->
+        <div class="filter-group">
+          <label class="filter-label" for="filter-staff-role">ตำแหน่งเจ้าหน้าที่ (Role)</label>
+          <select id="filter-staff-role" class="form-select staff-select">
+            <option value="all">ใดๆ (ทุกตำแหน่ง)</option>
+            <optgroup label="── การฝึกสอน (Coaching) ──">
+              <option value="cat:coaching">📋 ทุกตำแหน่งการฝึกสอน</option>
+              <option value="manager">ผู้จัดการทีม (Manager)</option>
+              <option value="assistant_manager">ผู้ช่วยผู้จัดการทีม (Assistant Manager)</option>
+              <option value="hoyd">หัวหน้าฝ่ายพัฒนาเยาวชน (Head of Youth Development)</option>
+              <option value="coach">โค้ช (Coach)</option>
+              <option value="gk_coach">โค้ชผู้รักษาประตู (Goalkeeping Coach)</option>
+              <option value="set_piece_coach">โค้ชลูกตั้งเตะ (Set Piece Coach)</option>
+              <option value="fitness_coach">โค้ชฟิตเนส (Fitness Coach)</option>
+              <option value="head_perf_analyst">หัวหน้านักวิเคราะห์ผลงาน (Head of Performance Analysis)</option>
+              <option value="perf_analyst">นักวิเคราะห์ผลงาน (Performance Analyst)</option>
+            </optgroup>
+            <optgroup label="── ทีมสรรหานักเตะ (Recruitment) ──">
+              <option value="cat:recruitment">📋 ทุกตำแหน่งสรรหานักเตะ</option>
+              <option value="dof">ผู้อำนวยการฟุตบอล (Director of Football)</option>
+              <option value="technical_director">ผู้อำนวยการฝ่ายเทคนิค (Technical Director)</option>
+              <option value="scout">แมวมอง (Scout / Chief Scout)</option>
+              <option value="recruitment_analyst">นักวิเคราะห์การสรรหา (Recruitment Analyst)</option>
+              <option value="loan_manager">ผู้จัดการฝ่ายยืมตัว (Loan Manager)</option>
+            </optgroup>
+            <optgroup label="── การแพทย์ (Medical) ──">
+              <option value="cat:medical">📋 ทุกตำแหน่งการแพทย์</option>
+              <option value="physio">นักกายภาพบำบัด (Physiotherapist)</option>
+              <option value="sports_scientist">นักวิทยาศาสตร์การกีฬา (Sports Scientist)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Dropdown 2: ทำงานแล้ว (Employment Status) -->
+        <div class="filter-group">
+          <label class="filter-label" for="filter-staff-status">ทำงานแล้ว (Employment)</label>
+          <select id="filter-staff-status" class="form-select staff-select">
+            <option value="any">ใดๆ (ทั้งหมด)</option>
+            <option value="unemployed">🆓 ว่างงาน (Free Agent / Unemployed)</option>
+            <option value="employed">🏢 มีสังกัดแล้ว (Employed)</option>
+          </select>
+        </div>
+
+        <!-- Dropdown 3: ชื่อเสียง (Reputation) -->
+        <div class="filter-group">
+          <label class="filter-label" for="filter-staff-rep">ชื่อเสียง (Reputation)</label>
+          <select id="filter-staff-rep" class="form-select staff-select">
+            <option value="any">ใดๆ (ทุกระดับ)</option>
+            <option value="world">⭐⭐⭐⭐⭐ ระดับโลก (World Class - 7,000+)</option>
+            <option value="continental">⭐⭐⭐⭐ ระดับทวีป (Continental - 5,000+)</option>
+            <option value="national">⭐⭐⭐ ระดับประเทศ (National - 3,500+)</option>
+            <option value="regional">⭐⭐ ระดับภูมิภาค (Regional - 2,000+)</option>
+          </select>
+        </div>
+
+        <!-- Age Range -->
+        <div class="filter-group">
+          <label class="filter-label">ช่วงอายุ (Age): <span id="val-staff-age" class="text-accent font-semibold">15 - 80</span> ปี</label>
+          <div class="range-inputs">
+            <input type="number" id="min-staff-age" class="form-input num-input" value="15" min="15" max="80">
+            <span class="text-muted">ถึง</span>
+            <input type="number" id="max-staff-age" class="form-input num-input" value="80" min="15" max="80">
+          </div>
+        </div>
+
+        <!-- CA Range -->
+        <div class="filter-group">
+          <label class="filter-label">ค่าพลังปัจจุบัน (CA): <span id="val-staff-ca" class="text-accent font-semibold">1 - 200</span></label>
+          <div class="range-inputs">
+            <input type="number" id="min-staff-ca" class="form-input num-input" value="1" min="1" max="200">
+            <span class="text-muted">ถึง</span>
+            <input type="number" id="max-staff-ca" class="form-input num-input" value="200" min="1" max="200">
+          </div>
+        </div>
+
+        <!-- PA Range -->
+        <div class="filter-group">
+          <label class="filter-label">ศักยภาพสูงสุด (PA): <span id="val-staff-pa" class="text-accent font-semibold">1 - 200</span></label>
+          <div class="range-inputs">
+            <input type="number" id="min-staff-pa" class="form-input num-input" value="1" min="1" max="200">
+            <span class="text-muted">ถึง</span>
+            <input type="number" id="max-staff-pa" class="form-input num-input" value="200" min="1" max="200">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Staff Table Section -->
+    <section class="table-card card">
+      <div class="table-header-meta">
+        <div class="count-display">
+          พบทีมงานทั้งหมด <span id="staff-total-count" class="font-bold text-accent">0</span> คน 
+          <span class="text-muted text-sm">(แสดงหน้า <span id="staff-current-page">1</span> จาก <span id="staff-total-pages">1</span>)</span>
+        </div>
+
+        <div class="table-actions">
+          <label class="text-sm text-muted">แสดงต่อหน้า:</label>
+          <select id="select-staff-limit" class="form-select form-select-sm">
+            <option value="25">25 คน</option>
+            <option value="50" selected>50 คน</option>
+            <option value="100">100 คน</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Responsive Table Container -->
+      <div class="table-wrapper">
+        <table class="data-table" id="staff-table">
+          <thead>
+            <tr>
+              <th data-staff-sort="name" class="sortable">ชื่อทีมงาน (Name)</th>
+              <th data-staff-sort="role" class="sortable">ตำแหน่ง (Role)</th>
+              <th data-staff-sort="club" class="sortable">สโมสร (Club)</th>
+              <th data-staff-sort="age" class="sortable text-center">อายุ (Age)</th>
+              <th data-staff-sort="ca" class="sortable text-center active-sort desc">CA</th>
+              <th data-staff-sort="pa" class="sortable text-center">PA</th>
+              <th data-staff-sort="coachStars" class="sortable text-center">ดาวโค้ช / สกิลเด่น (Key Skills)</th>
+              <th data-staff-sort="wage" class="sortable text-right">ค่าเหนื่อย (Wage)</th>
+              <th data-staff-sort="rep" class="sortable">ชื่อเสียง (Reputation)</th>
+            </tr>
+          </thead>
+          <tbody id="staff-table-body">
+            <tr>
+              <td colspan="9" class="text-center py-8 text-muted">กำลังโหลดข้อมูลทีมงาน...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer -->
+      <div class="pagination-footer">
+        <button id="btn-staff-prev-page" class="btn btn-secondary btn-sm" disabled>◀ หน้าก่อนหน้า</button>
+        <span class="pagination-info" id="staff-pagination-text">หน้า 1 / 1</span>
+        <button id="btn-staff-next-page" class="btn btn-secondary btn-sm" disabled>หน้าถัดไป ▶</button>
+      </div>
+    </section>
+  </div> <!-- /section-staff -->
 
     <!-- App Footer / Credits -->
     <footer class="app-footer text-center text-muted text-sm" style="padding: 1.5rem 0 0.5rem; opacity: 0.85;">
@@ -409,6 +585,56 @@
     </div>
   </div>
 
+  <!-- Staff Detail Modal -->
+  <div id="staff-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card modal-card-lg">
+      <button class="modal-close" id="staff-modal-close-btn">&times;</button>
+      
+      <div class="modal-header">
+        <div class="player-avatar" id="staff-modal-avatar">👔</div>
+        <div class="player-headline">
+          <h2 id="staff-modal-name" class="modal-player-name">Staff Name</h2>
+          <div class="modal-submeta">
+            <span id="staff-modal-role" class="badge badge-pos">Coach</span>
+            <span id="staff-modal-club" class="text-muted">Club Name</span> &bull; 
+            <span id="staff-modal-nat" class="text-muted">Nationality</span> &bull; 
+            <span id="staff-modal-age" class="text-muted">45 ปี</span>
+          </div>
+        </div>
+
+        <div class="modal-ca-pa">
+          <div class="ability-block" id="staff-modal-stars-block">
+            <div class="ability-label">ดาวโค้ช (Rating)</div>
+            <div class="ability-number text-orange" id="staff-modal-stars">⭐ 4.5</div>
+          </div>
+          <div class="ability-block">
+            <div class="ability-label">CA (ปัจจุบัน)</div>
+            <div class="ability-number text-accent" id="staff-modal-ca">150</div>
+          </div>
+          <div class="ability-block">
+            <div class="ability-label">PA (ศักยภาพ)</div>
+            <div class="ability-number text-green" id="staff-modal-pa">170</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <!-- 4 Attribute Grids: Coaching, Mental, Scouting, Medical -->
+        <div class="staff-attrs-container" id="staff-modal-attrs-container">
+          <!-- Filled dynamically -->
+        </div>
+
+        <!-- Hidden & Personality Stats -->
+        <div class="modal-section" style="margin-top: 1.25rem;">
+          <h3 class="section-title">🧠 ลักษณะนิสัยและสถิติแฝง (Personality & Hidden)</h3>
+          <div class="personality-grid" id="staff-modal-personality-grid">
+            <!-- Ambition, Loyalty, etc. -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Changelog / Update Details Modal -->
   <div id="changelog-modal" class="modal-overlay" style="display:none;">
     <div class="modal-card" style="max-width: 620px;">
@@ -450,6 +676,6 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.0.2"></script>
+  <script src="app.js?v=1.0.3"></script>
 </body>
 </html>

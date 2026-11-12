@@ -25,7 +25,29 @@ let state = {
   loadedCommit: ''
 };
 
+let stateStaff = {
+  q: '',
+  category: 'all',
+  role: 'all',
+  status: 'any',
+  rep: 'any',
+  minAge: 15,
+  maxAge: 80,
+  minCA: 1,
+  maxCA: 200,
+  minPA: 1,
+  maxPA: 200,
+  preset: 'all',
+  sort: 'ca',
+  order: 'desc',
+  page: 1,
+  limit: 50,
+  totalPages: 1,
+  total: 0
+};
+
 let debounceTimer = null;
+let debounceStaffTimer = null;
 
 // Attribute Groups mapping for FM
 const ATTR_GROUPS = {
@@ -118,7 +140,55 @@ const el = {
   pitchFilterSummary: document.getElementById('pitch-filter-summary'),
   pitchFilterCount: document.getElementById('pitch-filter-count'),
   checkNatOnly: document.getElementById('check-nat-only'),
-  btnClearPitch: document.getElementById('btn-clear-pitch')
+  btnClearPitch: document.getElementById('btn-clear-pitch'),
+
+  // Navigation Tabs
+  tabBtnPlayers: document.getElementById('tab-btn-players'),
+  tabBtnStaff: document.getElementById('tab-btn-staff'),
+  sectionPlayers: document.getElementById('section-players'),
+  sectionStaff: document.getElementById('section-staff'),
+
+  // Staff Filters
+  filterStaffSearch: document.getElementById('filter-staff-search'),
+  btnClearStaffSearch: document.getElementById('btn-clear-staff-search'),
+  filterStaffRole: document.getElementById('filter-staff-role'),
+  filterStaffStatus: document.getElementById('filter-staff-status'),
+  filterStaffRep: document.getElementById('filter-staff-rep'),
+  minStaffAge: document.getElementById('min-staff-age'),
+  maxStaffAge: document.getElementById('max-staff-age'),
+  valStaffAge: document.getElementById('val-staff-age'),
+  minStaffCA: document.getElementById('min-staff-ca'),
+  maxStaffCA: document.getElementById('max-staff-ca'),
+  valStaffCA: document.getElementById('val-staff-ca'),
+  minStaffPA: document.getElementById('min-staff-pa'),
+  maxStaffPA: document.getElementById('max-staff-pa'),
+  valStaffPA: document.getElementById('val-staff-pa'),
+
+  // Staff Table
+  staffTotalCount: document.getElementById('staff-total-count'),
+  staffCurrentPage: document.getElementById('staff-current-page'),
+  staffTotalPages: document.getElementById('staff-total-pages'),
+  selectStaffLimit: document.getElementById('select-staff-limit'),
+  staffTableBody: document.getElementById('staff-table-body'),
+  btnStaffPrevPage: document.getElementById('btn-staff-prev-page'),
+  btnStaffNextPage: document.getElementById('btn-staff-next-page'),
+  staffPaginationText: document.getElementById('staff-pagination-text'),
+
+  // Staff Detail Modal
+  staffModal: document.getElementById('staff-modal'),
+  staffModalClose: document.getElementById('staff-modal-close-btn'),
+  staffModalAvatar: document.getElementById('staff-modal-avatar'),
+  staffModalName: document.getElementById('staff-modal-name'),
+  staffModalRole: document.getElementById('staff-modal-role'),
+  staffModalClub: document.getElementById('staff-modal-club'),
+  staffModalNat: document.getElementById('staff-modal-nat'),
+  staffModalAge: document.getElementById('staff-modal-age'),
+  staffModalStarsBlock: document.getElementById('staff-modal-stars-block'),
+  staffModalStars: document.getElementById('staff-modal-stars'),
+  staffModalCA: document.getElementById('staff-modal-ca'),
+  staffModalPA: document.getElementById('staff-modal-pa'),
+  staffModalAttrsContainer: document.getElementById('staff-modal-attrs-container'),
+  staffModalPersonalityGrid: document.getElementById('staff-modal-personality-grid')
 };
 
 let latestUpdateData = null;
@@ -421,6 +491,173 @@ function initEventListeners() {
       el.modal.style.display = 'none';
     }
   });
+
+  // ==========================================================================
+  // Staff Scouting Event Listeners
+  // ==========================================================================
+
+  // Tab Switcher
+  if (el.tabBtnPlayers && el.tabBtnStaff) {
+    el.tabBtnPlayers.addEventListener('click', () => switchTab('players'));
+    el.tabBtnStaff.addEventListener('click', () => switchTab('staff'));
+  }
+
+  // Staff Search
+  if (el.filterStaffSearch) {
+    el.filterStaffSearch.addEventListener('input', (e) => {
+      stateStaff.q = e.target.value;
+      if (el.btnClearStaffSearch) {
+        el.btnClearStaffSearch.style.display = stateStaff.q ? 'block' : 'none';
+      }
+      clearTimeout(debounceStaffTimer);
+      debounceStaffTimer = setTimeout(() => {
+        stateStaff.page = 1;
+        loadStaff();
+      }, 250);
+    });
+  }
+
+  if (el.btnClearStaffSearch) {
+    el.btnClearStaffSearch.addEventListener('click', () => {
+      el.filterStaffSearch.value = '';
+      stateStaff.q = '';
+      el.btnClearStaffSearch.style.display = 'none';
+      stateStaff.page = 1;
+      loadStaff();
+    });
+  }
+
+  // Staff Presets
+  document.querySelectorAll('.staff-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.staff-preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const preset = btn.dataset.staffPreset;
+      applyStaffPreset(preset);
+      stateStaff.page = 1;
+      loadStaff();
+    });
+  });
+
+  // Staff Dropdowns (Role, Status, Reputation)
+  if (el.filterStaffRole) {
+    el.filterStaffRole.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val.startsWith('cat:')) {
+        stateStaff.category = val.replace('cat:', '');
+        stateStaff.role = 'all';
+      } else if (val === 'all') {
+        stateStaff.category = 'all';
+        stateStaff.role = 'all';
+      } else {
+        stateStaff.category = 'all';
+        stateStaff.role = val;
+      }
+      stateStaff.page = 1;
+      loadStaff();
+    });
+  }
+
+  if (el.filterStaffStatus) {
+    el.filterStaffStatus.addEventListener('change', (e) => {
+      stateStaff.status = e.target.value;
+      stateStaff.page = 1;
+      loadStaff();
+    });
+  }
+
+  if (el.filterStaffRep) {
+    el.filterStaffRep.addEventListener('change', (e) => {
+      stateStaff.rep = e.target.value;
+      stateStaff.page = 1;
+      loadStaff();
+    });
+  }
+
+  // Staff Range Sliders
+  function bindStaffRangeInput(minInput, maxInput, displayEl, stateMinKey, stateMaxKey) {
+    if (!minInput || !maxInput) return;
+    const update = () => {
+      let min = parseInt(minInput.value, 10);
+      let max = parseInt(maxInput.value, 10);
+      if (min > max) { [min, max] = [max, min]; minInput.value = min; maxInput.value = max; }
+      stateStaff[stateMinKey] = min;
+      stateStaff[stateMaxKey] = max;
+      if (displayEl) displayEl.textContent = `${min} - ${max}`;
+      stateStaff.page = 1;
+      loadStaff();
+    };
+    minInput.addEventListener('change', update);
+    maxInput.addEventListener('change', update);
+  }
+
+  bindStaffRangeInput(el.minStaffAge, el.maxStaffAge, el.valStaffAge, 'minAge', 'maxAge');
+  bindStaffRangeInput(el.minStaffCA, el.maxStaffCA, el.valStaffCA, 'minCA', 'maxCA');
+  bindStaffRangeInput(el.minStaffPA, el.maxStaffPA, el.valStaffPA, 'minPA', 'maxPA');
+
+  // Staff Table Page Limit
+  if (el.selectStaffLimit) {
+    el.selectStaffLimit.addEventListener('change', (e) => {
+      stateStaff.limit = parseInt(e.target.value, 10);
+      stateStaff.page = 1;
+      loadStaff();
+    });
+  }
+
+  // Staff Table Pagination
+  if (el.btnStaffPrevPage) {
+    el.btnStaffPrevPage.addEventListener('click', () => {
+      if (stateStaff.page > 1) {
+        stateStaff.page--;
+        loadStaff();
+      }
+    });
+  }
+
+  if (el.btnStaffNextPage) {
+    el.btnStaffNextPage.addEventListener('click', () => {
+      if (stateStaff.page < stateStaff.totalPages) {
+        stateStaff.page++;
+        loadStaff();
+      }
+    });
+  }
+
+  // Staff Table Column Sorting
+  document.querySelectorAll('th[data-staff-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const sortKey = th.dataset.staffSort;
+      if (stateStaff.sort === sortKey) {
+        stateStaff.order = stateStaff.order === 'asc' ? 'desc' : 'asc';
+      } else {
+        stateStaff.sort = sortKey;
+        stateStaff.order = (sortKey === 'name' || sortKey === 'club' || sortKey === 'role') ? 'asc' : 'desc';
+      }
+
+      document.querySelectorAll('th[data-staff-sort]').forEach(t => {
+        t.classList.remove('active-sort', 'asc', 'desc');
+      });
+      th.classList.add('active-sort', stateStaff.order);
+
+      stateStaff.page = 1;
+      loadStaff();
+    });
+  });
+
+  // Staff Detail Modal Close
+  if (el.staffModalClose) {
+    el.staffModalClose.addEventListener('click', () => {
+      el.staffModal.style.display = 'none';
+    });
+  }
+
+  if (el.staffModal) {
+    el.staffModal.addEventListener('click', (e) => {
+      if (e.target === el.staffModal) {
+        el.staffModal.style.display = 'none';
+      }
+    });
+  }
 }
 
 function applyPreset(preset) {
@@ -448,6 +685,82 @@ function applyPreset(preset) {
   el.valAge.textContent = `${state.minAge} - ${state.maxAge}`;
   el.valCA.textContent = `${state.minCA} - ${state.maxCA}`;
   el.valPA.textContent = `${state.minPA} - ${state.maxPA}`;
+}
+
+function switchTab(tab) {
+  if (tab === 'players') {
+    if (el.tabBtnPlayers) el.tabBtnPlayers.classList.add('active');
+    if (el.tabBtnStaff) el.tabBtnStaff.classList.remove('active');
+    if (el.sectionPlayers) el.sectionPlayers.style.display = 'block';
+    if (el.sectionStaff) el.sectionStaff.style.display = 'none';
+  } else if (tab === 'staff') {
+    if (el.tabBtnPlayers) el.tabBtnPlayers.classList.remove('active');
+    if (el.tabBtnStaff) el.tabBtnStaff.classList.add('active');
+    if (el.sectionPlayers) el.sectionPlayers.style.display = 'none';
+    if (el.sectionStaff) el.sectionStaff.style.display = 'block';
+
+    // Lazy load staff when switched to staff tab for first time
+    if (stateStaff.total === 0) {
+      loadStaff();
+    }
+  }
+}
+
+function applyStaffPreset(preset) {
+  stateStaff.preset = preset;
+  stateStaff.category = 'all';
+  stateStaff.role = 'all';
+  stateStaff.status = 'any';
+  stateStaff.rep = 'any';
+  stateStaff.minAge = 15; stateStaff.maxAge = 80;
+  stateStaff.minCA = 1; stateStaff.maxCA = 200;
+  stateStaff.minPA = 1; stateStaff.maxPA = 200;
+  stateStaff.sort = 'ca';
+  stateStaff.order = 'desc';
+
+  if (preset === 'five_star') {
+    stateStaff.category = 'coaching';
+    stateStaff.sort = 'coachStars';
+    stateStaff.order = 'desc';
+    if (el.filterStaffRole) el.filterStaffRole.value = 'cat:coaching';
+    if (el.filterStaffStatus) el.filterStaffStatus.value = 'any';
+  } else if (preset === 'hoyd') {
+    stateStaff.role = 'hoyd';
+    stateStaff.sort = 'ca';
+    if (el.filterStaffRole) el.filterStaffRole.value = 'hoyd';
+    if (el.filterStaffStatus) el.filterStaffStatus.value = 'any';
+  } else if (preset === 'diamond_scout') {
+    stateStaff.role = 'scout';
+    stateStaff.sort = 'ca';
+    if (el.filterStaffRole) el.filterStaffRole.value = 'scout';
+    if (el.filterStaffStatus) el.filterStaffStatus.value = 'any';
+  } else if (preset === 'god_physio') {
+    stateStaff.role = 'physio';
+    stateStaff.sort = 'ca';
+    if (el.filterStaffRole) el.filterStaffRole.value = 'physio';
+    if (el.filterStaffStatus) el.filterStaffStatus.value = 'any';
+  } else if (preset === 'free_agents') {
+    stateStaff.status = 'unemployed';
+    if (el.filterStaffRole) el.filterStaffRole.value = 'all';
+    if (el.filterStaffStatus) el.filterStaffStatus.value = 'unemployed';
+  } else {
+    // all
+    if (el.filterStaffRole) el.filterStaffRole.value = 'all';
+    if (el.filterStaffStatus) el.filterStaffStatus.value = 'any';
+  }
+
+  if (el.filterStaffRep) el.filterStaffRep.value = 'any';
+
+  // Update input displays
+  if (el.minStaffAge) el.minStaffAge.value = stateStaff.minAge;
+  if (el.maxStaffAge) el.maxStaffAge.value = stateStaff.maxAge;
+  if (el.valStaffAge) el.valStaffAge.textContent = `${stateStaff.minAge} - ${stateStaff.maxAge}`;
+  if (el.minStaffCA) el.minStaffCA.value = stateStaff.minCA;
+  if (el.maxStaffCA) el.maxStaffCA.value = stateStaff.maxCA;
+  if (el.valStaffCA) el.valStaffCA.textContent = `${stateStaff.minCA} - ${stateStaff.maxCA}`;
+  if (el.minStaffPA) el.minStaffPA.value = stateStaff.minPA;
+  if (el.maxStaffPA) el.maxStaffPA.value = stateStaff.maxPA;
+  if (el.valStaffPA) el.valStaffPA.textContent = `${stateStaff.minPA} - ${stateStaff.maxPA}`;
 }
 
 async function loadStatus() {
@@ -995,4 +1308,284 @@ async function applyUpdate() {
     el.btnApplyUpdate.disabled = false;
     el.btnApplyUpdate.textContent = 'ลองใหม่อีกครั้ง';
   }
+}
+
+// ==========================================================================
+// Staff Data Loading & Rendering
+// ==========================================================================
+
+async function loadStaff() {
+  if (!el.staffTableBody) return;
+  el.staffTableBody.innerHTML = `
+    <tr>
+      <td colspan="9" class="text-center py-8 text-muted">กำลังโหลดข้อมูลทีมงาน...</td>
+    </tr>
+  `;
+
+  try {
+    const params = new URLSearchParams({
+      page: stateStaff.page,
+      limit: stateStaff.limit,
+      sort: stateStaff.sort,
+      order: stateStaff.order,
+      minAge: stateStaff.minAge,
+      maxAge: stateStaff.maxAge,
+      minCA: stateStaff.minCA,
+      maxCA: stateStaff.maxCA,
+      minPA: stateStaff.minPA,
+      maxPA: stateStaff.maxPA
+    });
+
+    if (stateStaff.q) params.set('q', stateStaff.q);
+    if (stateStaff.category && stateStaff.category !== 'all') params.set('category', stateStaff.category);
+    if (stateStaff.role && stateStaff.role !== 'all') params.set('role', stateStaff.role);
+    if (stateStaff.status && stateStaff.status !== 'any') params.set('status', stateStaff.status);
+    if (stateStaff.rep && stateStaff.rep !== 'any') params.set('rep', stateStaff.rep);
+    if (stateStaff.preset && stateStaff.preset !== 'all') params.set('preset', stateStaff.preset);
+
+    const res = await fetch(`/api/staff?${params.toString()}`);
+    const data = await res.json();
+
+    stateStaff.total = data.total;
+    stateStaff.totalPages = data.totalPages;
+
+    if (el.staffTotalCount) el.staffTotalCount.textContent = data.total.toLocaleString();
+    if (el.staffCurrentPage) el.staffCurrentPage.textContent = data.page;
+    if (el.staffTotalPages) el.staffTotalPages.textContent = data.totalPages;
+    if (el.staffPaginationText) el.staffPaginationText.textContent = `หน้า ${data.page} / ${data.totalPages}`;
+
+    if (el.btnStaffPrevPage) el.btnStaffPrevPage.disabled = data.page <= 1;
+    if (el.btnStaffNextPage) el.btnStaffNextPage.disabled = data.page >= data.totalPages;
+
+    renderStaffTable(data.staff);
+  } catch (err) {
+    console.error('Failed to load staff:', err);
+    el.staffTableBody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center py-8 text-red">
+          เกิดข้อผิดพลาดในการโหลดข้อมูลทีมงาน: ${escapeHtml(err.message)}
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function renderStaffTable(staffList) {
+  if (!staffList || staffList.length === 0) {
+    el.staffTableBody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center py-8 text-muted">
+          🔍 ไม่พบทีมงานที่ตรงกับเงื่อนไขการค้นหา
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  el.staffTableBody.innerHTML = staffList.map(s => {
+    // Role Badge & Category Class
+    let catClass = 'badge-role-coaching';
+    let catIcon = '👔';
+    if (s.roleCategory === 'recruitment') {
+      catClass = 'badge-role-recruitment';
+      catIcon = '🔍';
+    } else if (s.roleCategory === 'medical') {
+      catClass = 'badge-role-medical';
+      catIcon = '🩺';
+    }
+
+    // Club or Free Agent
+    const clubHtml = s.isFreeAgent
+      ? `<span class="badge-free">🆓 ว่างงาน</span>`
+      : `<span class="text-club font-medium">${escapeHtml(s.club)}</span>`;
+
+    // Skills & Stars column
+    let skillHtml = '';
+    if (s.roleCategory === 'coaching' || s.coachStars >= 3.0) {
+      skillHtml = `
+        <div class="staff-stars" title="คะแนนฝึกสอนคำนวณตามสูตร FM: ${s.coachStarsFormatted} ดาว">
+          <span class="stars-gold">${'⭐'.repeat(Math.round(s.coachStars))}</span>
+          <span class="stars-val">${s.coachStarsFormatted}</span>
+        </div>
+      `;
+    } else if (s.roleId === 'scout' || s.roleCategory === 'recruitment') {
+      skillHtml = `
+        <div class="staff-mini-skills">
+          <span class="skill-pill highlight" title="Judging Player Ability">JPA: <strong>${s.keySkills?.jpa || 0}</strong></span>
+          <span class="skill-pill highlight" title="Judging Player Potential">JPP: <strong>${s.keySkills?.jpp || 0}</strong></span>
+        </div>
+      `;
+    } else if (s.roleCategory === 'medical') {
+      skillHtml = `
+        <div class="staff-mini-skills">
+          <span class="skill-pill highlight" title="Physiotherapy">กายภาพ: <strong>${s.keySkills?.physiotherapy || 0}</strong></span>
+          <span class="skill-pill highlight" title="Sports Science">วิทย์กีฬา: <strong>${s.keySkills?.sportsScience || 0}</strong></span>
+        </div>
+      `;
+    } else {
+      skillHtml = `
+        <div class="staff-stars">
+          <span class="stars-gold">⭐</span>
+          <span class="stars-val">${s.coachStarsFormatted}</span>
+        </div>
+      `;
+    }
+
+    // Wage
+    const wageStr = s.wage > 0 ? `£${s.wage.toLocaleString()}/w` : '-';
+
+    return `
+      <tr class="clickable-row staff-row" data-id="${s.id}">
+        <td>
+          <div class="player-name-cell">
+            <span class="player-name font-semibold">${escapeHtml(s.name)}</span>
+            <span class="nat-badge text-muted text-xs">${(s.nat || []).join(', ')}</span>
+          </div>
+        </td>
+        <td>
+          <span class="badge-role ${catClass}" title="${escapeHtml(s.roleEn)}">
+            <span>${catIcon}</span>
+            <span>${escapeHtml(s.roleTh)}</span>
+          </span>
+        </td>
+        <td>${clubHtml}</td>
+        <td class="text-center font-medium">${s.age || '-'}</td>
+        <td class="text-center font-bold ${s.ca >= 150 ? 'text-accent' : ''}">${s.ca || '-'}</td>
+        <td class="text-center font-bold ${s.pa >= 160 ? 'text-green' : ''}">${s.pa || '-'}</td>
+        <td class="text-center">${skillHtml}</td>
+        <td class="text-right text-sm text-muted font-mono">${wageStr}</td>
+        <td>
+          <div class="rep-cell" title="ชื่อเสียง: ${escapeHtml(s.repLabel)}">
+            <span class="stars-gold text-xs">${s.repStars}</span>
+            <span class="text-xs text-muted" style="margin-left: 4px;">${escapeHtml((s.repLabel || '').split(' ')[0])}</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Attach row click listeners
+  el.staffTableBody.querySelectorAll('.staff-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.id;
+      if (id) openStaffModal(id);
+    });
+  });
+}
+
+async function openStaffModal(id) {
+  if (!el.staffModal) return;
+
+  el.staffModalName.textContent = 'กำลังโหลดข้อมูล...';
+  el.staffModalAttrsContainer.innerHTML = '<div class="text-muted py-8 text-center" style="grid-column: 1/-1;">กำลังโหลดค่าพลังทีมงาน...</div>';
+  el.staffModalPersonalityGrid.innerHTML = '';
+  el.staffModal.style.display = 'flex';
+
+  try {
+    const res = await fetch(`/api/staff/${id}`);
+    if (!res.ok) throw new Error('ไม่พบข้อมูลทีมงาน');
+    const data = await res.json();
+    const s = data.staff || data;
+
+    el.staffModalName.textContent = s.name;
+    el.staffModalNat.textContent = (s.nat || []).join(', ') || '-';
+    el.staffModalAge.textContent = s.age ? `${s.age} ปี` : '-';
+    el.staffModalCA.textContent = s.ca || '-';
+    el.staffModalPA.textContent = s.pa || '-';
+
+    // Role badge
+    let catClass = 'badge-role-coaching';
+    let catIcon = '👔';
+    if (s.roleCategory === 'recruitment') {
+      catClass = 'badge-role-recruitment';
+      catIcon = '🔍';
+    } else if (s.roleCategory === 'medical') {
+      catClass = 'badge-role-medical';
+      catIcon = '🩺';
+    }
+    el.staffModalRole.className = `badge ${catClass}`;
+    el.staffModalRole.textContent = `${catIcon} ${s.roleTh} (${s.roleEn})`;
+
+    // Club or Free agent
+    if (s.isFreeAgent) {
+      el.staffModalClub.innerHTML = '<span class="badge-free">🆓 ว่างงาน (Free Agent)</span>';
+    } else {
+      el.staffModalClub.textContent = s.club || 'ไม่ระบุสโมสร';
+    }
+
+    // Coach Stars
+    if (el.staffModalStarsBlock) {
+      if (s.roleCategory === 'coaching' || s.coachStars >= 2.5) {
+        el.staffModalStarsBlock.style.display = 'flex';
+        el.staffModalStars.textContent = `⭐ ${s.coachStarsFormatted} ดาว`;
+      } else {
+        el.staffModalStarsBlock.style.display = 'none';
+      }
+    }
+
+    // 4 Attribute Grids
+    const ag = s.attrGroups || {};
+    let attrsHtml = '';
+    attrsHtml += renderAttrColumn('ทักษะการฝึกสอน (Coaching)', '⚽', ag.coaching);
+    attrsHtml += renderAttrColumn('ทักษะจิตวิทยา & คุมทีม (Mental)', '🧠', ag.mental);
+    attrsHtml += renderAttrColumn('ทักษะส่อง & วิเคราะห์ (Scouting)', '🔍', ag.scouting);
+    attrsHtml += renderAttrColumn('ทักษะการแพทย์ & วิทย์กีฬา (Medical)', '🩺', ag.medical);
+    el.staffModalAttrsContainer.innerHTML = attrsHtml;
+
+    // Personality
+    if (s.personality) {
+      el.staffModalPersonalityGrid.innerHTML = renderPersonalityGrid(s.personality);
+    } else {
+      el.staffModalPersonalityGrid.innerHTML = '<span class="text-muted text-sm">ไม่มีข้อมูลลักษณะนิสัยแฝง</span>';
+    }
+  } catch (err) {
+    console.error('Failed to load staff detail:', err);
+    el.staffModalName.textContent = 'เกิดข้อผิดพลาด';
+    el.staffModalAttrsContainer.innerHTML = `<div class="text-red py-8 text-center" style="grid-column: 1/-1;">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderAttrColumn(title, icon, attrs) {
+  if (!attrs || attrs.length === 0) return '';
+  return `
+    <div class="attr-column">
+      <div class="attr-column-title">
+        <span>${icon}</span>
+        <span>${title}</span>
+      </div>
+      <div class="attr-list">
+        ${attrs.map(a => {
+          const val = a.val || 0;
+          let valClass = 'attr-val-low';
+          if (val >= 16) valClass = 'attr-val-top';
+          else if (val >= 11) valClass = 'attr-val-good';
+          else if (val >= 6) valClass = 'attr-val-avg';
+          return `
+            <div class="attr-row">
+              <span class="attr-name">${escapeHtml(a.nameTh || a.name || '')}</span>
+              <span class="attr-val ${valClass}">${val > 0 ? val : '-'}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderPersonalityGrid(pers) {
+  if (!pers || typeof pers !== 'object') return '';
+  const keys = Object.keys(pers);
+  return keys.map(k => {
+    const val = pers[k] || 0;
+    const label = PERSONALITY_MAP[k] || k;
+    let colorClass = 'text-muted';
+    if (val >= 15) colorClass = 'text-green font-bold';
+    else if (val >= 10) colorClass = 'text-accent font-semibold';
+    return `
+      <div class="personality-item">
+        <span class="personality-name">${escapeHtml(label)}</span>
+        <span class="personality-val ${colorClass}">${val > 0 ? val : '-'}</span>
+      </div>
+    `;
+  }).join('');
 }

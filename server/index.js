@@ -6,6 +6,7 @@ const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
 const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
+const { filterStaff, getStaffDetail } = require('./staffEngine');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -347,6 +348,41 @@ const server = http.createServer(async (req, res) => {
       trend,
       historyPoints
     });
+  }
+
+  // Staff List Endpoint
+  if (pathname === '/api/staff') {
+    const dump = getOrLoadDump();
+    if (!dump || !dump.staff) {
+      return sendJson(res, 200, {
+        total: 0,
+        page: 1,
+        limit: 50,
+        totalPages: 0,
+        staff: []
+      });
+    }
+
+    const query = {
+      ...parsedUrl.query,
+      myClub: dump.meta?.myClub || ''
+    };
+    const result = filterStaff(dump.staff, query);
+    return sendJson(res, 200, {
+      meta: dump.meta,
+      ...result
+    });
+  }
+
+  // Staff Detail Endpoint
+  if (pathname.startsWith('/api/staff/')) {
+    const id = parseInt(pathname.split('/')[3], 10);
+    const dump = getOrLoadDump();
+    const detail = getStaffDetail(dump?.staff || [], id);
+    if (!detail) {
+      return sendJson(res, 404, { error: 'ไม่พบข้อมูลทีมงาน' });
+    }
+    return sendJson(res, 200, { staff: detail });
   }
 
   // Fallback to static files
