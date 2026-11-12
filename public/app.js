@@ -102,6 +102,8 @@ const el = {
   changelogClose: document.getElementById('changelog-modal-close'),
   btnChangelogClose: document.getElementById('btn-changelog-close'),
   btnChangelogApply: document.getElementById('btn-changelog-apply'),
+  btnChangelogReload: document.getElementById('btn-changelog-reload'),
+  btnReloadUI: document.getElementById('btn-reload-ui'),
   changelogMeta: document.getElementById('changelog-meta'),
   changelogList: document.getElementById('changelog-list'),
   tacticalPitchSection: document.getElementById('tactical-pitch-section'),
@@ -349,6 +351,16 @@ function initEventListeners() {
   // Update System Listeners
   if (el.btnCheckUpdate) {
     el.btnCheckUpdate.addEventListener('click', () => checkForUpdates(false));
+  }
+  if (el.btnReloadUI) {
+    el.btnReloadUI.addEventListener('click', () => {
+      window.location.reload();
+    });
+  }
+  if (el.btnChangelogReload) {
+    el.btnChangelogReload.addEventListener('click', () => {
+      window.location.reload();
+    });
   }
   if (el.btnDismissUpdate) {
     el.btnDismissUpdate.addEventListener('click', () => {
@@ -851,6 +863,9 @@ function openChangelogModal(data) {
 
   if (el.btnChangelogApply) {
     el.btnChangelogApply.style.display = isNew ? 'inline-flex' : 'none';
+  }
+  if (el.btnChangelogReload) {
+    el.btnChangelogReload.style.display = isNew ? 'none' : 'inline-flex';
   }
 
   el.changelogModal.style.display = 'flex';
