@@ -177,3 +177,21 @@ test('multi-save career isolation: different saves do not overwrite or contamina
     delete process.env.FM27_HISTORY_FILE;
   }
 });
+
+test('computeSaveRefCode produces unique human-readable RefCodes from club and manager ID', () => {
+  const { computeSaveRefCode } = require('../server/historyEngine');
+
+  const meta1 = { myClub: 'Manchester United', manager: 'MY Mind' };
+  const staff1 = [{ name: 'MY Mind', job: 'Manager', id: 2002084900 }];
+  const refCode1 = computeSaveRefCode(meta1, staff1);
+
+  assert.strictEqual(refCode1, '#MU-55649B');
+
+  // Save 2: same manager name and same club, but different manager ID from fresh save
+  const meta2 = { myClub: 'Manchester United', manager: 'MY Mind' };
+  const staff2 = [{ name: 'MY Mind', job: 'Manager', id: 2002099999 }];
+  const refCode2 = computeSaveRefCode(meta2, staff2);
+
+  assert.strictEqual(refCode2, '#MU-559F96');
+  assert.notStrictEqual(refCode1, refCode2, 'Different manager IDs must generate distinct RefCodes even for the same club and name');
+});

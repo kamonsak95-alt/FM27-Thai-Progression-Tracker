@@ -43,6 +43,10 @@
           <span class="pill-label">สโมสร:</span>
           <span class="pill-value text-accent" id="info-club">กำลังโหลด...</span>
         </div>
+        <div class="info-pill" id="save-badge" title="รหัสเซฟเกมเฉพาะตัว (ระบบตรวจจับจากตัวเกมให้อัตโนมัติ ไม่ต้องสลับเอง)">
+          <span class="pill-label">เซฟเกม:</span>
+          <span class="pill-value text-accent font-semibold" id="info-save">กำลังโหลด...</span>
+        </div>
         <div class="info-pill" id="date-badge">
           <span class="pill-label">วันที่ในเกม:</span>
           <span class="pill-value text-green" id="info-date">กำลังโหลด...</span>
@@ -51,9 +55,9 @@
           <span class="pill-label">เปรียบเทียบ:</span>
           <span class="pill-value text-accent" id="info-baseline">จุดเริ่มอาชีพ</span>
         </div>
-        <button id="btn-scan" class="btn btn-primary" title="ดึงข้อมูลล่าสุดจากเกม FM27 ที่กำลังเปิดอยู่">
+        <button id="btn-scan" class="btn btn-primary" title="โหลดข้อมูลล่าสุดจากเกม FM27 ที่กำลังเปิดอยู่ (ตรวจจับเซฟอัตโนมัติ)">
           <span class="btn-icon">🔄</span>
-          <span id="btn-scan-text">ดึงข้อมูลสดจากเกม (FM27)</span>
+          <span id="btn-scan-text">โหลดข้อมูลเกม (FM27)</span>
         </button>
         <button id="btn-check-update" class="btn btn-secondary btn-sm" title="ตรวจเช็กเวอร์ชันล่าสุดจาก GitHub">
           <span>🔄</span>
@@ -704,6 +708,6 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.0.8"></script>
+  <script src="app.js?v=1.0.9"></script>
 </body>
 </html>

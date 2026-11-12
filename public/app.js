@@ -87,6 +87,7 @@ const PERSONALITY_MAP = {
 // Elements
 const el = {
   infoClub: document.getElementById('info-club'),
+  infoSave: document.getElementById('info-save'),
   infoDate: document.getElementById('info-date'),
   infoBaseline: document.getElementById('info-baseline'),
   btnScan: document.getElementById('btn-scan'),
@@ -898,6 +899,10 @@ async function loadStatus() {
       el.infoDate.textContent = state.gameDate || '-';
     }
 
+    if (el.infoSave) {
+      el.infoSave.textContent = data.refCode || '-';
+    }
+
     // Update baseline info badge in header
     if (el.infoBaseline) {
       if (data.snapshots && data.snapshots.length > 1) {
@@ -1241,8 +1246,8 @@ async function openPlayerModal(id) {
 
 async function triggerScan() {
   el.btnScan.disabled = true;
-  el.btnScanText.textContent = 'กำลังส่องอ่านข้อมูลจาก FM27 (~9 วินาที)...';
-  showToast('🚀 กำลังเริ่มสแกน RAM ของ FM27 กรุณารอสักครู่...');
+  el.btnScanText.textContent = 'กำลังตรวจจับเซฟและโหลดข้อมูลจาก FM27 (~9 วินาที)...';
+  showToast('🚀 กำลังเชื่อมต่อ FM27 และตรวจจับเซฟเกม กรุณารอสักครู่...');
 
   try {
     const res = await fetch('/api/scan', { method: 'POST' });
@@ -1252,20 +1257,21 @@ async function triggerScan() {
       const sCount = (data.staffCount || 0).toLocaleString();
       const sec = (data.elapsed / 1000).toFixed(1);
       const staffMsg = data.staffCount ? ` และทีมงาน ${sCount} คน` : '';
-      showToast(`✅ สแกนสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)`);
+      const refMsg = data.refCode ? ` [เซฟ: ${data.refCode}]` : '';
+      showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
       await loadStatus();
       await loadPlayers();
       if (el.sectionStaff && el.sectionStaff.style.display !== 'none') {
         await loadStaff();
       }
     } else {
-      showToast(`❌ ${data.error || 'การสแกนล้มเหลว'}`, true);
+      showToast(`❌ ${data.error || 'การโหลดข้อมูลล้มเหลว'}`, true);
     }
   } catch (err) {
     showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, true);
   } finally {
     el.btnScan.disabled = false;
-    el.btnScanText.textContent = 'ดึงข้อมูลสดจากเกม (FM27)';
+    el.btnScanText.textContent = 'โหลดข้อมูลเกม (FM27)';
   }
 }
 

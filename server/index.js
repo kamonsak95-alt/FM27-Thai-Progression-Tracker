@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
-const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore } = require('./historyEngine');
+const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore, computeSaveRefCode } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
@@ -22,11 +22,13 @@ function getOrLoadDump() {
     cachedDump = getLatestDump();
     if (cachedDump?.meta?.gameDate && cachedDump?.players) {
       // Auto-save initial snapshot
+      const refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
       saveSnapshot(
         cachedDump.meta.gameDate,
         cachedDump.players,
         cachedDump.meta.manager,
-        cachedDump.meta.myClub
+        cachedDump.meta.myClub,
+        refCode
       );
     }
   }
@@ -105,31 +107,40 @@ const server = http.createServer(async (req, res) => {
       } catch {}
     }
 
+    const refCode = dump?.meta ? computeSaveRefCode(dump.meta, dump.staff) : null;
     return sendJson(res, 200, {
       ...status,
       meta: dump?.meta || null,
+      refCode,
       currentCommit,
       justUpdated,
       totalPlayers: dump?.players?.length || 0,
-      snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub)
+      snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode)
     });
   }
 
   if (pathname === '/api/scan' && req.method === 'POST') {
     runScan().then(result => {
+      let refCode = null;
       if (result.ok) {
         cachedDump = getLatestDump();
         cachedPlayersWithDeltas = null;
         if (cachedDump?.meta?.gameDate && cachedDump?.players) {
+          refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
           saveSnapshot(
             cachedDump.meta.gameDate,
             cachedDump.players,
             cachedDump.meta.manager,
-            cachedDump.meta.myClub
+            cachedDump.meta.myClub,
+            refCode
           );
         }
       }
-      sendJson(res, result.ok ? 200 : 500, result);
+      sendJson(res, result.ok ? 200 : 500, {
+        ...result,
+        refCode,
+        meta: cachedDump?.meta || null
+      });
     }).catch(err => {
       sendJson(res, 500, { ok: false, error: err.message });
     });
@@ -138,7 +149,8 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/snapshots') {
     const dump = getOrLoadDump();
-    return sendJson(res, 200, { snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub) });
+    const refCode = dump?.meta ? computeSaveRefCode(dump.meta, dump.staff) : null;
+    return sendJson(res, 200, { snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode) });
   }
 
   if (pathname === '/api/set-date' && req.method === 'POST') {
@@ -190,14 +202,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     const baselineDate = parsedUrl.query.baseline || '';
-    const activeSaveKey = `${dump.meta?.manager || ''}__${dump.meta?.myClub || ''}`;
+    const refCode = computeSaveRefCode(dump.meta, dump.staff);
+    const activeSaveKey = refCode || `${dump.meta?.manager || ''}__${dump.meta?.myClub || ''}`;
     if (baselineDate !== currentBaselineDate || activeSaveKey !== currentSaveKey || !cachedPlayersWithDeltas) {
       currentBaselineDate = baselineDate;
       currentSaveKey = activeSaveKey;
       const validPlayers = dump.players.filter(p => p && p.name && p.name.trim() && p.name.trim() !== '?');
       let deltas;
       if (baselineDate) {
-        const snap = getSnapshot(baselineDate, dump.meta?.manager, dump.meta?.myClub);
+        const snap = getSnapshot(baselineDate, dump.meta?.manager, dump.meta?.myClub, refCode);
         deltas = calculateDeltas(validPlayers, snap ? snap.players : {});
       } else {
         const store = loadHistoryStore();
@@ -206,7 +219,8 @@ const server = http.createServer(async (req, res) => {
           store.snapshots,
           dump.meta?.gameDate,
           dump.meta?.manager,
-          dump.meta?.myClub
+          dump.meta?.myClub,
+          refCode
         );
       }
       cachedPlayersWithDeltas = deltas.map(p => {
