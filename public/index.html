@@ -98,7 +98,13 @@
       <div class="filter-grid">
         <!-- Position Filter -->
         <div class="filter-group">
-          <label class="filter-label">ตำแหน่ง (Position)</label>
+          <div class="filter-label-row">
+            <label class="filter-label">ตำแหน่ง (Position)</label>
+            <button type="button" id="btn-toggle-pitch" class="btn-text-action" title="ย่อ/ขยายผังสนาม">
+              <span>⚽ ผังสนาม</span>
+              <span id="pitch-toggle-icon">▲</span>
+            </button>
+          </div>
           <div class="position-pills" id="pos-group">
             <button class="pos-btn active" data-pos="ALL">ALL</button>
             <button class="pos-btn" data-pos="GK">GK</button>
@@ -135,6 +141,138 @@
             <input type="number" id="min-pa" class="form-input num-input" value="1" min="1" max="200">
             <span class="text-muted">ถึง</span>
             <input type="number" id="max-pa" class="form-input num-input" value="200" min="1" max="200">
+          </div>
+        </div>
+      </div>
+
+      <!-- Tactical Pitch Position Selector Section (FM Style) -->
+      <div class="tactical-pitch-section" id="tactical-pitch-section">
+        <div class="pitch-header">
+          <div class="pitch-header-title">
+            <span class="pitch-icon">⚽</span>
+            <div>
+              <h3 class="pitch-title">ผังสนามเลือกตำแหน่ง (Tactical Pitch Selector)</h3>
+              <p class="pitch-subtitle">คลิกตำแหน่งในสนามเพื่อกรองนักเตะ (เลือกพร้อมกันได้หลายตำแหน่ง)</p>
+            </div>
+          </div>
+          
+          <div class="pitch-header-actions">
+            <div class="pitch-presets">
+              <button type="button" class="pitch-preset-btn active" data-preset-pos="ALL">ทั้งหมด</button>
+              <button type="button" class="pitch-preset-btn" data-preset-pos="ATT">ST</button>
+              <button type="button" class="pitch-preset-btn" data-preset-pos="AM">AM (L/C/R)</button>
+              <button type="button" class="pitch-preset-btn" data-preset-pos="MID">M & DM</button>
+              <button type="button" class="pitch-preset-btn" data-preset-pos="WB">WB (L/R)</button>
+              <button type="button" class="pitch-preset-btn" data-preset-pos="DEF">D (L/C/R)</button>
+              <button type="button" class="pitch-preset-btn" data-preset-pos="GK">GK</button>
+              <button type="button" class="pitch-preset-btn btn-clear-pitch" id="btn-clear-pitch">ล้างค่า</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pitch-body">
+          <div class="pitch-wrapper">
+            <!-- Perspective Pitch Board with White Lines -->
+            <div class="tactical-pitch" id="tactical-pitch">
+              <!-- Pitch Line Markings SVG -->
+              <svg class="pitch-svg-lines" viewBox="0 0 320 380" preserveAspectRatio="none">
+                <!-- Outer trapezoid pitch boundary -->
+                <polygon points="40,8 280,8 312,372 8,372" class="svg-pitch-line" />
+                <!-- Top penalty box (Attacking) -->
+                <polygon points="95,8 225,8 217,60 103,60" class="svg-pitch-box" />
+                <polygon points="126,8 194,8 190,26 130,26" class="svg-pitch-goal" />
+                <path d="M 130,60 A 30,15 0 0,0 190,60" class="svg-pitch-arc" />
+                <!-- Halfway Line -->
+                <line x1="24" y1="190" x2="296" y2="190" class="svg-pitch-line" />
+                <!-- Center circle & dot -->
+                <ellipse cx="160" cy="190" rx="48" ry="26" class="svg-pitch-circle" />
+                <circle cx="160" cy="190" r="3" class="svg-pitch-dot" />
+                <!-- Bottom penalty box (Defending) -->
+                <polygon points="78,372 242,372 234,312 86,312" class="svg-pitch-box" />
+                <polygon points="118,372 202,372 198,348 122,348" class="svg-pitch-goal" />
+                <path d="M 125,312 A 35,16 0 0,1 195,312" class="svg-pitch-arc" />
+              </svg>
+
+              <!-- Row 1: ST (C) -->
+              <div class="pitch-row pitch-row-st">
+                <button type="button" class="pitch-btn" data-pos="ST" title="Striker Central">
+                  <span class="pitch-btn-label">ST (C)</span>
+                </button>
+              </div>
+
+              <!-- Row 2: AM (L) - AM (C) - AM (R) -->
+              <div class="pitch-row pitch-row-am">
+                <button type="button" class="pitch-btn" data-pos="AML" title="Attacking Midfielder Left">
+                  <span class="pitch-btn-label">AM (L)</span>
+                </button>
+                <button type="button" class="pitch-btn" data-pos="AMC" title="Attacking Midfielder Central">
+                  <span class="pitch-btn-label">AM (C)</span>
+                </button>
+                <button type="button" class="pitch-btn" data-pos="AMR" title="Attacking Midfielder Right">
+                  <span class="pitch-btn-label">AM (R)</span>
+                </button>
+              </div>
+
+              <!-- Row 3: M (L) - M (C) - M (R) -->
+              <div class="pitch-row pitch-row-m">
+                <button type="button" class="pitch-btn" data-pos="ML" title="Midfielder Left">
+                  <span class="pitch-btn-label">M (L)</span>
+                </button>
+                <button type="button" class="pitch-btn" data-pos="MC" title="Midfielder Central">
+                  <span class="pitch-btn-label">M (C)</span>
+                </button>
+                <button type="button" class="pitch-btn" data-pos="MR" title="Midfielder Right">
+                  <span class="pitch-btn-label">M (R)</span>
+                </button>
+              </div>
+
+              <!-- Row 4: WB (L) - DM - WB (R) -->
+              <div class="pitch-row pitch-row-dm">
+                <button type="button" class="pitch-btn" data-pos="WBL" title="Wing Back Left">
+                  <span class="pitch-btn-label">WB (L)</span>
+                </button>
+                <button type="button" class="pitch-btn" data-pos="DM" title="Defensive Midfielder">
+                  <span class="pitch-btn-label">DM</span>
+                </button>
+                <button type="button" class="pitch-btn" data-pos="WBR" title="Wing Back Right">
+                  <span class="pitch-btn-label">WB (R)</span>
+                </button>
+              </div>
+
+              <!-- Row 5: D (L) - D (C) - D (R) -->
+              <div class="pitch-row pitch-row-d">
+                <button type="button" class="pitch-btn" data-pos="DL" title="Defender Left">
+                  <span class="pitch-btn-label">D (L)</span>
+                </button>
+                <button type="button" class="pitch-btn" data-pos="DC" title="Defender Central">
+                  <span class="pitch-btn-label">D (C)</span>
+                </button>
+                <button type="button" class="pitch-btn" data-pos="DR" title="Defender Right">
+                  <span class="pitch-btn-label">D (R)</span>
+                </button>
+              </div>
+
+              <!-- Row 6: GK -->
+              <div class="pitch-row pitch-row-gk">
+                <button type="button" class="pitch-btn" data-pos="GK" title="Goalkeeper">
+                  <span class="pitch-btn-label">GK</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pitch Meta Bar -->
+          <div class="pitch-meta-bar">
+            <div class="pitch-selected-info">
+              <span class="text-muted text-xs">ตำแหน่งที่กำลังกรอง:</span>
+              <span id="pitch-filter-summary" class="text-accent font-semibold text-sm">ทุกตำแหน่ง (ALL)</span>
+              <span id="pitch-filter-count" class="text-muted text-xs"></span>
+            </div>
+
+            <label class="pitch-nat-toggle">
+              <input type="checkbox" id="check-nat-only">
+              <span class="toggle-text">⚡ เฉพาะตำแหน่งธรรมชาติ (Natural Positions Only)</span>
+            </label>
           </div>
         </div>
       </div>

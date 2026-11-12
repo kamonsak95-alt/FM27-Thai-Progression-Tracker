@@ -346,6 +346,324 @@ body {
   color: white;
 }
 
+/* Filter Label Row with Pitch Toggle */
+.filter-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-text-action {
+  background: transparent;
+  border: none;
+  color: var(--accent-purple);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-text-action:hover {
+  background: rgba(139, 92, 246, 0.15);
+  color: #ddd6fe;
+}
+
+/* Tactical Pitch Section (FM Authentic) */
+.tactical-pitch-section {
+  background: #12141f;
+  border: 1px solid #202434;
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  margin-top: 0.5rem;
+  transition: all 0.25s ease;
+}
+
+.tactical-pitch-section.collapsed .pitch-body {
+  display: none;
+}
+
+.pitch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #1c1f2e;
+}
+
+.pitch-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.pitch-icon {
+  font-size: 1.4rem;
+}
+
+.pitch-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 0;
+}
+
+.pitch-subtitle {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.pitch-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pitch-presets {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.pitch-preset-btn {
+  background: #181b29;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.775rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.pitch-preset-btn:hover {
+  background: #252a3d;
+  color: var(--text-main);
+  border-color: #3b425b;
+}
+
+.pitch-preset-btn.active {
+  background: #2e264f;
+  border-color: var(--accent-purple);
+  color: #ddd6fe;
+}
+
+.pitch-preset-btn.btn-clear-pitch {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.pitch-preset-btn.btn-clear-pitch:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+/* Pitch Body & Pitch Board */
+.pitch-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 1rem;
+  gap: 1rem;
+}
+
+.pitch-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.tactical-pitch {
+  position: relative;
+  width: 100%;
+  max-width: 330px;
+  height: 380px;
+  background: radial-gradient(ellipse at 50% 50%, #103328 0%, #0c251d 60%, #071913 100%);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.7), 0 8px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 16px;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* SVG Field Markings */
+.pitch-svg-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.svg-pitch-line {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1.5;
+}
+
+.svg-pitch-box {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1.25;
+}
+
+.svg-pitch-goal {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 1;
+}
+
+.svg-pitch-arc {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1.25;
+}
+
+.svg-pitch-circle {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1.25;
+}
+
+.svg-pitch-dot {
+  fill: rgba(255, 255, 255, 0.35);
+}
+
+/* Pitch Rows */
+.pitch-row {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.pitch-row-st,
+.pitch-row-gk {
+  justify-content: center;
+}
+
+.pitch-row-am,
+.pitch-row-m,
+.pitch-row-dm,
+.pitch-row-d {
+  justify-content: space-between;
+}
+
+/* Tactical Pitch Buttons (FM Purple Theme) */
+.pitch-btn {
+  background: #7c3aed;
+  border: 1px solid #9d5cf7;
+  color: #ffffff;
+  padding: 0.35rem 0.5rem;
+  min-width: 70px;
+  height: 32px;
+  border-radius: 4px;
+  font-size: 0.825rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+.pitch-btn:hover {
+  background: #8b5cf6;
+  border-color: #c4b5fd;
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 4px 10px rgba(124, 58, 237, 0.45);
+}
+
+.pitch-btn.active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: 1px solid #34d399;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
+  transform: scale(1.06);
+}
+
+.pitch-btn.active::before {
+  content: "✓";
+  font-size: 0.75rem;
+  margin-right: 2px;
+}
+
+.pitch-btn.dimmed {
+  background: #4c1d95;
+  border-color: rgba(157, 92, 247, 0.35);
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.pitch-btn.dimmed:hover {
+  opacity: 0.9;
+  background: #6d28d9;
+}
+
+/* Pitch Meta Bar & Natural Toggle */
+.pitch-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  width: 100%;
+  max-width: 580px;
+  background: #171926;
+  border: 1px solid #202435;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+}
+
+.pitch-selected-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pitch-nat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.825rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pitch-nat-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-purple);
+  cursor: pointer;
+}
+
+.pitch-nat-toggle:hover .toggle-text {
+  color: #ffffff;
+}
+
 .range-inputs {
   display: flex;
   align-items: center;

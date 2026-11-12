@@ -9,6 +9,8 @@ let state = {
   minPA: 1,
   maxPA: 200,
   pos: 'ALL',
+  selectedPitchPositions: new Set(),
+  natOnly: false,
   preset: 'all',
   trend: '',
   baseline: '',
@@ -101,7 +103,14 @@ const el = {
   btnChangelogClose: document.getElementById('btn-changelog-close'),
   btnChangelogApply: document.getElementById('btn-changelog-apply'),
   changelogMeta: document.getElementById('changelog-meta'),
-  changelogList: document.getElementById('changelog-list')
+  changelogList: document.getElementById('changelog-list'),
+  tacticalPitchSection: document.getElementById('tactical-pitch-section'),
+  btnTogglePitch: document.getElementById('btn-toggle-pitch'),
+  pitchToggleIcon: document.getElementById('pitch-toggle-icon'),
+  pitchFilterSummary: document.getElementById('pitch-filter-summary'),
+  pitchFilterCount: document.getElementById('pitch-filter-count'),
+  checkNatOnly: document.getElementById('check-nat-only'),
+  btnClearPitch: document.getElementById('btn-clear-pitch')
 };
 
 let latestUpdateData = null;
@@ -147,15 +156,118 @@ function initEventListeners() {
     });
   });
 
-  // Position Buttons
-  el.posGroup.addEventListener('click', (e) => {
-    if (!e.target.classList.contains('pos-btn')) return;
-    document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
-    e.target.classList.add('active');
-    state.pos = e.target.dataset.pos;
-    state.page = 1;
-    loadPlayers();
+  // Generic Position Pills (ALL, GK, DEF, MID, ATT)
+  if (el.posGroup) {
+    el.posGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.pos-btn');
+      if (!btn) return;
+      const targetPos = btn.dataset.pos;
+      if (targetPos === 'ALL') {
+        state.selectedPitchPositions.clear();
+        state.pos = 'ALL';
+      } else if (targetPos === 'GK') {
+        state.selectedPitchPositions = new Set(['GK']);
+        state.pos = 'GK';
+      } else if (targetPos === 'DEF') {
+        state.selectedPitchPositions = new Set(['DL', 'DC', 'DR', 'WBL', 'WBR']);
+        state.pos = 'DL,DC,DR,WBL,WBR';
+      } else if (targetPos === 'MID') {
+        state.selectedPitchPositions = new Set(['ML', 'MC', 'MR', 'DM', 'AML', 'AMC', 'AMR']);
+        state.pos = 'ML,MC,MR,DM,AML,AMC,AMR';
+      } else if (targetPos === 'ATT') {
+        state.selectedPitchPositions = new Set(['ST']);
+        state.pos = 'ST';
+      }
+      updatePitchUI();
+      state.page = 1;
+      loadPlayers();
+    });
+  }
+
+  // Interactive Tactical Pitch Position Buttons
+  document.querySelectorAll('.pitch-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pos = btn.dataset.pos;
+      if (state.selectedPitchPositions.has(pos)) {
+        state.selectedPitchPositions.delete(pos);
+      } else {
+        state.selectedPitchPositions.add(pos);
+      }
+
+      if (state.selectedPitchPositions.size === 0) {
+        state.pos = 'ALL';
+      } else {
+        state.pos = Array.from(state.selectedPitchPositions).join(',');
+      }
+
+      updatePitchUI();
+      state.page = 1;
+      loadPlayers();
+    });
   });
+
+  // Pitch Presets (ALL, ATT, AM, MID, WB, DEF, GK)
+  document.querySelectorAll('.pitch-preset-btn').forEach(btn => {
+    if (btn.id === 'btn-clear-pitch') return;
+    btn.addEventListener('click', () => {
+      const preset = btn.dataset.presetPos;
+      if (preset === 'ALL') {
+        state.selectedPitchPositions.clear();
+        state.pos = 'ALL';
+      } else if (preset === 'ATT') {
+        state.selectedPitchPositions = new Set(['ST']);
+        state.pos = 'ST';
+      } else if (preset === 'AM') {
+        state.selectedPitchPositions = new Set(['AML', 'AMC', 'AMR']);
+        state.pos = 'AML,AMC,AMR';
+      } else if (preset === 'MID') {
+        state.selectedPitchPositions = new Set(['ML', 'MC', 'MR', 'DM']);
+        state.pos = 'ML,MC,MR,DM';
+      } else if (preset === 'WB') {
+        state.selectedPitchPositions = new Set(['WBL', 'WBR']);
+        state.pos = 'WBL,WBR';
+      } else if (preset === 'DEF') {
+        state.selectedPitchPositions = new Set(['DL', 'DC', 'DR']);
+        state.pos = 'DL,DC,DR';
+      } else if (preset === 'GK') {
+        state.selectedPitchPositions = new Set(['GK']);
+        state.pos = 'GK';
+      }
+      updatePitchUI();
+      state.page = 1;
+      loadPlayers();
+    });
+  });
+
+  // Clear Pitch Filter Button
+  if (el.btnClearPitch) {
+    el.btnClearPitch.addEventListener('click', () => {
+      state.selectedPitchPositions.clear();
+      state.pos = 'ALL';
+      updatePitchUI();
+      state.page = 1;
+      loadPlayers();
+    });
+  }
+
+  // Toggle Collapse/Expand Pitch Section
+  if (el.btnTogglePitch && el.tacticalPitchSection) {
+    el.btnTogglePitch.addEventListener('click', () => {
+      const isCollapsed = el.tacticalPitchSection.classList.toggle('collapsed');
+      if (el.pitchToggleIcon) {
+        el.pitchToggleIcon.textContent = isCollapsed ? '▼' : '▲';
+      }
+    });
+  }
+
+  // Natural Positions Only Checkbox Toggle
+  if (el.checkNatOnly) {
+    el.checkNatOnly.addEventListener('change', (e) => {
+      state.natOnly = e.target.checked;
+      state.page = 1;
+      loadPlayers();
+    });
+  }
 
   // Inputs
   const bindRange = (minInput, maxInput, stateMinKey, stateMaxKey, valEl) => {
@@ -366,6 +478,73 @@ function updateComparisonSummary() {
   }
 }
 
+function updatePitchUI() {
+  const pitchButtons = document.querySelectorAll('.pitch-btn');
+  const count = state.selectedPitchPositions.size;
+
+  if (count === 0) {
+    pitchButtons.forEach(btn => {
+      btn.classList.remove('active', 'dimmed');
+    });
+    if (el.pitchFilterSummary) {
+      el.pitchFilterSummary.textContent = 'ทุกตำแหน่ง (ALL)';
+    }
+    document.querySelectorAll('.pitch-preset-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.presetPos === 'ALL');
+    });
+    document.querySelectorAll('.pos-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.pos === 'ALL');
+    });
+  } else {
+    const labels = [];
+    pitchButtons.forEach(btn => {
+      const pos = btn.dataset.pos;
+      if (state.selectedPitchPositions.has(pos)) {
+        btn.classList.add('active');
+        btn.classList.remove('dimmed');
+        const labelSpan = btn.querySelector('.pitch-btn-label');
+        labels.push(labelSpan ? labelSpan.textContent : pos);
+      } else {
+        btn.classList.remove('active');
+        btn.classList.add('dimmed');
+      }
+    });
+
+    if (el.pitchFilterSummary) {
+      el.pitchFilterSummary.textContent = labels.join(', ');
+    }
+
+    // Check if matches preset
+    const selectedArr = Array.from(state.selectedPitchPositions).sort();
+    const isGK = selectedArr.length === 1 && selectedArr[0] === 'GK';
+    const isST = selectedArr.length === 1 && selectedArr[0] === 'ST';
+    const isAM = selectedArr.length === 3 && selectedArr.join(',') === 'AMC,AML,AMR';
+    const isMID = selectedArr.length === 4 && selectedArr.join(',') === 'DM,MC,ML,MR';
+    const isWB = selectedArr.length === 2 && selectedArr.join(',') === 'WBL,WBR';
+    const isDEF = selectedArr.length === 3 && selectedArr.join(',') === 'DC,DL,DR';
+
+    document.querySelectorAll('.pitch-preset-btn').forEach(b => {
+      const p = b.dataset.presetPos;
+      b.classList.toggle('active', 
+        (p === 'GK' && isGK) ||
+        (p === 'ATT' && isST) ||
+        (p === 'AM' && isAM) ||
+        (p === 'MID' && isMID) ||
+        (p === 'WB' && isWB) ||
+        (p === 'DEF' && isDEF)
+      );
+    });
+
+    document.querySelectorAll('.pos-btn').forEach(b => {
+      const p = b.dataset.pos;
+      b.classList.toggle('active', 
+        (p === 'GK' && isGK) ||
+        (p === 'ATT' && isST)
+      );
+    });
+  }
+}
+
 async function loadPlayers() {
   el.tableBody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-muted">กำลังดึงข้อมูลนักเตะ...</td></tr>`;
 
@@ -386,6 +565,7 @@ async function loadPlayers() {
 
   if (state.q) params.set('q', state.q);
   if (state.trend) params.set('trend', state.trend);
+  if (state.natOnly) params.set('natOnly', '1');
   if (state.preset === 'wonderkids') params.set('wonderkids', '1');
   if (state.preset === 'myclub') params.set('myClub', '1');
 
@@ -398,6 +578,9 @@ async function loadPlayers() {
     state.page = data.page || 1;
 
     el.totalCount.textContent = state.total.toLocaleString();
+    if (el.pitchFilterCount) {
+      el.pitchFilterCount.textContent = `(พบ ${state.total.toLocaleString()} คน)`;
+    }
     el.currentPage.textContent = state.page;
     el.totalPages.textContent = state.totalPages;
     el.paginationText.textContent = `หน้า ${state.page} / ${state.totalPages}`;

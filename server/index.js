@@ -201,19 +201,24 @@ const server = http.createServer((req, res) => {
     if (!isNaN(minPA)) result = result.filter(p => p.pa >= minPA);
     if (!isNaN(maxPA)) result = result.filter(p => p.pa <= maxPA);
 
-    // Filter by Position category (GK, DEF, MID, ATT)
-    const pos = (parsedUrl.query.pos || '').trim().toUpperCase();
-    if (pos && pos !== 'ALL') {
-      if (pos === 'GK') {
-        result = result.filter(p => (p.pos || '').includes('GK'));
-      } else if (pos === 'DEF') {
-        result = result.filter(p => /D [RLC]|DC|DR|DL|WBL|WBR|SW/i.test(p.pos || ''));
-      } else if (pos === 'MID') {
-        result = result.filter(p => /M [RLC]|MC|MR|ML|DM|AMC|AML|AMR/i.test(p.pos || ''));
-      } else if (pos === 'ATT') {
-        result = result.filter(p => /ST|FC|S [RLC]/i.test(p.pos || ''));
-      } else {
-        result = result.filter(p => (p.pos || '').includes(pos));
+    // Filter by Position (Categories or specific positions e.g. DC, AML, ST, MC)
+    const posQuery = (parsedUrl.query.pos || '').trim();
+    const natOnly = parsedUrl.query.natOnly === '1';
+    if (posQuery && posQuery !== 'ALL') {
+      const selectedPositions = posQuery.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      if (selectedPositions.length > 0) {
+        result = result.filter(p => {
+          const pArr = p.posArr || (p.pos ? p.pos.split(',').map(s => s.trim().toUpperCase()) : []);
+          const pNat = (p.posNat && p.posNat.length > 0) ? p.posNat : (pArr.length > 0 ? [pArr[0]] : []);
+          const targetArr = natOnly ? pNat : pArr;
+          return selectedPositions.some(sp => {
+            if (sp === 'GK') return targetArr.includes('GK');
+            if (sp === 'DEF') return targetArr.some(x => ['DC', 'DR', 'DL', 'WBL', 'WBR', 'SW'].includes(x));
+            if (sp === 'MID') return targetArr.some(x => ['MC', 'MR', 'ML', 'DM', 'AMC', 'AML', 'AMR'].includes(x));
+            if (sp === 'ATT') return targetArr.some(x => ['ST', 'FC'].includes(x));
+            return targetArr.includes(sp);
+          });
+        });
       }
     }
 
@@ -259,6 +264,8 @@ const server = http.createServer((req, res) => {
       div: p.div,
       nat: p.nat,
       pos: p.pos,
+      posArr: p.posArr || (p.pos ? p.pos.split(',').map(s => s.trim().toUpperCase()) : []),
+      posNat: (p.posNat && p.posNat.length > 0) ? p.posNat : ((p.posArr && p.posArr.length > 0) ? [p.posArr[0]] : []),
       ca: p.ca,
       pa: p.pa,
       prevCA: p.prevCA,

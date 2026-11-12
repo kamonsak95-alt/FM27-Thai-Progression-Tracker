@@ -4,29 +4,61 @@ const http = require('node:http');
 const server = require('../server/index');
 
 test('Server responds to /api/status and /api/players', async () => {
-  await new Promise(resolve => server.listen(3999, resolve));
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
 
   const get = (path) => new Promise((resolve, reject) => {
-    http.get(`http://localhost:3999${path}`, res => {
+    http.get(`http://localhost:${port}${path}`, res => {
       let data = '';
       res.on('data', d => data += d);
       res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(data) }));
     }).on('error', reject);
   });
 
-  // Test status
-  const statusRes = await get('/api/status');
-  assert.strictEqual(statusRes.status, 200);
-  assert.ok(statusRes.body.meta);
-  assert.strictEqual(statusRes.body.meta.game, 'FM27');
+  try {
+    // Test status
+    const statusRes = await get('/api/status');
+    assert.strictEqual(statusRes.status, 200);
+    assert.ok(statusRes.body.meta);
+    assert.strictEqual(statusRes.body.meta.game, 'FM27');
 
-  // Test players list
-  const playersRes = await get('/api/players?limit=10');
-  assert.strictEqual(playersRes.status, 200);
-  assert.ok(Array.isArray(playersRes.body.players));
-  assert.strictEqual(playersRes.body.players.length, 10);
-  assert.ok(playersRes.body.total > 0);
+    // Test players list
+    const playersRes = await get('/api/players?limit=10');
+    assert.strictEqual(playersRes.status, 200);
+    assert.ok(Array.isArray(playersRes.body.players));
+    assert.strictEqual(playersRes.body.players.length, 10);
+    assert.ok(playersRes.body.total > 0);
 
-  // Close server
-  await new Promise(resolve => server.close(resolve));
+    // Test granular position filtering (e.g. DC)
+    const dcRes = await get('/api/players?pos=DC&limit=5');
+    assert.strictEqual(dcRes.status, 200);
+    assert.ok(dcRes.body.players.length > 0);
+    for (const p of dcRes.body.players) {
+      assert.ok(p.pos.includes('DC'), `Player ${p.name} should play DC`);
+    }
+
+    // Test multi-position filtering (e.g. AML,AMR)
+    const wingerRes = await get('/api/players?pos=AML,AMR&limit=5');
+    assert.strictEqual(wingerRes.status, 200);
+    assert.ok(wingerRes.body.players.length > 0);
+    for (const p of wingerRes.body.players) {
+      const playsWinger = (p.posArr || []).some(x => x === 'AML' || x === 'AMR');
+      assert.ok(playsWinger, `Player ${p.name} should play AML or AMR`);
+    }
+
+    // Test natural-only filtering (e.g. ST & natOnly=1)
+    const stNatRes = await get('/api/players?pos=ST&natOnly=1&limit=5');
+    assert.strictEqual(stNatRes.status, 200);
+    assert.ok(stNatRes.body.players.length > 0);
+    for (const p of stNatRes.body.players) {
+      const isNatST = (p.posNat || []).includes('ST');
+      assert.ok(isNatST, `Player ${p.name} should naturally play ST`);
+    }
+  } catch (err) {
+    console.error('TEST ERROR OCCURRED:', err);
+    throw err;
+  } finally {
+    // Close server
+    await new Promise(resolve => server.close(resolve));
+  }
 });
