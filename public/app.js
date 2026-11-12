@@ -193,10 +193,16 @@ const el = {
   staffModalCA: document.getElementById('staff-modal-ca'),
   staffModalPA: document.getElementById('staff-modal-pa'),
   staffModalAttrsContainer: document.getElementById('staff-modal-attrs-container'),
-  staffModalPersonalityGrid: document.getElementById('staff-modal-personality-grid')
+  staffModalPersonalityGrid: document.getElementById('staff-modal-personality-grid'),
+
+  // Copy Buttons
+  btnCopyPlayerName: document.getElementById('btn-copy-player-name'),
+  btnCopyStaffName: document.getElementById('btn-copy-staff-name')
 };
 
 let latestUpdateData = null;
+let currentPlayerName = '';
+let currentStaffName = '';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -208,6 +214,23 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initEventListeners() {
+  // Copy Name Buttons
+  if (el.btnCopyPlayerName) {
+    el.btnCopyPlayerName.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = currentPlayerName || (document.getElementById('modal-name')?.textContent || '');
+      copyToClipboard(name, el.btnCopyPlayerName);
+    });
+  }
+
+  if (el.btnCopyStaffName) {
+    el.btnCopyStaffName.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = currentStaffName || (el.staffModalName?.textContent || '');
+      copyToClipboard(name, el.btnCopyStaffName);
+    });
+  }
+
   // Search
   el.filterSearch.addEventListener('input', (e) => {
     state.q = e.target.value;
@@ -1092,6 +1115,12 @@ async function openPlayerModal(id) {
     if (!res.ok) throw new Error('Player not found');
     const { player, trend, historyPoints } = await res.json();
 
+    currentPlayerName = player.name;
+    if (el.btnCopyPlayerName) {
+      el.btnCopyPlayerName.classList.remove('copied');
+      el.btnCopyPlayerName.innerHTML = `<span class="copy-icon">📋</span> <span class="copy-label">คัดลอกชื่อ</span>`;
+    }
+
     document.getElementById('modal-name').textContent = player.name;
     document.getElementById('modal-pos').textContent = player.pos || '-';
     document.getElementById('modal-club').textContent = player.club || '-';
@@ -1223,6 +1252,45 @@ function showToast(msg, isError = false) {
   setTimeout(() => {
     el.toast.style.display = 'none';
   }, 4000);
+}
+
+function copyToClipboard(text, btnEl) {
+  if (!text) return;
+  const originalHtml = btnEl ? btnEl.innerHTML : '';
+
+  const onSuccess = () => {
+    if (btnEl) {
+      btnEl.classList.add('copied');
+      btnEl.innerHTML = `<span class="copy-icon">✓</span> <span class="copy-label">คัดลอกแล้ว!</span>`;
+      setTimeout(() => {
+        btnEl.classList.remove('copied');
+        btnEl.innerHTML = originalHtml;
+      }, 1600);
+    }
+    showToast(`📋 คัดลอก "${text}" ไปยังคลิปบอร์ดแล้ว (นำไปวางค้นหาใน FM27 ได้เลย)`);
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
+  } else {
+    fallbackCopy(text, onSuccess);
+  }
+}
+
+function fallbackCopy(text, callback) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    if (callback) callback();
+  } catch (err) {
+    console.error('Fallback copy failed:', err);
+  }
+  document.body.removeChild(ta);
 }
 
 function formatCurrency(val) {
@@ -1604,10 +1672,15 @@ async function openStaffModal(id) {
     const s = data.staff || data;
 
     el.staffModalName.textContent = s.name;
+    currentStaffName = s.name;
+    if (el.btnCopyStaffName) {
+      el.btnCopyStaffName.classList.remove('copied');
+      el.btnCopyStaffName.innerHTML = `<span class="copy-icon">📋</span> <span class="copy-label">คัดลอกชื่อ</span>`;
+    }
     el.staffModalNat.textContent = (s.nat || []).join(', ') || '-';
     el.staffModalAge.textContent = s.age ? `${s.age} ปี` : '-';
-    el.staffModalCA.textContent = s.ca || '-';
-    el.staffModalPA.textContent = s.pa || '-';
+    if (el.staffModalCA) el.staffModalCA.textContent = s.ca || '-';
+    if (el.staffModalPA) el.staffModalPA.textContent = s.pa || '-';
 
     // Role badge
     let catClass = 'badge-role-coaching';

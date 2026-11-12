@@ -1106,10 +1106,54 @@ body {
   flex: 1;
 }
 
+.modal-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
 .modal-player-name {
   font-size: 1.5rem;
   font-weight: 700;
   color: white;
+  line-height: 1.2;
+}
+
+.btn-copy-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #202438;
+  border: 1px solid var(--border-highlight);
+  color: #c4b5fd;
+  font-size: 0.775rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.16s ease;
+  font-family: inherit;
+  user-select: none;
+}
+
+.btn-copy-name:hover {
+  background: #2e3550;
+  color: #ffffff;
+  border-color: var(--accent-purple);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-copy-name.copied {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.6);
+  color: #6ee7b7;
+}
+
+.btn-copy-name .copy-icon {
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .modal-submeta {
