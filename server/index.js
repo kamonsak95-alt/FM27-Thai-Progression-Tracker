@@ -191,7 +191,8 @@ const server = http.createServer(async (req, res) => {
     if (baselineDate !== currentBaselineDate || !cachedPlayersWithDeltas) {
       currentBaselineDate = baselineDate;
       const snap = baselineDate ? getSnapshot(baselineDate) : null;
-      const deltas = calculateDeltas(dump.players, snap ? snap.players : {});
+      const validPlayers = dump.players.filter(p => p && p.name && p.name.trim() && p.name.trim() !== '?');
+      const deltas = calculateDeltas(validPlayers, snap ? snap.players : {});
       cachedPlayersWithDeltas = deltas.map(p => {
         const trend = predictDevelopmentTrend(p, p.deltaCA);
         return {

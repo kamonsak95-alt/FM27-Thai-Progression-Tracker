@@ -46,7 +46,7 @@ function saveSnapshot(gameDate, players, manager = '', club = '') {
   const store = loadHistoryStore();
   const playerMap = {};
   for (const p of players) {
-    if (!p || !p.id) continue;
+    if (!p || !p.id || (p.name && (p.name.trim() === '?' || p.name.trim() === ''))) continue;
     playerMap[String(p.id)] = {
       ca: p.ca || 0,
       pa: p.pa || 0,

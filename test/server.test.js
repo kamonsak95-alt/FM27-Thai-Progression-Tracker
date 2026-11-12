@@ -54,6 +54,13 @@ test('Server responds to /api/status and /api/players', async () => {
       const isNatST = (p.posNat || []).includes('ST');
       assert.ok(isNatST, `Player ${p.name} should naturally play ST`);
     }
+
+    // Test that nameless stubs (name: '?') are never returned
+    const unnamedRes = await get('/api/players?limit=100');
+    assert.strictEqual(unnamedRes.status, 200);
+    for (const p of unnamedRes.body.players) {
+      assert.ok(p.name && p.name !== '?' && p.name.trim() !== '', 'Player must have a valid name');
+    }
   } catch (err) {
     console.error('TEST ERROR OCCURRED:', err);
     throw err;

@@ -39,7 +39,17 @@ function getLatestDump() {
   }
   try {
     const raw = fs.readFileSync(DUMP_FILE, 'utf8');
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+
+    // Filter out FM memory stubs / placeholder entities without valid names (name: '?')
+    if (Array.isArray(data.players)) {
+      data.players = data.players.filter(p => p && p.name && p.name.trim() && p.name.trim() !== '?');
+    }
+    if (Array.isArray(data.staff)) {
+      data.staff = data.staff.filter(s => s && s.name && s.name.trim() && s.name.trim() !== '?');
+    }
+
+    return data;
   } catch (err) {
     console.error('Error reading dump.json:', err.message);
     throw err;
