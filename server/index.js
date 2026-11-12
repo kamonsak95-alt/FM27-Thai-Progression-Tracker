@@ -110,6 +110,26 @@ const server = http.createServer((req, res) => {
     return sendJson(res, 200, { snapshots: listSnapshots() });
   }
 
+  if (pathname === '/api/set-date' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { gameDate } = JSON.parse(body || '{}');
+        if (!gameDate) return sendJson(res, 400, { ok: false, error: 'Missing gameDate' });
+        const dump = getOrLoadDump();
+        if (dump && dump.meta) {
+          dump.meta.gameDate = gameDate;
+          saveSnapshot(gameDate, dump.players, dump.meta.manager, dump.meta.myClub);
+        }
+        sendJson(res, 200, { ok: true, gameDate });
+      } catch (e) {
+        sendJson(res, 500, { ok: false, error: e.message });
+      }
+    });
+    return;
+  }
+
   if (pathname === '/api/players') {
     const dump = getOrLoadDump();
     if (!dump || !dump.players) {

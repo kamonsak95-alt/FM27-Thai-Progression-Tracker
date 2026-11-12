@@ -218,6 +218,35 @@ function initEventListeners() {
   // Scan Button
   el.btnScan.addEventListener('click', triggerScan);
 
+  // Edit Date Badge
+  const dateBadge = document.getElementById('date-badge');
+  if (dateBadge) {
+    dateBadge.addEventListener('click', async () => {
+      const current = state.gameDate || '2026-11-08';
+      const input = prompt('แก้ไขวันที่ในเกมให้ตรงกับหน้าจอของคุณ (รูปแบบ YYYY-MM-DD):', current);
+      if (input && input.trim() && input.trim() !== state.gameDate) {
+        const newDate = input.trim();
+        try {
+          const res = await fetch('/api/set-date', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gameDate: newDate })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            state.gameDate = newDate;
+            el.infoDate.textContent = newDate;
+            showToast(`✅ แก้ไขวันที่ในเกมเป็น ${newDate} เรียบร้อยแล้ว`);
+            await loadStatus();
+            await loadPlayers();
+          }
+        } catch (err) {
+          showToast(`❌ เกิดข้อผิดพลาด: ${err.message}`, true);
+        }
+      }
+    });
+  }
+
   // Modal Close
   el.modalClose.addEventListener('click', () => {
     el.modal.style.display = 'none';
