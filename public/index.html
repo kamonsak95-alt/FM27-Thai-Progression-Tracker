@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FM27 Thai Progression Tracker & Scout</title>
-  <link rel="stylesheet" href="style.css?v=1.0.3">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css?v=1.0.4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,7 +17,9 @@
   <header class="app-header">
     <div class="header-container">
       <div class="brand">
-        <div class="brand-logo">⚽</div>
+        <div class="brand-logo">
+          <img src="icon.svg" alt="FM27 Tracker Logo" class="brand-logo-img">
+        </div>
         <div>
           <h1 class="brand-title">FM27 Thai Progression Tracker</h1>
           <p class="brand-subtitle">ระบบติดตามพัฒนาการนักเตะและสเกาต์ Wonderkid สำหรับ Football Manager 27</p>
@@ -121,7 +125,7 @@
             <label class="filter-label">ตำแหน่ง (Position)</label>
             <button type="button" id="btn-toggle-pitch" class="btn-text-action" title="ย่อ/ขยายผังสนาม">
               <span>⚽ ผังสนาม</span>
-              <span id="pitch-toggle-icon">▲</span>
+              <span id="pitch-toggle-icon">▼</span>
             </button>
           </div>
           <div class="position-pills" id="pos-group">
@@ -165,7 +169,7 @@
       </div>
 
       <!-- Tactical Pitch Position Selector Section (FM Style) -->
-      <div class="tactical-pitch-section" id="tactical-pitch-section">
+      <div class="tactical-pitch-section collapsed" id="tactical-pitch-section">
         <div class="pitch-header">
           <div class="pitch-header-title">
             <span class="pitch-icon">⚽</span>
@@ -301,7 +305,7 @@
     <section class="table-card card">
       <div class="table-header-meta">
         <div class="count-display">
-          พบนัดเตะทั้งหมด <span id="total-count" class="font-bold text-accent">0</span> คน 
+          พบนักเตะทั้งหมด <span id="total-count" class="font-bold text-accent">0</span> คน 
           <span class="text-muted text-sm">(แสดงหน้า <span id="current-page">1</span> จาก <span id="total-pages">1</span>)</span>
         </div>
 
@@ -326,8 +330,8 @@
               <th data-sort="club" class="sortable">สโมสร (Club)</th>
               <th data-sort="ca" class="sortable text-center">CA</th>
               <th data-sort="pa" class="sortable text-center">PA</th>
-              <th data-sort="trendScore" class="sortable text-center">แนวโน้ม (Trend)</th>
-              <th data-sort="growthPercent" class="sortable text-center active-sort desc">พัฒนาการ (% Growth)</th>
+              <th data-sort="trendScore" class="sortable text-center">แนวโน้มที่ประเมิน (Predicted Trend)</th>
+              <th data-sort="growthPercent" class="sortable text-center active-sort desc">ΔCA จากรอบก่อน (% Growth)</th>
               <th data-sort="value" class="sortable text-right">มูลค่า (Value)</th>
               <th data-sort="wage" class="sortable text-right">ค่าเหนื่อย (Wage)</th>
             </tr>
@@ -676,6 +680,6 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.0.3"></script>
+  <script src="app.js?v=1.0.4"></script>
 </body>
 </html>

@@ -949,14 +949,16 @@ function renderTable(players) {
 
   const rows = players.map(p => {
     let growthBadge = '';
-    if (p.isNew) {
+    if (!state.baseline) {
+      growthBadge = `<span class="badge badge-growth-neutral text-muted" title="ยังไม่ได้เลือกหรือไม่มีประวัติรอบเปรียบเทียบ">- (รอบแรก)</span>`;
+    } else if (p.isNew) {
       growthBadge = `<span class="badge badge-growth-new">มาใหม่</span>`;
     } else if (p.deltaCA > 0) {
-      growthBadge = `<span class="badge badge-growth-up">+${p.growthPercent}% (+${p.deltaCA} CA)</span>`;
+      growthBadge = `<span class="badge badge-growth-up">+${p.deltaCA} CA (+${p.growthPercent}%)</span>`;
     } else if (p.deltaCA < 0) {
-      growthBadge = `<span class="badge badge-growth-down">${p.growthPercent}% (${p.deltaCA} CA)</span>`;
+      growthBadge = `<span class="badge badge-growth-down">${p.deltaCA} CA (${p.growthPercent}%)</span>`;
     } else {
-      growthBadge = `<span class="badge badge-growth-neutral">คงที่ (0)</span>`;
+      growthBadge = `<span class="badge badge-growth-neutral">คงที่ (0 CA)</span>`;
     }
 
     const trend = p.trend || { label: 'คงที่', icon: '➖', badgeClass: 'badge-trend-neutral' };
@@ -1097,9 +1099,16 @@ async function triggerScan() {
     const res = await fetch('/api/scan', { method: 'POST' });
     const data = await res.json();
     if (data.ok) {
-      showToast(`✅ ดูดข้อมูลสำเร็จ! สแกนพบ ${data.playersCount.toLocaleString()} คน (${(data.elapsed / 1000).toFixed(1)} วิ)`);
+      const pCount = (data.playersCount || 0).toLocaleString();
+      const sCount = (data.staffCount || 0).toLocaleString();
+      const sec = (data.elapsed / 1000).toFixed(1);
+      const staffMsg = data.staffCount ? ` และทีมงาน ${sCount} คน` : '';
+      showToast(`✅ สแกนสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)`);
       await loadStatus();
       await loadPlayers();
+      if (el.sectionStaff && el.sectionStaff.style.display !== 'none') {
+        await loadStaff();
+      }
     } else {
       showToast(`❌ ${data.error || 'การสแกนล้มเหลว'}`, true);
     }
@@ -1399,27 +1408,38 @@ function renderStaffTable(staffList) {
       ? `<span class="badge-free">🆓 ว่างงาน</span>`
       : `<span class="text-club font-medium">${escapeHtml(s.club)}</span>`;
 
-    // Skills & Stars column
+    // Skills & Stars column - tailored to role/category
     let skillHtml = '';
-    if (s.roleCategory === 'coaching' || s.coachStars >= 3.0) {
+    const isScout = s.roleId === 'scout' || s.roleCategory === 'recruitment' || stateStaff.preset === 'diamond_scout' || stateStaff.role === 'scout';
+    const isMedical = s.roleCategory === 'medical' || s.roleId === 'physio' || s.roleId === 'sports_scientist' || stateStaff.preset === 'god_physio' || stateStaff.role === 'physio';
+    const isHoyd = s.roleId === 'hoyd' || stateStaff.preset === 'hoyd' || stateStaff.role === 'hoyd';
+
+    if (isScout) {
+      skillHtml = `
+        <div class="staff-mini-skills">
+          <span class="skill-pill highlight" title="Judging Player Ability (ประเมินความสามารถ)">JPA: <strong>${s.keySkills?.jpa || 0}</strong></span>
+          <span class="skill-pill highlight" title="Judging Player Potential (ประเมินศักยภาพ)">JPP: <strong>${s.keySkills?.jpp || 0}</strong></span>
+        </div>
+      `;
+    } else if (isMedical) {
+      skillHtml = `
+        <div class="staff-mini-skills">
+          <span class="skill-pill highlight" title="Physiotherapy (กายภาพบำบัด)">กายภาพ: <strong>${s.keySkills?.physiotherapy || 0}</strong></span>
+          <span class="skill-pill highlight" title="Sports Science (วิทยาศาสตร์การกีฬา)">วิทย์กีฬา: <strong>${s.keySkills?.sportsScience || 0}</strong></span>
+        </div>
+      `;
+    } else if (isHoyd) {
+      skillHtml = `
+        <div class="staff-mini-skills">
+          <span class="skill-pill highlight" title="Working with Youngsters (พัฒนาเยาวชน)">เยาวชน: <strong>${s.keySkills?.youngsters || 0}</strong></span>
+          <span class="skill-pill" title="JPP (ประเมินศักยภาพ)">JPP: <strong>${s.keySkills?.jpp || 0}</strong></span>
+        </div>
+      `;
+    } else if (s.roleCategory === 'coaching' || s.coachStars >= 2.5) {
       skillHtml = `
         <div class="staff-stars" title="คะแนนฝึกสอนคำนวณตามสูตร FM: ${s.coachStarsFormatted} ดาว">
           <span class="stars-gold">${'⭐'.repeat(Math.round(s.coachStars))}</span>
           <span class="stars-val">${s.coachStarsFormatted}</span>
-        </div>
-      `;
-    } else if (s.roleId === 'scout' || s.roleCategory === 'recruitment') {
-      skillHtml = `
-        <div class="staff-mini-skills">
-          <span class="skill-pill highlight" title="Judging Player Ability">JPA: <strong>${s.keySkills?.jpa || 0}</strong></span>
-          <span class="skill-pill highlight" title="Judging Player Potential">JPP: <strong>${s.keySkills?.jpp || 0}</strong></span>
-        </div>
-      `;
-    } else if (s.roleCategory === 'medical') {
-      skillHtml = `
-        <div class="staff-mini-skills">
-          <span class="skill-pill highlight" title="Physiotherapy">กายภาพ: <strong>${s.keySkills?.physiotherapy || 0}</strong></span>
-          <span class="skill-pill highlight" title="Sports Science">วิทย์กีฬา: <strong>${s.keySkills?.sportsScience || 0}</strong></span>
         </div>
       `;
     } else {

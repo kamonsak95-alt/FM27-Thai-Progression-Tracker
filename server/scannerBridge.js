@@ -96,6 +96,7 @@ function runScan() {
           elapsed,
           meta: dump?.meta || null,
           playersCount: dump?.players?.length || 0,
+          staffCount: dump?.staff?.length || 0,
           output: stdout
         });
       } catch (err) {

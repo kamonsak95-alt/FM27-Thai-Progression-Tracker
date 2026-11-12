@@ -1,5 +1,8 @@
 const assert = require('node:assert');
 const test = require('node:test');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
 
 test('calculateDeltas calculates correct delta CA and % growth', () => {
   const { calculateDeltas } = require('../server/historyEngine');
@@ -32,22 +35,44 @@ test('calculateDeltas calculates correct delta CA and % growth', () => {
   assert.strictEqual(result[2].isNew, true);
 });
 
-test('saveSnapshot and listSnapshots manage history entries correctly', () => {
-  const { saveSnapshot, listSnapshots, getSnapshot } = require('../server/historyEngine');
-  const players = [
-    { id: 101, name: 'Player A', ca: 140, pa: 160 },
-    { id: 102, name: 'Player B', ca: 130, pa: 150 }
-  ];
+test('saveSnapshot and listSnapshots use isolated temp file and do not overwrite real history.json', () => {
+  const realHistoryPath = path.join(__dirname, '..', 'data', 'history.json');
+  const realHistoryBefore = fs.existsSync(realHistoryPath) ? fs.readFileSync(realHistoryPath, 'utf8') : null;
 
-  const snap = saveSnapshot('2026-11-07', players, 'Test Manager', 'Test Club');
-  assert.ok(snap.id, 'Snapshot must have id');
-  assert.strictEqual(snap.gameDate, '2026-11-07');
+  const tempFile = path.join(os.tmpdir(), `fm27_test_history_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
 
-  const list = listSnapshots();
-  assert.ok(Array.isArray(list));
-  assert.ok(list.some(s => s.gameDate === '2026-11-07'));
+  try {
+    const { saveSnapshot, listSnapshots, getSnapshot } = require('../server/historyEngine');
+    const players = [
+      { id: 101, name: 'Player A', ca: 140, pa: 160 },
+      { id: 102, name: 'Player B', ca: 130, pa: 150 }
+    ];
 
-  const loaded = getSnapshot('2026-11-07');
-  assert.ok(loaded);
-  assert.strictEqual(loaded.players['101'].ca, 140);
+    const snap = saveSnapshot('2026-11-07', players, 'Test Manager', 'Test Club');
+    assert.ok(snap.id, 'Snapshot must have id');
+    assert.strictEqual(snap.gameDate, '2026-11-07');
+
+    const list = listSnapshots();
+    assert.ok(Array.isArray(list));
+    assert.ok(list.some(s => s.gameDate === '2026-11-07'));
+
+    const loaded = getSnapshot('2026-11-07');
+    assert.ok(loaded);
+    assert.strictEqual(loaded.players['101'].ca, 140);
+
+    // Verify temp file exists and was used
+    assert.ok(fs.existsSync(tempFile), 'Temp history file must exist');
+
+    // Crucial: Verify real data/history.json was untouched
+    if (realHistoryBefore != null) {
+      const realHistoryAfter = fs.readFileSync(realHistoryPath, 'utf8');
+      assert.strictEqual(realHistoryAfter, realHistoryBefore, 'Real data/history.json must not be modified by tests');
+    }
+  } finally {
+    delete process.env.FM27_HISTORY_FILE;
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
+  }
 });

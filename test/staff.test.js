@@ -74,6 +74,44 @@ test('Staff Engine and API endpoints', async () => {
     assert.ok(detailRes.body.staff);
     assert.ok(detailRes.body.staff.attrGroups);
     assert.ok(detailRes.body.staff.personality);
+
+    // 8. Test Age Filter (P1 fix: exact age range)
+    const ageRes = await get('/api/staff?minAge=35&maxAge=35&limit=10');
+    assert.strictEqual(ageRes.status, 200);
+    assert.ok(ageRes.body.staff.length > 0);
+    for (const s of ageRes.body.staff) {
+      assert.strictEqual(s.age, 35);
+    }
+
+    // 9. Test Diamond Scout Preset (P1 fix: JPA >= 18 and JPP >= 18)
+    const diamondRes = await get('/api/staff?preset=diamond_scout&limit=10');
+    assert.strictEqual(diamondRes.status, 200);
+    assert.ok(diamondRes.body.staff.length > 0);
+    for (const s of diamondRes.body.staff) {
+      assert.ok(s.keySkills.jpa >= 18, `JPA must be >= 18 but got ${s.keySkills.jpa}`);
+      assert.ok(s.keySkills.jpp >= 18, `JPP must be >= 18 but got ${s.keySkills.jpp}`);
+    }
+
+    // 10. Test God Physio Preset (P1 fix: Physiotherapy >= 18)
+    const godPhysioRes = await get('/api/staff?preset=god_physio&limit=10');
+    assert.strictEqual(godPhysioRes.status, 200);
+    assert.ok(godPhysioRes.body.staff.length > 0);
+    for (const s of godPhysioRes.body.staff) {
+      assert.ok(s.keySkills.physiotherapy >= 18, `Physiotherapy must be >= 18 but got ${s.keySkills.physiotherapy}`);
+    }
+
+    // 11. Test Sorting by Role and Rep (P2 fix)
+    const roleAscRes = await get('/api/staff?sort=role&order=asc&limit=5');
+    const roleDescRes = await get('/api/staff?sort=role&order=desc&limit=5');
+    assert.strictEqual(roleAscRes.status, 200);
+    assert.strictEqual(roleDescRes.status, 200);
+    assert.notStrictEqual(roleAscRes.body.staff[0].roleTh, roleDescRes.body.staff[0].roleTh);
+
+    const repDescRes = await get('/api/staff?sort=rep&order=desc&limit=5');
+    assert.strictEqual(repDescRes.status, 200);
+    const topRep = repDescRes.body.staff[0].worldRep || repDescRes.body.staff[0].curRep;
+    const nextRep = repDescRes.body.staff[1].worldRep || repDescRes.body.staff[1].curRep;
+    assert.ok(topRep >= nextRep);
   } finally {
     await new Promise(resolve => server.close(resolve));
   }

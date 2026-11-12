@@ -39,5 +39,10 @@ test('Server correctly serves frontend static files (index.html, style.css, app.
   assert.ok(jsRes.body.includes('loadStaff'));
   assert.ok(jsRes.body.includes('openStaffModal'));
 
+  // Test icon.svg
+  const iconRes = await get('/icon.svg');
+  assert.strictEqual(iconRes.status, 200);
+  assert.ok(iconRes.headers['content-type'].includes('svg'));
+
   await new Promise(resolve => server.close(resolve));
 });

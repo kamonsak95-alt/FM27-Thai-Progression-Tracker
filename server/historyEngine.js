@@ -2,21 +2,27 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
+
+function getHistoryFilePath() {
+  return process.env.FM27_HISTORY_FILE || path.join(DATA_DIR, 'history.json');
+}
 
 function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const filePath = getHistoryFilePath();
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 }
 
 function loadHistoryStore() {
   ensureDataDir();
-  if (!fs.existsSync(HISTORY_FILE)) {
+  const filePath = getHistoryFilePath();
+  if (!fs.existsSync(filePath)) {
     return { snapshots: [] };
   }
   try {
-    return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch {
     return { snapshots: [] };
   }
@@ -24,8 +30,9 @@ function loadHistoryStore() {
 
 function saveHistoryStore(store) {
   ensureDataDir();
+  const filePath = getHistoryFilePath();
   try {
-    fs.writeFileSync(HISTORY_FILE, JSON.stringify(store, null, 2), 'utf8');
+    fs.writeFileSync(filePath, JSON.stringify(store, null, 2), 'utf8');
   } catch (err) {
     console.error('Warning: could not write history store:', err.message);
   }
@@ -128,5 +135,6 @@ module.exports = {
   listSnapshots,
   getSnapshot,
   calculateDeltas,
-  HISTORY_FILE
+  getHistoryFilePath,
+  get HISTORY_FILE() { return getHistoryFilePath(); }
 };

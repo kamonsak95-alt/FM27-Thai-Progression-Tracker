@@ -389,6 +389,12 @@ function filterStaff(staffList, query = {}) {
     else if (rep === 'regional') result = result.filter(s => (s.worldRep || s.curRep || 0) >= 2000 && (s.worldRep || s.curRep || 0) < 3500);
   }
 
+  // Age Range
+  const minAge = parseInt(query.minAge, 10);
+  const maxAge = parseInt(query.maxAge, 10);
+  if (!isNaN(minAge)) result = result.filter(s => typeof s.age === 'number' && s.age >= minAge && s.age > 0);
+  if (!isNaN(maxAge)) result = result.filter(s => typeof s.age === 'number' && s.age <= maxAge && s.age > 0);
+
   // CA Range
   const minCA = parseInt(query.minCA, 10);
   const maxCA = parseInt(query.maxCA, 10);
@@ -407,10 +413,10 @@ function filterStaff(staffList, query = {}) {
     result = result.filter(s => calculateCoachingRating(s).stars >= 4.5);
   } else if (preset === 'hoyd') {
     result = result.filter(s => (s.staffAttrs?.Jeugd || 0) >= 16 && (s.staffAttrs?.Oordeel_potentie || 0) >= 15);
-  } else if (preset === 'scout_elite') {
-    result = result.filter(s => (s.staffAttrs?.Oordeel_vermogen || 0) >= 17 && (s.staffAttrs?.Oordeel_potentie || 0) >= 17);
-  } else if (preset === 'physio_elite') {
-    result = result.filter(s => (s.staffAttrs?.Fysiotherapie || 0) >= 17);
+  } else if (preset === 'diamond_scout' || preset === 'scout_elite') {
+    result = result.filter(s => (s.staffAttrs?.Oordeel_vermogen || 0) >= 18 && (s.staffAttrs?.Oordeel_potentie || 0) >= 18);
+  } else if (preset === 'god_physio' || preset === 'physio_elite') {
+    result = result.filter(s => (s.staffAttrs?.Fysiotherapie || 0) >= 18);
   } else if (preset === 'free_agents') {
     result = result.filter(s => !s.club);
   } else if (preset === 'myclub' && query.myClub) {
@@ -425,7 +431,13 @@ function filterStaff(staffList, query = {}) {
     let va = a[sortBy];
     let vb = b[sortBy];
 
-    if (sortBy === 'coachStars') {
+    if (sortBy === 'role') {
+      va = resolveStaffRole(a).nameTh;
+      vb = resolveStaffRole(b).nameTh;
+    } else if (sortBy === 'rep') {
+      va = a.worldRep || a.curRep || 0;
+      vb = b.worldRep || b.curRep || 0;
+    } else if (sortBy === 'coachStars') {
       va = calculateCoachingRating(a).bestScore;
       vb = calculateCoachingRating(b).bestScore;
     } else if (sortBy === 'jpa') {
@@ -437,11 +449,20 @@ function filterStaff(staffList, query = {}) {
     } else if (sortBy === 'physio') {
       va = a.staffAttrs?.Fysiotherapie || 0;
       vb = b.staffAttrs?.Fysiotherapie || 0;
+    } else if (sortBy === 'club') {
+      va = a.club || '';
+      vb = b.club || '';
+    } else if (sortBy === 'name') {
+      va = a.name || '';
+      vb = b.name || '';
+    } else if (sortBy === 'age') {
+      va = a.age || 0;
+      vb = b.age || 0;
     }
 
-    if (va == null) va = -9999;
-    if (vb == null) vb = -9999;
-    if (typeof va === 'string') return order * va.localeCompare(vb);
+    if (va == null) va = typeof vb === 'string' ? '' : -9999;
+    if (vb == null) vb = typeof va === 'string' ? '' : -9999;
+    if (typeof va === 'string') return order * va.localeCompare(vb, 'th');
     return order * (va - vb);
   });
 
