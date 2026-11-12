@@ -122,11 +122,16 @@
         <!-- Position Filter -->
         <div class="filter-group">
           <div class="filter-label-row">
-            <label class="filter-label">ตำแหน่ง (Position)</label>
-            <button type="button" id="btn-toggle-pitch" class="btn-text-action" title="ย่อ/ขยายผังสนาม">
-              <span>⚽ ผังสนาม</span>
-              <span id="pitch-toggle-icon">▼</span>
-            </button>
+            <label class="filter-label">ตำแหน่ง</label>
+            <div class="pitch-mode-actions">
+              <button type="button" id="btn-toggle-compact-pos" class="btn-text-action" title="เปิด/ปิดแถบตำแหน่งย่อ">
+                <span>📏 แถบย่อ</span>
+              </button>
+              <button type="button" id="btn-toggle-pitch" class="btn-text-action" title="เปิด/ปิดผังสนาม 2D">
+                <span>⚽ ผังสนาม</span>
+                <span id="pitch-toggle-icon">▼</span>
+              </button>
+            </div>
           </div>
           <div class="position-pills" id="pos-group">
             <button class="pos-btn active" data-pos="ALL">ALL</button>
@@ -135,11 +140,35 @@
             <button class="pos-btn" data-pos="MID">MID</button>
             <button class="pos-btn" data-pos="ATT">ATT</button>
           </div>
+          <!-- Compact Position Strip (แถบเตี้ยๆ) -->
+          <div id="compact-pos-strip" class="compact-pos-strip" style="display:none;">
+            <button type="button" class="compact-pos-pill" data-pos="ST">ST</button>
+            <span class="compact-pos-sep">|</span>
+            <button type="button" class="compact-pos-pill" data-pos="AML">AML</button>
+            <button type="button" class="compact-pos-pill" data-pos="AMC">AMC</button>
+            <button type="button" class="compact-pos-pill" data-pos="AMR">AMR</button>
+            <span class="compact-pos-sep">|</span>
+            <button type="button" class="compact-pos-pill" data-pos="ML">ML</button>
+            <button type="button" class="compact-pos-pill" data-pos="MC">MC</button>
+            <button type="button" class="compact-pos-pill" data-pos="MR">MR</button>
+            <span class="compact-pos-sep">|</span>
+            <button type="button" class="compact-pos-pill" data-pos="DM">DM</button>
+            <span class="compact-pos-sep">|</span>
+            <button type="button" class="compact-pos-pill" data-pos="WBL">WBL</button>
+            <button type="button" class="compact-pos-pill" data-pos="WBR">WBR</button>
+            <span class="compact-pos-sep">|</span>
+            <button type="button" class="compact-pos-pill" data-pos="DL">DL</button>
+            <button type="button" class="compact-pos-pill" data-pos="DC">DC</button>
+            <button type="button" class="compact-pos-pill" data-pos="DR">DR</button>
+            <span class="compact-pos-sep">|</span>
+            <button type="button" class="compact-pos-pill" data-pos="GK">GK</button>
+            <button type="button" class="compact-pos-clear" id="btn-compact-clear" title="ล้างค่า">✕</button>
+          </div>
         </div>
 
         <!-- Age Range -->
         <div class="filter-group">
-          <label class="filter-label">ช่วงอายุ (Age): <span id="val-age" class="text-accent font-semibold">15 - 45</span> ปี</label>
+          <label class="filter-label">ช่วงอายุ: <span id="val-age" class="text-accent font-semibold">15 - 45</span> ปี</label>
           <div class="range-inputs">
             <input type="number" id="min-age" class="form-input num-input" value="15" min="15" max="45">
             <span class="text-muted">ถึง</span>
@@ -168,28 +197,32 @@
         </div>
       </div>
 
-      <!-- Tactical Pitch Position Selector Section (FM Style) -->
+      <!-- Tactical Pitch Position Selector Section (FM Style Popover) -->
       <div class="tactical-pitch-section collapsed" id="tactical-pitch-section">
         <div class="pitch-header">
           <div class="pitch-header-title">
             <span class="pitch-icon">⚽</span>
             <div>
-              <h3 class="pitch-title">ผังสนามเลือกตำแหน่ง (Tactical Pitch Selector)</h3>
-              <p class="pitch-subtitle">คลิกตำแหน่งในสนามเพื่อกรองนักเตะ (เลือกพร้อมกันได้หลายตำแหน่ง)</p>
+              <h3 class="pitch-title">ผังสนามเลือกตำแหน่ง</h3>
+              <p class="pitch-subtitle">คลิกตำแหน่งในสนาม (เลือกได้หลายตำแหน่ง ตารางจะอัปเดตทันที)</p>
             </div>
           </div>
           
           <div class="pitch-header-actions">
-            <div class="pitch-presets">
-              <button type="button" class="pitch-preset-btn active" data-preset-pos="ALL">ทั้งหมด</button>
-              <button type="button" class="pitch-preset-btn" data-preset-pos="ATT">ST</button>
-              <button type="button" class="pitch-preset-btn" data-preset-pos="AM">AM (L/C/R)</button>
-              <button type="button" class="pitch-preset-btn" data-preset-pos="MID">M & DM</button>
-              <button type="button" class="pitch-preset-btn" data-preset-pos="WB">WB (L/R)</button>
-              <button type="button" class="pitch-preset-btn" data-preset-pos="DEF">D (L/C/R)</button>
-              <button type="button" class="pitch-preset-btn" data-preset-pos="GK">GK</button>
-              <button type="button" class="pitch-preset-btn btn-clear-pitch" id="btn-clear-pitch">ล้างค่า</button>
-            </div>
+            <button type="button" class="btn-icon-close" id="btn-close-pitch-popover" title="ปิดผังสนาม">✕</button>
+          </div>
+        </div>
+
+        <div class="pitch-preset-row">
+          <div class="pitch-presets">
+            <button type="button" class="pitch-preset-btn active" data-preset-pos="ALL">ทั้งหมด</button>
+            <button type="button" class="pitch-preset-btn" data-preset-pos="ATT">ST</button>
+            <button type="button" class="pitch-preset-btn" data-preset-pos="AM">AM</button>
+            <button type="button" class="pitch-preset-btn" data-preset-pos="MID">MID</button>
+            <button type="button" class="pitch-preset-btn" data-preset-pos="WB">WB</button>
+            <button type="button" class="pitch-preset-btn" data-preset-pos="DEF">DEF</button>
+            <button type="button" class="pitch-preset-btn" data-preset-pos="GK">GK</button>
+            <button type="button" class="pitch-preset-btn btn-clear-pitch" id="btn-clear-pitch">ล้างค่า</button>
           </div>
         </div>
 
@@ -294,7 +327,7 @@
 
             <label class="pitch-nat-toggle">
               <input type="checkbox" id="check-nat-only">
-              <span class="toggle-text">⚡ เฉพาะตำแหน่งธรรมชาติ (Natural Positions Only)</span>
+              <span class="toggle-text">⚡ เฉพาะตำแหน่งธรรมชาติ (Natural Only)</span>
             </label>
           </div>
         </div>
@@ -324,16 +357,16 @@
         <table class="data-table" id="players-table">
           <thead>
             <tr>
-              <th data-sort="name" class="sortable">ชื่อนักเตะ (Name)</th>
-              <th data-sort="age" class="sortable">อายุ (Age)</th>
-              <th data-sort="pos" class="sortable">ตำแหน่ง (Pos)</th>
-              <th data-sort="club" class="sortable">สโมสร (Club)</th>
-              <th data-sort="ca" class="sortable text-center">CA</th>
-              <th data-sort="pa" class="sortable text-center">PA</th>
-              <th data-sort="trendScore" class="sortable text-center">แนวโน้มที่ประเมิน (Predicted Trend)</th>
-              <th data-sort="growthPercent" class="sortable text-center active-sort desc">ΔCA จากรอบก่อน (% Growth)</th>
-              <th data-sort="value" class="sortable text-right">มูลค่า (Value)</th>
-              <th data-sort="wage" class="sortable text-right">ค่าเหนื่อย (Wage)</th>
+              <th data-sort="name" class="sortable col-name" title="ชื่อนักเตะและสัญชาติ">นักเตะ</th>
+              <th data-sort="age" class="sortable text-center" title="อายุ (ปี)">อายุ</th>
+              <th data-sort="pos" class="sortable text-center" title="ตำแหน่งที่เล่นได้">ตำแหน่ง</th>
+              <th data-sort="club" class="sortable" title="สโมสรปัจจุบัน">สโมสร</th>
+              <th data-sort="ca" class="sortable text-center" title="Current Ability (ค่าพลังปัจจุบัน 1-200)">CA</th>
+              <th data-sort="pa" class="sortable text-center" title="Potential Ability (ศักยภาพสูงสุด 1-200)">PA</th>
+              <th data-sort="trendScore" class="sortable text-center" title="แนวโน้มพัฒนาการประเมินจากอายุและช่องว่าง CA/PA">แนวโน้ม</th>
+              <th data-sort="growthPercent" class="sortable text-center active-sort desc" title="การเปลี่ยนแปลง CA เทียบกับรอบสแกนก่อนหน้า">ΔCA / เติบโต</th>
+              <th data-sort="value" class="sortable text-right" title="มูลค่าประเมินในตลาด">มูลค่า</th>
+              <th data-sort="wage" class="sortable text-right" title="ค่าเหนื่อยต่อสัปดาห์">ค่าเหนื่อย</th>
             </tr>
           </thead>
           <tbody id="table-body">
@@ -370,70 +403,70 @@
           <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="hoyd">👶 ปั้นเยาวชน (HOYD เทพ)</button>
           <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="diamond_scout">🔍 แมวมองตาเพชร (JPA/JPP 18+)</button>
           <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="god_physio">🩺 หมอเทวดา (Physio 18+)</button>
-          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="free_agents">🆓 ว่างงาน (Free Agents)</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="free_agents">🆓 ว่างงาน</button>
         </div>
       </div>
 
       <!-- 3 FM-Style Dropdowns & Sliders Grid matching User Screenshots -->
       <div class="filter-grid staff-filter-grid">
-        <!-- Dropdown 1: ตำแหน่งเจ้าหน้าที่ (Role / Category) -->
+        <!-- Dropdown 1: ตำแหน่งเจ้าหน้าที่ (Role) -->
         <div class="filter-group">
-          <label class="filter-label" for="filter-staff-role">ตำแหน่งเจ้าหน้าที่ (Role)</label>
+          <label class="filter-label" for="filter-staff-role">ตำแหน่งเจ้าหน้าที่</label>
           <select id="filter-staff-role" class="form-select staff-select">
             <option value="all">ใดๆ (ทุกตำแหน่ง)</option>
-            <optgroup label="── การฝึกสอน (Coaching) ──">
+            <optgroup label="── การฝึกสอน ──">
               <option value="cat:coaching">📋 ทุกตำแหน่งการฝึกสอน</option>
-              <option value="manager">ผู้จัดการทีม (Manager)</option>
-              <option value="assistant_manager">ผู้ช่วยผู้จัดการทีม (Assistant Manager)</option>
-              <option value="hoyd">หัวหน้าฝ่ายพัฒนาเยาวชน (Head of Youth Development)</option>
-              <option value="coach">โค้ช (Coach)</option>
-              <option value="gk_coach">โค้ชผู้รักษาประตู (Goalkeeping Coach)</option>
-              <option value="set_piece_coach">โค้ชลูกตั้งเตะ (Set Piece Coach)</option>
-              <option value="fitness_coach">โค้ชฟิตเนส (Fitness Coach)</option>
-              <option value="head_perf_analyst">หัวหน้านักวิเคราะห์ผลงาน (Head of Performance Analysis)</option>
-              <option value="perf_analyst">นักวิเคราะห์ผลงาน (Performance Analyst)</option>
+              <option value="manager">ผู้จัดการทีม</option>
+              <option value="assistant_manager">ผู้ช่วยผู้จัดการทีม</option>
+              <option value="hoyd">หัวหน้าฝ่ายพัฒนาเยาวชน (HOYD)</option>
+              <option value="coach">โค้ช</option>
+              <option value="gk_coach">โค้ชผู้รักษาประตู</option>
+              <option value="set_piece_coach">โค้ชลูกตั้งเตะ</option>
+              <option value="fitness_coach">โค้ชฟิตเนส</option>
+              <option value="head_perf_analyst">หัวหน้านักวิเคราะห์ผลงาน</option>
+              <option value="perf_analyst">นักวิเคราะห์ผลงาน</option>
             </optgroup>
-            <optgroup label="── ทีมสรรหานักเตะ (Recruitment) ──">
+            <optgroup label="── ทีมสรรหานักเตะ ──">
               <option value="cat:recruitment">📋 ทุกตำแหน่งสรรหานักเตะ</option>
-              <option value="dof">ผู้อำนวยการฟุตบอล (Director of Football)</option>
-              <option value="technical_director">ผู้อำนวยการฝ่ายเทคนิค (Technical Director)</option>
-              <option value="scout">แมวมอง (Scout / Chief Scout)</option>
-              <option value="recruitment_analyst">นักวิเคราะห์การสรรหา (Recruitment Analyst)</option>
-              <option value="loan_manager">ผู้จัดการฝ่ายยืมตัว (Loan Manager)</option>
+              <option value="dof">ผู้อำนวยการฟุตบอล (DoF)</option>
+              <option value="technical_director">ผู้อำนวยการฝ่ายเทคนิค</option>
+              <option value="scout">แมวมอง</option>
+              <option value="recruitment_analyst">นักวิเคราะห์การสรรหา</option>
+              <option value="loan_manager">ผู้จัดการฝ่ายยืมตัว</option>
             </optgroup>
-            <optgroup label="── การแพทย์ (Medical) ──">
+            <optgroup label="── การแพทย์ ──">
               <option value="cat:medical">📋 ทุกตำแหน่งการแพทย์</option>
-              <option value="physio">นักกายภาพบำบัด (Physiotherapist)</option>
-              <option value="sports_scientist">นักวิทยาศาสตร์การกีฬา (Sports Scientist)</option>
+              <option value="physio">นักกายภาพบำบัด (Physio)</option>
+              <option value="sports_scientist">นักวิทยาศาสตร์การกีฬา</option>
             </optgroup>
           </select>
         </div>
 
-        <!-- Dropdown 2: ทำงานแล้ว (Employment Status) -->
+        <!-- Dropdown 2: สถานะสัญญา -->
         <div class="filter-group">
-          <label class="filter-label" for="filter-staff-status">ทำงานแล้ว (Employment)</label>
+          <label class="filter-label" for="filter-staff-status">สถานะสัญญา</label>
           <select id="filter-staff-status" class="form-select staff-select">
             <option value="any">ใดๆ (ทั้งหมด)</option>
-            <option value="unemployed">🆓 ว่างงาน (Free Agent / Unemployed)</option>
-            <option value="employed">🏢 มีสังกัดแล้ว (Employed)</option>
+            <option value="unemployed">🆓 ว่างงาน</option>
+            <option value="employed">🏢 มีสังกัดแล้ว</option>
           </select>
         </div>
 
-        <!-- Dropdown 3: ชื่อเสียง (Reputation) -->
+        <!-- Dropdown 3: ระดับชื่อเสียง -->
         <div class="filter-group">
-          <label class="filter-label" for="filter-staff-rep">ชื่อเสียง (Reputation)</label>
+          <label class="filter-label" for="filter-staff-rep">ระดับชื่อเสียง</label>
           <select id="filter-staff-rep" class="form-select staff-select">
             <option value="any">ใดๆ (ทุกระดับ)</option>
-            <option value="world">⭐⭐⭐⭐⭐ ระดับโลก (World Class - 7,000+)</option>
-            <option value="continental">⭐⭐⭐⭐ ระดับทวีป (Continental - 5,000+)</option>
-            <option value="national">⭐⭐⭐ ระดับประเทศ (National - 3,500+)</option>
-            <option value="regional">⭐⭐ ระดับภูมิภาค (Regional - 2,000+)</option>
+            <option value="world">⭐⭐⭐⭐⭐ ระดับโลก (7,000+)</option>
+            <option value="continental">⭐⭐⭐⭐ ระดับทวีป (5,000+)</option>
+            <option value="national">⭐⭐⭐ ระดับประเทศ (3,500+)</option>
+            <option value="regional">⭐⭐ ระดับภูมิภาค (2,000+)</option>
           </select>
         </div>
 
         <!-- Age Range -->
         <div class="filter-group">
-          <label class="filter-label">ช่วงอายุ (Age): <span id="val-staff-age" class="text-accent font-semibold">15 - 80</span> ปี</label>
+          <label class="filter-label">ช่วงอายุ: <span id="val-staff-age" class="text-accent font-semibold">15 - 80</span> ปี</label>
           <div class="range-inputs">
             <input type="number" id="min-staff-age" class="form-input num-input" value="15" min="15" max="80">
             <span class="text-muted">ถึง</span>
@@ -486,15 +519,17 @@
         <table class="data-table" id="staff-table">
           <thead>
             <tr>
-              <th data-staff-sort="name" class="sortable">ชื่อทีมงาน (Name)</th>
-              <th data-staff-sort="role" class="sortable">ตำแหน่ง (Role)</th>
-              <th data-staff-sort="club" class="sortable">สโมสร (Club)</th>
-              <th data-staff-sort="age" class="sortable text-center">อายุ (Age)</th>
-              <th data-staff-sort="ca" class="sortable text-center active-sort desc">CA</th>
-              <th data-staff-sort="pa" class="sortable text-center">PA</th>
-              <th data-staff-sort="coachStars" class="sortable text-center">ดาวโค้ช / สกิลเด่น (Key Skills)</th>
-              <th data-staff-sort="wage" class="sortable text-right">ค่าเหนื่อย (Wage)</th>
-              <th data-staff-sort="rep" class="sortable">ชื่อเสียง (Reputation)</th>
+              <th data-staff-sort="name" class="sortable col-name" title="ชื่อทีมงานและสัญชาติ">ทีมงาน</th>
+              <th data-staff-sort="role" class="sortable" title="บทบาทหน้าที่หลัก">ตำแหน่ง</th>
+              <th data-staff-sort="club" class="sortable" title="สโมสรที่สังกัด">สโมสร</th>
+              <th data-staff-sort="age" class="sortable text-center" title="อายุ (ปี)">อายุ</th>
+              <th data-staff-sort="ca" class="sortable text-center active-sort desc" title="Current Ability">CA</th>
+              <th data-staff-sort="pa" class="sortable text-center" title="Potential Ability">PA</th>
+              <th data-staff-sort="coachStars" class="sortable text-center" title="ทักษะเด่นตามสายงาน หรือดาวโค้ช">สกิลหลัก / ดาว</th>
+              <th data-staff-sort="wage" class="sortable text-right" title="ค่าเหนื่อยต่อสัปดาห์">ค่าเหนื่อย</th>
+              <th data-staff-sort="rep" class="sortable" title="ระดับชื่อเสียงในวงการ">ชื่อเสียง</th>
+            </tr>
+          </thead>
             </tr>
           </thead>
           <tbody id="staff-table-body">
@@ -606,19 +641,8 @@
           </div>
         </div>
 
-        <div class="modal-ca-pa">
-          <div class="ability-block" id="staff-modal-stars-block">
-            <div class="ability-label">ดาวโค้ช (Rating)</div>
-            <div class="ability-number text-orange" id="staff-modal-stars">⭐ 4.5</div>
-          </div>
-          <div class="ability-block">
-            <div class="ability-label">CA (ปัจจุบัน)</div>
-            <div class="ability-number text-accent" id="staff-modal-ca">150</div>
-          </div>
-          <div class="ability-block">
-            <div class="ability-label">PA (ศักยภาพ)</div>
-            <div class="ability-number text-green" id="staff-modal-pa">170</div>
-          </div>
+        <div class="modal-ca-pa" id="staff-modal-header-stats">
+          <!-- Dynamically rendered based on staff role -->
         </div>
       </div>
 
@@ -680,6 +704,6 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.0.4"></script>
+  <script src="app.js?v=1.0.5"></script>
 </body>
 </html>

@@ -9,8 +9,9 @@
   --border-highlight: #464c67;
   
   --text-main: #f0f2f8;
-  --text-muted: #8c93a8;
-  --text-dim: #5c6275;
+  --text-secondary: #cbd5e1;
+  --text-muted: #9da7be;
+  --text-dim: #76829d;
   
   --accent-purple: #8b5cf6;
   --accent-blue: #3b82f6;
@@ -46,6 +47,9 @@ body {
 .text-green { color: var(--stat-green); }
 .text-red { color: var(--stat-red); }
 .text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.text-club { color: #d6deeb; font-weight: 500; }
+.nat-badge { color: var(--text-muted); font-size: 0.75rem; }
 .font-semibold { font-weight: 600; }
 .font-bold { font-weight: 700; }
 .text-sm { font-size: 0.875rem; }
@@ -362,9 +366,15 @@ body {
   justify-content: space-between;
 }
 
+.pitch-mode-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .btn-text-action {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--accent-purple);
   font-size: 0.8rem;
   font-weight: 500;
@@ -372,28 +382,124 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.1rem 0.4rem;
+  padding: 0.15rem 0.5rem;
   border-radius: 4px;
   transition: all 0.15s ease;
 }
 
 .btn-text-action:hover {
   background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
   color: #ddd6fe;
 }
 
-/* Tactical Pitch Section (FM Authentic) */
-.tactical-pitch-section {
-  background: #12141f;
-  border: 1px solid #202434;
-  border-radius: 12px;
-  padding: 1.1rem 1.25rem;
-  margin-top: 0.5rem;
-  transition: all 0.25s ease;
+.btn-text-action.active {
+  background: #2e264f;
+  border-color: var(--accent-purple);
+  color: #ddd6fe;
 }
 
-.tactical-pitch-section.collapsed .pitch-body {
-  display: none;
+/* Compact Position Strip (แถบเตี้ยๆ) */
+.compact-pos-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  background: #12141f;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.compact-pos-pill {
+  background: #181b29;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.compact-pos-pill:hover {
+  background: #252a3d;
+  color: var(--text-main);
+  border-color: #3b425b;
+}
+
+.compact-pos-pill.active {
+  background: var(--accent-purple);
+  border-color: var(--accent-purple);
+  color: #ffffff;
+}
+
+.compact-pos-sep {
+  color: var(--border-color);
+  font-size: 0.75rem;
+  user-select: none;
+}
+
+.compact-pos-clear {
+  background: transparent;
+  border: none;
+  color: var(--stat-red);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  margin-left: auto;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.compact-pos-clear:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Tactical Pitch Section (FM Authentic Popover Mode) */
+.tactical-pitch-section.collapsed {
+  display: none !important;
+}
+
+.tactical-pitch-section:not(.collapsed) {
+  position: fixed;
+  top: 105px;
+  right: 24px;
+  width: 350px;
+  max-height: calc(100vh - 125px);
+  overflow-y: auto;
+  background: #131624;
+  border: 1px solid var(--border-highlight);
+  border-radius: 12px;
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.75);
+  z-index: 100;
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  animation: popoverFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popoverFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pitch-preset-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pitch-preset-row .pitch-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
 }
 
 .pitch-header {
@@ -713,11 +819,13 @@ body {
   overflow-x: auto;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
+  position: relative;
 }
 
 .data-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.875rem;
   text-align: left;
 }
@@ -727,11 +835,34 @@ body {
 }
 
 .data-table th {
-  padding: 0.75rem 0.85rem;
+  padding: 0.65rem 0.75rem;
   color: var(--text-muted);
   font-weight: 600;
   border-bottom: 1px solid var(--border-color);
   white-space: nowrap;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background-color: var(--bg-card);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.45);
+}
+
+.data-table thead th:first-child {
+  z-index: 4;
+  background-color: #131520;
+}
+
+.data-table tbody tr:hover td:first-child {
+  background-color: var(--bg-card-hover);
+}
+
+.col-name {
+  min-width: 140px;
+  max-width: 195px;
 }
 
 .data-table th.sortable {
@@ -1049,20 +1180,32 @@ body {
 
 .attr-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   padding: 0.25rem 0;
   font-size: 0.825rem;
+  min-height: 28px;
+  gap: 0.5rem;
 }
 
 .attr-name {
   color: #cbd5e1;
+  flex: 1;
+  line-height: 1.25;
 }
 
 .attr-val {
   font-weight: 700;
-  width: 24px;
+  width: 26px;
+  height: 22px;
+  line-height: 22px;
   text-align: center;
-  border-radius: 3px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* FM Style Attribute Colors */
@@ -1479,5 +1622,37 @@ body {
   .btn {
     padding: 0.45rem 0.85rem;
     font-size: 0.825rem;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 0.45rem 0.55rem;
+    font-size: 0.8125rem;
+  }
+  .col-name {
+    min-width: 130px;
+    max-width: 160px;
+  }
+  .player-name-cell {
+    max-width: 150px;
+  }
+  .player-name-cell .player-name {
+    font-size: 0.825rem;
+  }
+  .badge-pos {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.7rem;
+  }
+  .badge-role {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.725rem;
+  }
+  .skill-pill {
+    padding: 0.1rem 0.35rem;
+    font-size: 0.7rem;
+  }
+  .tactical-pitch-section:not(.collapsed) {
+    top: 80px;
+    right: 12px;
+    width: 320px;
   }
 }

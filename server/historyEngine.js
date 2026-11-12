@@ -4,7 +4,11 @@ const path = require('node:path');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 
 function getHistoryFilePath() {
-  return process.env.FM27_HISTORY_FILE || path.join(DATA_DIR, 'history.json');
+  if (process.env.FM27_HISTORY_FILE) return process.env.FM27_HISTORY_FILE;
+  if (process.env.NODE_ENV === 'test') {
+    return path.join(require('node:os').tmpdir(), 'fm27_test_history.json');
+  }
+  return path.join(DATA_DIR, 'history.json');
 }
 
 function ensureDataDir() {
@@ -58,6 +62,16 @@ function saveSnapshot(gameDate, players, manager = '', club = '') {
 
   // Check if snapshot for this gameDate already exists
   const existingIdx = store.snapshots.findIndex(s => s.gameDate === gameDate);
+  if (existingIdx >= 0) {
+    const existing = store.snapshots[existingIdx];
+    if (existing.club === club && existing.manager === manager && existing.totalPlayers === players.length) {
+      const existingKeys = Object.keys(existing.players || {});
+      const newKeys = Object.keys(playerMap);
+      if (existingKeys.length === newKeys.length) {
+        return existing; // Already identical, no write needed
+      }
+    }
+  }
   const snapObj = {
     id: `snap_${gameDate.replace(/[^0-9]/g, '')}_${Date.now()}`,
     gameDate,

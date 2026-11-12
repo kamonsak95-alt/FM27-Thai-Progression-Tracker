@@ -136,6 +136,10 @@ const el = {
   alertLatestCommit: document.getElementById('alert-latest-commit'),
   tacticalPitchSection: document.getElementById('tactical-pitch-section'),
   btnTogglePitch: document.getElementById('btn-toggle-pitch'),
+  btnClosePitchPopover: document.getElementById('btn-close-pitch-popover'),
+  btnToggleCompactPos: document.getElementById('btn-toggle-compact-pos'),
+  compactPosStrip: document.getElementById('compact-pos-strip'),
+  btnCompactClear: document.getElementById('btn-compact-clear'),
   pitchToggleIcon: document.getElementById('pitch-toggle-icon'),
   pitchFilterSummary: document.getElementById('pitch-filter-summary'),
   pitchFilterCount: document.getElementById('pitch-filter-count'),
@@ -183,6 +187,7 @@ const el = {
   staffModalClub: document.getElementById('staff-modal-club'),
   staffModalNat: document.getElementById('staff-modal-nat'),
   staffModalAge: document.getElementById('staff-modal-age'),
+  staffModalHeaderStats: document.getElementById('staff-modal-header-stats'),
   staffModalStarsBlock: document.getElementById('staff-modal-stars-block'),
   staffModalStars: document.getElementById('staff-modal-stars'),
   staffModalCA: document.getElementById('staff-modal-ca'),
@@ -329,13 +334,66 @@ function initEventListeners() {
     });
   }
 
-  // Toggle Collapse/Expand Pitch Section
+  // Toggle Collapse/Expand Pitch Section (Popover)
   if (el.btnTogglePitch && el.tacticalPitchSection) {
-    el.btnTogglePitch.addEventListener('click', () => {
+    el.btnTogglePitch.addEventListener('click', (e) => {
+      e.stopPropagation();
       const isCollapsed = el.tacticalPitchSection.classList.toggle('collapsed');
       if (el.pitchToggleIcon) {
         el.pitchToggleIcon.textContent = isCollapsed ? '▼' : '▲';
       }
+      if (el.btnTogglePitch) {
+        el.btnTogglePitch.classList.toggle('active', !isCollapsed);
+      }
+    });
+  }
+
+  // Close Pitch Popover Button
+  if (el.btnClosePitchPopover && el.tacticalPitchSection) {
+    el.btnClosePitchPopover.addEventListener('click', () => {
+      el.tacticalPitchSection.classList.add('collapsed');
+      if (el.pitchToggleIcon) el.pitchToggleIcon.textContent = '▼';
+      if (el.btnTogglePitch) el.btnTogglePitch.classList.remove('active');
+    });
+  }
+
+  // Toggle Compact Position Strip
+  if (el.btnToggleCompactPos && el.compactPosStrip) {
+    el.btnToggleCompactPos.addEventListener('click', () => {
+      const isHidden = el.compactPosStrip.style.display === 'none';
+      el.compactPosStrip.style.display = isHidden ? 'flex' : 'none';
+      el.btnToggleCompactPos.classList.toggle('active', isHidden);
+    });
+  }
+
+  // Compact Position Strip Button Clicks
+  document.querySelectorAll('.compact-pos-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pos = btn.dataset.pos;
+      if (state.selectedPitchPositions.has(pos)) {
+        state.selectedPitchPositions.delete(pos);
+      } else {
+        state.selectedPitchPositions.add(pos);
+      }
+      if (state.selectedPitchPositions.size === 0) {
+        state.pos = 'ALL';
+      } else {
+        state.pos = Array.from(state.selectedPitchPositions).join(',');
+      }
+      updatePitchUI();
+      state.page = 1;
+      loadPlayers();
+    });
+  });
+
+  // Clear Compact Position Filter
+  if (el.btnCompactClear) {
+    el.btnCompactClear.addEventListener('click', () => {
+      state.selectedPitchPositions.clear();
+      state.pos = 'ALL';
+      updatePitchUI();
+      state.page = 1;
+      loadPlayers();
     });
   }
 
@@ -489,6 +547,37 @@ function initEventListeners() {
   el.modal.addEventListener('click', (e) => {
     if (e.target === el.modal) {
       el.modal.style.display = 'none';
+    }
+  });
+
+  // Close pitch popover when clicking outside
+  document.addEventListener('click', (e) => {
+    if (el.tacticalPitchSection && !el.tacticalPitchSection.classList.contains('collapsed')) {
+      if (!el.tacticalPitchSection.contains(e.target) && (!el.btnTogglePitch || !el.btnTogglePitch.contains(e.target))) {
+        el.tacticalPitchSection.classList.add('collapsed');
+        if (el.pitchToggleIcon) el.pitchToggleIcon.textContent = '▼';
+        if (el.btnTogglePitch) el.btnTogglePitch.classList.remove('active');
+      }
+    }
+  });
+
+  // Global Escape key to close modals and popovers
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (el.tacticalPitchSection && !el.tacticalPitchSection.classList.contains('collapsed')) {
+        el.tacticalPitchSection.classList.add('collapsed');
+        if (el.pitchToggleIcon) el.pitchToggleIcon.textContent = '▼';
+        if (el.btnTogglePitch) el.btnTogglePitch.classList.remove('active');
+      }
+      if (el.staffModal && el.staffModal.style.display !== 'none') {
+        el.staffModal.style.display = 'none';
+      }
+      if (el.modal && el.modal.style.display !== 'none') {
+        el.modal.style.display = 'none';
+      }
+      if (el.changelogModal && el.changelogModal.style.display !== 'none') {
+        el.changelogModal.style.display = 'none';
+      }
     }
   });
 
@@ -889,6 +978,11 @@ function updatePitchUI() {
       );
     });
   }
+
+  // Update compact pos strip pills
+  document.querySelectorAll('.compact-pos-pill').forEach(b => {
+    b.classList.toggle('active', state.selectedPitchPositions.has(b.dataset.pos));
+  });
 }
 
 async function loadPlayers() {
@@ -970,19 +1064,21 @@ function renderTable(players) {
 
     return `
       <tr onclick="openPlayerModal(${p.id})">
-        <td class="player-name-cell">
-          <div class="font-bold text-white">${escapeHtml(p.name)}</div>
-          <div class="text-sm text-muted">${escapeHtml(natStr)}</div>
+        <td class="col-name sticky-col">
+          <div class="player-name-cell">
+            <span class="player-name font-semibold text-white">${escapeHtml(p.name)}</span>
+            <span class="nat-badge text-muted text-xs">${escapeHtml(natStr)}</span>
+          </div>
         </td>
-        <td>${p.age}</td>
-        <td><span class="badge badge-pos">${escapeHtml(p.pos || '-')}</span></td>
-        <td>${escapeHtml(p.club || '-')}</td>
+        <td class="text-center font-medium">${p.age}</td>
+        <td class="text-center"><span class="badge badge-pos">${escapeHtml(p.pos || '-')}</span></td>
+        <td><span class="text-club">${escapeHtml(p.club || '-')}</span></td>
         <td class="text-center font-bold text-accent">${p.ca}</td>
         <td class="text-center font-bold text-green">${p.pa}</td>
         <td class="text-center">${trendBadge}</td>
         <td class="text-center">${growthBadge}</td>
-        <td class="text-right text-muted">${valueStr}</td>
-        <td class="text-right text-muted">${wageStr}</td>
+        <td class="text-right text-secondary font-mono">${valueStr}</td>
+        <td class="text-right text-muted font-mono">${wageStr}</td>
       </tr>
     `;
   });
@@ -1456,9 +1552,9 @@ function renderStaffTable(staffList) {
 
     return `
       <tr class="clickable-row staff-row" data-id="${s.id}">
-        <td>
+        <td class="col-name sticky-col">
           <div class="player-name-cell">
-            <span class="player-name font-semibold">${escapeHtml(s.name)}</span>
+            <span class="player-name font-semibold text-white">${escapeHtml(s.name)}</span>
             <span class="nat-badge text-muted text-xs">${(s.nat || []).join(', ')}</span>
           </div>
         </td>
@@ -1533,14 +1629,87 @@ async function openStaffModal(id) {
       el.staffModalClub.textContent = s.club || 'ไม่ระบุสโมสร';
     }
 
-    // Coach Stars
-    if (el.staffModalStarsBlock) {
-      if (s.roleCategory === 'coaching' || s.coachStars >= 2.5) {
-        el.staffModalStarsBlock.style.display = 'flex';
-        el.staffModalStars.textContent = `⭐ ${s.coachStarsFormatted} ดาว`;
+    // Dynamic Role-tailored Top Stats in Modal Header
+    if (el.staffModalHeaderStats) {
+      const isMed = s.roleCategory === 'medical' || s.roleId === 'physio' || s.roleId === 'sports_scientist';
+      const isScout = s.roleCategory === 'recruitment' || s.roleId === 'scout';
+      const isHoyd = s.roleId === 'hoyd';
+
+      let statsHtml = '';
+      if (isMed) {
+        statsHtml = `
+          <div class="ability-block" title="ทักษะกายภาพบำบัด">
+            <div class="ability-label">กายภาพ (Physio)</div>
+            <div class="ability-number text-green">${s.keySkills?.physiotherapy || 0}</div>
+          </div>
+          <div class="ability-block" title="ทักษะวิทยาศาสตร์การกีฬา">
+            <div class="ability-label">วิทย์กีฬา (Sports Sci)</div>
+            <div class="ability-number text-green">${s.keySkills?.sportsScience || 0}</div>
+          </div>
+          <div class="ability-block" title="Current Ability">
+            <div class="ability-label">CA</div>
+            <div class="ability-number text-accent">${s.ca || '-'}</div>
+          </div>
+          <div class="ability-block" title="Potential Ability">
+            <div class="ability-label">PA</div>
+            <div class="ability-number text-green">${s.pa || '-'}</div>
+          </div>
+        `;
+      } else if (isScout) {
+        statsHtml = `
+          <div class="ability-block" title="Judging Player Ability (ประเมินความสามารถ)">
+            <div class="ability-label">JPA (ประเมินพลัง)</div>
+            <div class="ability-number text-green">${s.keySkills?.jpa || 0}</div>
+          </div>
+          <div class="ability-block" title="Judging Player Potential (ประเมินศักยภาพ)">
+            <div class="ability-label">JPP (ประเมินศักยภาพ)</div>
+            <div class="ability-number text-green">${s.keySkills?.jpp || 0}</div>
+          </div>
+          <div class="ability-block" title="Current Ability">
+            <div class="ability-label">CA</div>
+            <div class="ability-number text-accent">${s.ca || '-'}</div>
+          </div>
+          <div class="ability-block" title="Potential Ability">
+            <div class="ability-label">PA</div>
+            <div class="ability-number text-green">${s.pa || '-'}</div>
+          </div>
+        `;
+      } else if (isHoyd) {
+        statsHtml = `
+          <div class="ability-block" title="Working with Youngsters (พัฒนาเยาวชน)">
+            <div class="ability-label">ปั้นเยาวชน</div>
+            <div class="ability-number text-green">${s.keySkills?.youngsters || 0}</div>
+          </div>
+          <div class="ability-block" title="Judging Player Potential (ประเมินศักยภาพ)">
+            <div class="ability-label">JPP</div>
+            <div class="ability-number text-green">${s.keySkills?.jpp || 0}</div>
+          </div>
+          <div class="ability-block" title="Current Ability">
+            <div class="ability-label">CA</div>
+            <div class="ability-number text-accent">${s.ca || '-'}</div>
+          </div>
+          <div class="ability-block" title="Potential Ability">
+            <div class="ability-label">PA</div>
+            <div class="ability-number text-green">${s.pa || '-'}</div>
+          </div>
+        `;
       } else {
-        el.staffModalStarsBlock.style.display = 'none';
+        statsHtml = `
+          <div class="ability-block" title="คะแนนฝึกสอนคำนวณตามสูตร FM">
+            <div class="ability-label">ดาวโค้ช</div>
+            <div class="ability-number text-orange">⭐ ${s.coachStarsFormatted}</div>
+          </div>
+          <div class="ability-block" title="Current Ability">
+            <div class="ability-label">CA</div>
+            <div class="ability-number text-accent">${s.ca || '-'}</div>
+          </div>
+          <div class="ability-block" title="Potential Ability">
+            <div class="ability-label">PA</div>
+            <div class="ability-number text-green">${s.pa || '-'}</div>
+          </div>
+        `;
       }
+      el.staffModalHeaderStats.innerHTML = statsHtml;
     }
 
     // 4 Attribute Grids
