@@ -901,6 +901,52 @@ async function loadStatus() {
       if (el.infoManager) {
         el.infoManager.textContent = data.meta.manager || 'ไม่ระบุ';
       }
+
+      const dateBadgeEl = document.getElementById('date-badge');
+      if (dateBadgeEl) {
+        if (data.meta.requiresDateConfirmation) {
+          dateBadgeEl.title = `⚠️ วันที่จาก scanner (${data.meta.rawGameDate || state.gameDate}) อาจคลาดเคลื่อนและยังไม่ได้รับการยืนยัน - คลิกเพื่อแก้ไข`;
+          dateBadgeEl.style.outline = '2px dashed #f59e0b';
+        } else if (data.meta.gameDateCorrected) {
+          dateBadgeEl.title = `วันที่ในเกม: ${state.gameDate} (ปรับจากค่า scanner: ${data.meta.rawGameDate} ให้ตรงกับวันเริ่มเซฟ) - คลิกเพื่อแก้ไข`;
+          dateBadgeEl.style.outline = 'none';
+        } else {
+          dateBadgeEl.title = `วันที่ในเกม: ${state.gameDate} - คลิกเพื่อแก้ไข`;
+          dateBadgeEl.style.outline = 'none';
+        }
+
+        if (!dateBadgeEl._boundClick) {
+          dateBadgeEl._boundClick = true;
+          dateBadgeEl.style.cursor = 'pointer';
+          dateBadgeEl.addEventListener('click', async () => {
+            const defaultPrompt = state.gameDate || '2026-07-13';
+            const input = prompt('ยืนยันหรือระบุวันที่ในเกม FM27 ให้ถูกต้อง (รูปแบบ YYYY-MM-DD):', defaultPrompt);
+            if (!input) return;
+            const trimmed = input.trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+              alert('กรุณาระบุวันที่ในรูปแบบ YYYY-MM-DD (เช่น 2026-07-13)');
+              return;
+            }
+            try {
+              const res = await fetch('/api/set-date', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gameDate: trimmed, oldDate: state.gameDate })
+              });
+              const result = await res.json();
+              if (result.ok) {
+                showToast(`✅ ยืนยันวันที่ในเกมเป็น ${trimmed} เรียบร้อยแล้ว`);
+                await loadStatus();
+                await loadPlayers();
+              } else {
+                showToast(`❌ เกิดข้อผิดพลาด: ${result.error || 'ไม่สามารถตั้งวันที่ได้'}`, true);
+              }
+            } catch (err) {
+              showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, true);
+            }
+          });
+        }
+      }
     }
 
     if (el.infoSave) {

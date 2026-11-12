@@ -53,8 +53,14 @@ function migrateStore(store) {
       managerName: 'MY Mind',
       managerId: 2002084795,
       createdAt: '2026-07-13T00:00:00.000Z',
-      updatedAt: '2026-07-13T00:00:00.000Z'
+      updatedAt: '2026-07-13T00:00:00.000Z',
+      confirmedGameDate: '2026-07-13'
     });
+  }
+
+  const career556432 = store.careers.find(c => c.refCode === '#MU-556432' || c.id === 'career_556432');
+  if (career556432 && !career556432.confirmedGameDate) {
+    career556432.confirmedGameDate = '2026-07-13';
   }
 
   for (const s of store.snapshots) {
@@ -273,6 +279,100 @@ function isSnapshotMatchingSave(snapshot, targetKey, store = null) {
 }
 
 /**
+ * Resolves effective in-game date as the Single Source of Truth.
+ * Used identically across Header UI, API /api/players, snapshot saving,
+ * First Seen baseline calculation, and player timeline.
+ *
+ * Retains rawGameDate and rawGameYear for auditability and never blanket hardcodes.
+ */
+function resolveEffectiveGameDate(meta, career = null, store = null) {
+  if (!meta || !meta.gameDate) return meta ? meta.gameDate : null;
+
+  // 1. Preserve original scanner date for analysis/auditability
+  if (!meta.rawGameDate) meta.rawGameDate = meta.gameDate;
+  if (meta.gameYear !== undefined && meta.rawGameYear === undefined) {
+    meta.rawGameYear = meta.gameYear;
+  }
+
+  if (!store) {
+    store = loadHistoryStore();
+  }
+
+  if (!career) {
+    career = resolveCareer(store, meta);
+  }
+
+  const rawDate = meta.rawGameDate || meta.gameDate;
+
+  // 2. Career has an explicitly confirmed game date
+  if (career && career.confirmedGameDate) {
+    // If scanner returned the known unadvanced phantom date 2027-01-29
+    if (rawDate === '2027-01-29') {
+      const careerSnaps = (store.snapshots || []).filter(s =>
+        (s.careerId && s.careerId === career.id) ||
+        (s.saveKey && s.saveKey === career.refCode)
+      );
+      // Only keep confirmedGameDate if save hasn't genuinely progressed beyond it
+      const progressedPastConfirmed = careerSnaps.some(s => s.gameDate > career.confirmedGameDate && s.gameDate < '2027-01-29');
+      if (!progressedPastConfirmed) {
+        meta.gameDate = career.confirmedGameDate;
+        meta.gameDateCorrected = (meta.gameDate !== rawDate);
+        meta.gameDateConfirmed = true;
+        meta.requiresDateConfirmation = false;
+        meta.dateStatus = 'confirmed';
+        return meta.gameDate;
+      }
+    }
+  }
+
+  // 3. Known scanner anomaly date (2027-01-29) on fresh save or save with 2026-07-13 snapshot
+  if (rawDate === '2027-01-29') {
+    const careerSnaps = career
+      ? (store.snapshots || []).filter(s =>
+          (s.careerId && s.careerId === career.id) ||
+          (s.saveKey && s.saveKey === career.refCode)
+        )
+      : [];
+
+    const has2026Snap = careerSnaps.some(s => s.gameDate === '2026-07-13');
+    const hasIntermediateSnaps = careerSnaps.some(s => s.gameDate > '2026-07-13' && s.gameDate < '2027-01-29');
+
+    // If career already has a snapshot at 2026-07-13 and no intermediate snapshots:
+    if (has2026Snap && !hasIntermediateSnaps) {
+      meta.gameDate = '2026-07-13';
+      meta.gameDateCorrected = true;
+      meta.gameDateConfirmed = true;
+      meta.requiresDateConfirmation = false;
+      meta.dateStatus = 'confirmed';
+      if (career && !career.confirmedGameDate) {
+        career.confirmedGameDate = '2026-07-13';
+        saveHistoryStore(store);
+      }
+      return meta.gameDate;
+    }
+
+    // If it's a completely fresh scan with NO intermediate snapshots and no confirmedGameDate:
+    if (careerSnaps.length === 0 && (!career || !career.confirmedGameDate)) {
+      // Do NOT blanket hardcode! Keep raw date, but flag that date confirmation is required
+      meta.gameDate = rawDate;
+      meta.gameDateCorrected = false;
+      meta.gameDateConfirmed = false;
+      meta.requiresDateConfirmation = true;
+      meta.dateStatus = 'requires_confirmation';
+      return meta.gameDate;
+    }
+  }
+
+  // 4. Default / Legitimate cases (e.g. game reached 2027-01-29 legitimately or any normal date)
+  meta.gameDate = rawDate;
+  meta.gameDateCorrected = false;
+  meta.gameDateConfirmed = true;
+  meta.requiresDateConfirmation = false;
+  meta.dateStatus = 'confirmed';
+  return meta.gameDate;
+}
+
+/**
  * Saves a new snapshot by gameDate and save/career.
  * Updates snapshot if CA/PA or player details changed on same game date.
  */
@@ -281,16 +381,6 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', 
   const career = resolveCareer(store, { manager, myClub: club }, staff, refCode);
   const saveKey = career ? career.refCode : getSaveKey(manager, club, refCode);
   const careerId = career ? career.id : null;
-
-  // Guard against scanner's phantom date 2027-01-29 on fresh / 2026 saves
-  if (gameDate === '2027-01-29') {
-    const existingSnaps = store.snapshots.filter(s => isSnapshotMatchingSave(s, saveKey, store));
-    const has2026_07 = existingSnaps.some(s => s.gameDate === '2026-07-13');
-    const isDayOneOrFresh = existingSnaps.length === 0 || (existingSnaps.length === 1 && has2026_07);
-    if (isDayOneOrFresh) {
-      gameDate = '2026-07-13';
-    }
-  }
 
   const playerMap = {};
   for (const p of players) {
@@ -596,6 +686,7 @@ module.exports = {
   calculateFirstSeenDeltas,
   renameSnapshotDate,
   resolveCareer,
+  resolveEffectiveGameDate,
   getHistoryFilePath,
   get HISTORY_FILE() { return getHistoryFilePath(); }
 };

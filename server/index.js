@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
-const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore, computeSaveRefCode, renameSnapshotDate } = require('./historyEngine');
+const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore, saveHistoryStore, computeSaveRefCode, renameSnapshotDate, resolveCareer, resolveEffectiveGameDate } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
@@ -17,9 +17,19 @@ let cachedPlayersWithDeltas = null;
 let currentBaselineDate = null;
 let currentSaveKey = null;
 
+function syncDumpWithCareer(dump) {
+  if (!dump || !dump.meta) return;
+  const store = loadHistoryStore();
+  const career = resolveCareer(store, dump.meta, dump.staff);
+  resolveEffectiveGameDate(dump.meta, career, store);
+}
+
 function getOrLoadDump() {
   if (!cachedDump) {
     cachedDump = getLatestDump();
+    if (cachedDump) {
+      syncDumpWithCareer(cachedDump);
+    }
     if (cachedDump?.meta?.gameDate && cachedDump?.players) {
       // Auto-save initial snapshot
       const refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
@@ -126,6 +136,9 @@ const server = http.createServer(async (req, res) => {
       if (result.ok) {
         cachedDump = getLatestDump();
         cachedPlayersWithDeltas = null;
+        if (cachedDump) {
+          syncDumpWithCareer(cachedDump);
+        }
         if (cachedDump?.meta?.gameDate && cachedDump?.players) {
           refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
           saveSnapshot(
@@ -166,6 +179,16 @@ const server = http.createServer(async (req, res) => {
         if (dump && dump.meta) {
           const oldGameDate = oldDate || dump.meta.gameDate;
           dump.meta.gameDate = gameDate;
+          dump.meta.gameDateConfirmed = true;
+          dump.meta.requiresDateConfirmation = false;
+          dump.meta.dateStatus = 'confirmed';
+          const store = loadHistoryStore();
+          const career = resolveCareer(store, dump.meta, dump.staff);
+          if (career) {
+            career.confirmedGameDate = gameDate;
+            career.updatedAt = new Date().toISOString();
+            saveHistoryStore(store);
+          }
           const refCode = computeSaveRefCode(dump.meta, dump.staff);
           renameSnapshotDate(oldGameDate, gameDate, dump.meta.manager, dump.meta.myClub, refCode, dump.players);
           cachedPlayersWithDeltas = null;
@@ -214,7 +237,7 @@ const server = http.createServer(async (req, res) => {
       currentSaveKey = activeSaveKey;
       const validPlayers = dump.players.filter(p => p && p.name && p.name.trim() && p.name.trim() !== '?');
       let deltas;
-      if (baselineDate) {
+      if (baselineDate && baselineDate !== dump.meta?.gameDate) {
         const snap = getSnapshot(baselineDate, dump.meta?.manager, dump.meta?.myClub, refCode);
         deltas = calculateDeltas(validPlayers, snap ? snap.players : {});
       } else {

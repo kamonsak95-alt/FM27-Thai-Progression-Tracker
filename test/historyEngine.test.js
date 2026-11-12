@@ -403,42 +403,198 @@ test('P1 Regression: ambiguous careers without Manager ID are paused and never f
   }
 });
 
-test('P1 Regression: scanner date anomaly 2027-01-29 normalized to 2026-07-13 on fresh save and 2 scans result in 1 snapshot', () => {
-  const tempFile = path.join(os.tmpdir(), `fm27_test_scanner_date_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+test('P1 Regression: real payload { gameDate: 2027-01-29, gameYear: 2027 } on #MU-556432 resolves to 2026-07-13 with 1 snapshot and isFirstScan=true', () => {
+  const tempFile = path.join(os.tmpdir(), `fm27_test_real_payload_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
   process.env.FM27_HISTORY_FILE = tempFile;
 
   try {
-    const { saveSnapshot, listSnapshots } = require('../server/historyEngine');
-    const { normalizeGameDate } = require('../server/scannerBridge');
+    const {
+      saveSnapshot,
+      listSnapshots,
+      loadHistoryStore,
+      resolveCareer,
+      resolveEffectiveGameDate,
+      calculateFirstSeenDeltas
+    } = require('../server/historyEngine');
 
-    // 1. Verify normalizeGameDate corrects 2027-01-29 when gameYear is 2026
-    const meta = { gameDate: '2027-01-29', gameYear: 2026 };
-    normalizeGameDate(meta);
-    assert.strictEqual(meta.gameDate, '2026-07-13', 'Must normalize phantom date to 2026-07-13');
-    assert.strictEqual(meta.gameDateCorrected, true);
-
-    // 2. Simulate Save #MU-556432: First scan at 13 July 2026
+    // Setup initial store with confirmed career #MU-556432 at 2026-07-13
+    const store = loadHistoryStore();
     const staff = [{ name: 'MY Mind', job: 'Manager', id: 2002084795 }];
-    const players = [{ id: 2000508789, name: 'Omari Zion', ca: 55, pa: 160 }];
+    const career = resolveCareer(store, { manager: 'MY Mind', myClub: 'Manchester United' }, staff, '#MU-556432');
+    career.confirmedGameDate = '2026-07-13';
 
-    saveSnapshot(meta.gameDate, players, 'MY Mind', 'Manchester United', '#MU-556432', staff);
+    // 1. Simulate Scanner Payload on Day 1 (13 July 2026): scanner returns 2027-01-29 with gameYear: 2027
+    const scanPayload1 = {
+      gameDate: '2027-01-29',
+      gameYear: 2027,
+      gameDateSource: 'memory',
+      manager: 'MY Mind',
+      myClub: 'Manchester United'
+    };
+    const players = [
+      { id: 2000508789, name: 'Omari Zion', ca: 55, pa: 160, isNewgen: false },
+      { id: 92091170, name: 'Matthias Köbbing', ca: 85, pa: 100 }
+    ];
+
+    const effectiveDate1 = resolveEffectiveGameDate(scanPayload1, career, store);
+    assert.strictEqual(effectiveDate1, '2026-07-13', 'Effective date must resolve to 2026-07-13 matching game screen');
+    assert.strictEqual(scanPayload1.rawGameDate, '2027-01-29', 'Raw scanner date must be preserved for auditability');
+    assert.strictEqual(scanPayload1.rawGameYear, 2027);
+    assert.strictEqual(scanPayload1.gameDateCorrected, true);
+
+    // Save snapshot 1
+    saveSnapshot(scanPayload1.gameDate, players, 'MY Mind', 'Manchester United', '#MU-556432', staff);
 
     let snaps = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
     assert.strictEqual(snaps.length, 1);
     assert.strictEqual(snaps[0].gameDate, '2026-07-13');
 
-    // 3. Second scan at 13 July 2026 (even if scanner outputs 2027-01-29 again)
-    const metaScan2 = { gameDate: '2027-01-29', gameYear: 2026 };
-    normalizeGameDate(metaScan2);
-    saveSnapshot(metaScan2.gameDate, players, 'MY Mind', 'Manchester United', '#MU-556432', staff);
+    // 2. Second scan on same day without advancing: scanner sends identical payload again
+    const scanPayload2 = {
+      gameDate: '2027-01-29',
+      gameYear: 2027,
+      gameDateSource: 'memory',
+      manager: 'MY Mind',
+      myClub: 'Manchester United'
+    };
+    const effectiveDate2 = resolveEffectiveGameDate(scanPayload2, career, store);
+    assert.strictEqual(effectiveDate2, '2026-07-13');
+    saveSnapshot(scanPayload2.gameDate, players, 'MY Mind', 'Manchester United', '#MU-556432', staff);
 
     snaps = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
     assert.strictEqual(snaps.length, 1, 'Two consecutive scans on Day 1 must result in exactly ONE snapshot');
-    assert.strictEqual(snaps[0].gameDate, '2026-07-13', 'Date must remain 2026-07-13 matching game screen');
+    assert.strictEqual(snaps[0].gameDate, '2026-07-13');
+
+    // 3. Verify calculateFirstSeenDeltas returns isFirstScan=true (displays "รอบแรก", NOT "คงที่ (0 CA)")
+    const deltas = calculateFirstSeenDeltas(
+      players,
+      snaps,
+      scanPayload1.gameDate,
+      'MY Mind',
+      'Manchester United',
+      '#MU-556432'
+    );
+    assert.strictEqual(deltas[0].isFirstScan, true, 'Omari Zion must have isFirstScan=true on Day 1');
+    assert.strictEqual(deltas[0].deltaCA, 0);
+    assert.strictEqual(deltas[0].firstSeenDate, '2026-07-13');
+    assert.strictEqual(deltas[1].isFirstScan, true, 'Köbbing must have isFirstScan=true on Day 1');
   } finally {
     if (fs.existsSync(tempFile)) {
       try { fs.unlinkSync(tempFile); } catch {}
     }
     delete process.env.FM27_HISTORY_FILE;
+  }
+});
+
+test('P1 Regression Control Case 1: legitimate 2027-01-29 with gameYear: 2027 is preserved and not pulled back', () => {
+  const tempFile = path.join(os.tmpdir(), `fm27_test_control_2027_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
+
+  try {
+    const {
+      saveSnapshot,
+      loadHistoryStore,
+      resolveCareer,
+      resolveEffectiveGameDate
+    } = require('../server/historyEngine');
+
+    const store = loadHistoryStore();
+    const staff = [{ name: 'Alex Ferguson', job: 'Manager', id: 10001 }];
+    const career = resolveCareer(store, { manager: 'Alex Ferguson', myClub: 'Aberdeen' }, staff, '#AB-010001');
+
+    // Simulate career that progressed to 2026-11-15 earlier
+    saveSnapshot('2026-11-15', [{ id: 1, name: 'Player 1', ca: 100 }], 'Alex Ferguson', 'Aberdeen', '#AB-010001', staff);
+
+    // Now game genuinely advances to 2027-01-29
+    const payload = {
+      gameDate: '2027-01-29',
+      gameYear: 2027,
+      gameDateSource: 'memory',
+      manager: 'Alex Ferguson',
+      myClub: 'Aberdeen'
+    };
+
+    const effectiveDate = resolveEffectiveGameDate(payload, career, store);
+    assert.strictEqual(effectiveDate, '2027-01-29', 'Legitimate 2027-01-29 must NOT be pulled back to 2026');
+    assert.strictEqual(payload.gameDate, '2027-01-29');
+    assert.strictEqual(payload.gameDateCorrected, false);
+  } finally {
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
+    delete process.env.FM27_HISTORY_FILE;
+  }
+});
+
+test('P1 Regression Control Case 2: legitimate 2027-01-29 without gameYear is preserved and not pulled back', () => {
+  const tempFile = path.join(os.tmpdir(), `fm27_test_control_noyear_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+  process.env.FM27_HISTORY_FILE = tempFile;
+
+  try {
+    const {
+      saveSnapshot,
+      loadHistoryStore,
+      resolveCareer,
+      resolveEffectiveGameDate
+    } = require('../server/historyEngine');
+
+    const store = loadHistoryStore();
+    const staff = [{ name: 'Pep Guardiola', job: 'Manager', id: 20002 }];
+    const career = resolveCareer(store, { manager: 'Pep Guardiola', myClub: 'Manchester City' }, staff, '#MC-020002');
+
+    // Simulate career with previous history in 2026
+    saveSnapshot('2026-10-01', [{ id: 2, name: 'Rodri', ca: 180 }], 'Pep Guardiola', 'Manchester City', '#MC-020002', staff);
+
+    // Legitimate 2027-01-29 without gameYear property
+    const payload = {
+      gameDate: '2027-01-29',
+      gameDateSource: 'memory',
+      manager: 'Pep Guardiola',
+      myClub: 'Manchester City'
+    };
+
+    const effectiveDate = resolveEffectiveGameDate(payload, career, store);
+    assert.strictEqual(effectiveDate, '2027-01-29', 'Legitimate 2027-01-29 without gameYear must NOT be pulled back to 2026');
+    assert.strictEqual(payload.gameDate, '2027-01-29');
+    assert.strictEqual(payload.gameDateCorrected, false);
+  } finally {
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
+    delete process.env.FM27_HISTORY_FILE;
+  }
+});
+
+test('P1 Regression: Save 1 #MU-55649B preserves all 6 snapshots intact and strictly isolated from #MU-556432', () => {
+  const { loadHistoryStore, listSnapshots } = require('../server/historyEngine');
+
+  // Verify real store integrity
+  const store = loadHistoryStore();
+  assert.ok(Array.isArray(store.careers), 'Store must have careers array');
+  assert.ok(Array.isArray(store.snapshots), 'Store must have snapshots array');
+
+  // Check Save 1 #MU-55649B snapshots
+  const snaps1 = listSnapshots('MY Mind', 'Manchester United', '#MU-55649B');
+  assert.strictEqual(snaps1.length, 6, 'Save 1 #MU-55649B must keep exactly 6 snapshots intact');
+  const expectedDates1 = [
+    '2026-11-07',
+    '2026-11-21',
+    '2026-11-25',
+    '2026-11-28',
+    '2026-11-29',
+    '2026-12-01'
+  ];
+  assert.deepStrictEqual(snaps1.map(s => s.gameDate), expectedDates1, 'Dates must match exactly');
+
+  // Check Save 2 #MU-556432 snapshots
+  const snaps2 = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
+  assert.strictEqual(snaps2.length, 1, 'Save 2 #MU-556432 must keep exactly 1 snapshot at 2026-07-13');
+  assert.strictEqual(snaps2[0].gameDate, '2026-07-13');
+
+  // Verify no snapshot bleeding between careers
+  const snap1Ids = new Set(snaps1.map(s => s.id));
+  const snap2Ids = new Set(snaps2.map(s => s.id));
+  for (const id of snap1Ids) {
+    assert.strictEqual(snap2Ids.has(id), false, 'Snapshots must not bleed between Save 1 and Save 2');
   }
 });

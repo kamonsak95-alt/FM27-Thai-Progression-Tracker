@@ -46,17 +46,15 @@ function getScannerStatus() {
 }
 
 /**
- * Normalizes gameDate from scanner to handle known memory scanner quirks.
- * On unadvanced / fresh saves in season 2026, the memory scanner reads the winter
- * transfer deadline (2027-01-29) from SCHED_NEXT_MATCH. This detects and corrects it to 2026-07-13.
+ * Preserves rawGameDate and rawGameYear from scanner.
+ * Effective game date resolution is handled centrally in historyEngine.resolveEffectiveGameDate.
  */
 function normalizeGameDate(meta) {
   if (!meta || !meta.gameDate) return meta;
 
-  if (meta.gameDate === '2027-01-29' && (meta.gameYear === 2026 || !meta.gameYear)) {
-    meta.gameDate = '2026-07-13';
-    meta.gameDateCorrected = true;
-    meta.gameDateOriginal = '2027-01-29';
+  if (!meta.rawGameDate) meta.rawGameDate = meta.gameDate;
+  if (meta.gameYear !== undefined && meta.rawGameYear === undefined) {
+    meta.rawGameYear = meta.gameYear;
   }
 
   return meta;
