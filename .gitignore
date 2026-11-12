@@ -2,3 +2,5 @@ node_modules/
 .superpowers/
 npm-debug.log*
 .DS_Store
+/data/history.json
+dump.json
