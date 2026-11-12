@@ -144,11 +144,98 @@ function calculateDeltas(currentPlayers, baselineMap = {}) {
   });
 }
 
+/**
+ * Builds a map of playerId -> { ca, pa, gameDate } representing the earliest known
+ * appearance (First Seen / Intake Date) of each player before the current game date.
+ */
+function buildFirstSeenMap(snapshots = [], currentGameDate = '') {
+  const priorSnapshots = (snapshots || [])
+    .filter(s => !currentGameDate || s.gameDate < currentGameDate)
+    .sort((a, b) => a.gameDate.localeCompare(b.gameDate));
+
+  const firstSeenMap = {};
+  for (const snap of priorSnapshots) {
+    if (!snap.players) continue;
+    for (const [id, p] of Object.entries(snap.players)) {
+      if (!firstSeenMap[id] && p && typeof p.ca === 'number' && p.ca > 0) {
+        firstSeenMap[id] = {
+          ca: p.ca,
+          pa: p.pa,
+          age: p.age,
+          club: p.club,
+          pos: p.pos,
+          gameDate: snap.gameDate
+        };
+      }
+    }
+  }
+  return firstSeenMap;
+}
+
+/**
+ * Automatically calculates career progression from each player's First Seen date.
+ * - Original players compare against Day 1 (save start).
+ * - Youth intake / newgens compare against the exact round they were first born/scanned.
+ */
+function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDate = '') {
+  const priorSnapshots = (snapshots || [])
+    .filter(s => !currentGameDate || s.gameDate < currentGameDate)
+    .sort((a, b) => a.gameDate.localeCompare(b.gameDate));
+
+  const hasPriorHistory = priorSnapshots.length > 0;
+  const firstSeenMap = buildFirstSeenMap(snapshots, currentGameDate);
+
+  return currentPlayers.map(p => {
+    if (!hasPriorHistory) {
+      return {
+        ...p,
+        deltaCA: 0,
+        growthPercent: 0,
+        prevCA: null,
+        firstSeenDate: currentGameDate,
+        isNew: false,
+        isFirstScan: true
+      };
+    }
+
+    const base = firstSeenMap[String(p.id)];
+    if (!base || typeof base.ca !== 'number' || base.ca <= 0) {
+      return {
+        ...p,
+        deltaCA: 0,
+        growthPercent: 0,
+        prevCA: null,
+        firstSeenDate: currentGameDate,
+        isNew: true,
+        isFirstScan: false
+      };
+    }
+
+    const baselineCA = base.ca;
+    const currentCA = p.ca || 0;
+    const deltaCA = currentCA - baselineCA;
+    const growthPercent = Number(((deltaCA / baselineCA) * 100).toFixed(2));
+
+    return {
+      ...p,
+      deltaCA,
+      growthPercent,
+      prevCA: baselineCA,
+      firstSeenDate: base.gameDate,
+      isNew: false,
+      isFirstScan: false
+    };
+  });
+}
+
 module.exports = {
+  loadHistoryStore,
   saveSnapshot,
   listSnapshots,
   getSnapshot,
   calculateDeltas,
+  buildFirstSeenMap,
+  calculateFirstSeenDeltas,
   getHistoryFilePath,
   get HISTORY_FILE() { return getHistoryFilePath(); }
 };

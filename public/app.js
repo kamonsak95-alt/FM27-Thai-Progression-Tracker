@@ -88,6 +88,7 @@ const PERSONALITY_MAP = {
 const el = {
   infoClub: document.getElementById('info-club'),
   infoDate: document.getElementById('info-date'),
+  infoBaseline: document.getElementById('info-baseline'),
   btnScan: document.getElementById('btn-scan'),
   btnScanText: document.getElementById('btn-scan-text'),
   selectBaseline: document.getElementById('select-baseline'),
@@ -452,13 +453,15 @@ function initEventListeners() {
   bindRange(el.minCA, el.maxCA, 'minCA', 'maxCA', el.valCA);
   bindRange(el.minPA, el.maxPA, 'minPA', 'maxPA', el.valPA);
 
-  // Baseline Snapshot Selector
-  el.selectBaseline.addEventListener('change', (e) => {
-    state.baseline = e.target.value;
-    updateComparisonSummary();
-    state.page = 1;
-    loadPlayers();
-  });
+  // Baseline Snapshot Selector (if present)
+  if (el.selectBaseline) {
+    el.selectBaseline.addEventListener('change', (e) => {
+      state.baseline = e.target.value;
+      updateComparisonSummary();
+      state.page = 1;
+      loadPlayers();
+    });
+  }
 
   // Limit
   el.selectLimit.addEventListener('change', (e) => {
@@ -895,29 +898,43 @@ async function loadStatus() {
       el.infoDate.textContent = state.gameDate || '-';
     }
 
-    // Populate snapshots dropdown
-    if (data.snapshots && data.snapshots.length > 0) {
-      el.selectBaseline.innerHTML = '';
-      data.snapshots.forEach((snap, idx) => {
-        const opt = document.createElement('option');
-        opt.value = snap.gameDate;
-        const isCurrent = snap.gameDate === state.gameDate;
-        opt.textContent = `${snap.gameDate} (${snap.totalPlayers.toLocaleString()} คน)${isCurrent ? ' [รอบปัจจุบัน]' : ''}`;
-        
-        // Default to the previous snapshot if exists, else current
-        if (data.snapshots.length > 1 && idx === 0) {
-          opt.selected = true;
-          state.baseline = snap.gameDate;
-        } else if (data.snapshots.length === 1) {
-          opt.selected = true;
-          state.baseline = snap.gameDate;
+    // Update baseline info badge in header
+    if (el.infoBaseline) {
+      if (data.snapshots && data.snapshots.length > 1) {
+        const earliest = data.snapshots[0].gameDate;
+        el.infoBaseline.textContent = `${earliest} (วันเริ่มเซฟ)`;
+      } else if (data.snapshots && data.snapshots.length === 1) {
+        el.infoBaseline.textContent = `รอบแรก (${data.snapshots[0].gameDate})`;
+      } else {
+        el.infoBaseline.textContent = 'จุดเริ่มอาชีพ';
+      }
+    }
+
+    // Populate snapshots dropdown if present (backwards compatibility)
+    if (el.selectBaseline) {
+      if (data.snapshots && data.snapshots.length > 0) {
+        el.selectBaseline.innerHTML = '';
+        data.snapshots.forEach((snap, idx) => {
+          const opt = document.createElement('option');
+          opt.value = snap.gameDate;
+          const isCurrent = snap.gameDate === state.gameDate;
+          opt.textContent = `${snap.gameDate} (${snap.totalPlayers.toLocaleString()} คน)${isCurrent ? ' [รอบปัจจุบัน]' : ''}`;
+          if (data.snapshots.length > 1 && idx === 0) {
+            opt.selected = true;
+            state.baseline = snap.gameDate;
+          } else if (data.snapshots.length === 1) {
+            opt.selected = true;
+            state.baseline = snap.gameDate;
+          }
+          el.selectBaseline.appendChild(opt);
+        });
+        updateComparisonSummary();
+      } else {
+        el.selectBaseline.innerHTML = '<option value="">(ยังไม่มีประวัติรอบก่อนหน้า)</option>';
+        if (el.comparisonSummary) {
+          el.comparisonSummary.textContent = 'ยังไม่มีประวัติรอบก่อนหน้า (รอบแรกจะถูกบันทึกอัตโนมัติ)';
         }
-        el.selectBaseline.appendChild(opt);
-      });
-      updateComparisonSummary();
-    } else {
-      el.selectBaseline.innerHTML = '<option value="">(ยังไม่มีประวัติรอบก่อนหน้า)</option>';
-      el.comparisonSummary.textContent = 'ยังไม่มีประวัติรอบก่อนหน้า (รอบแรกจะถูกบันทึกอัตโนมัติ)';
+      }
     }
   } catch (err) {
     console.error('Failed to load status:', err);
@@ -925,6 +942,7 @@ async function loadStatus() {
 }
 
 function updateComparisonSummary() {
+  if (!el.comparisonSummary) return;
   if (!state.baseline) {
     el.comparisonSummary.textContent = 'แสดงข้อมูลรอบปัจจุบัน (ยังไม่ได้เทียบรอบก่อน)';
     return;
@@ -1022,9 +1040,10 @@ async function loadPlayers() {
     maxCA: state.maxCA,
     minPA: state.minPA,
     maxPA: state.maxPA,
-    pos: state.pos,
-    baseline: state.baseline
+    pos: state.pos
   });
+
+  if (state.baseline) params.set('baseline', state.baseline);
 
   if (state.q) params.set('q', state.q);
   if (state.trend) params.set('trend', state.trend);
@@ -1066,16 +1085,21 @@ function renderTable(players) {
 
   const rows = players.map(p => {
     let growthBadge = '';
-    if (!state.baseline) {
-      growthBadge = `<span class="badge badge-growth-neutral text-muted" title="ยังไม่ได้เลือกหรือไม่มีประวัติรอบเปรียบเทียบ">- (รอบแรก)</span>`;
+    if (p.isFirstScan) {
+      growthBadge = `<span class="badge badge-growth-neutral text-muted" title="สแกนครั้งแรก (ยังไม่มีประวัติรอบเปรียบเทียบ)">- (รอบแรก)</span>`;
     } else if (p.isNew) {
-      growthBadge = `<span class="badge badge-growth-new">มาใหม่</span>`;
+      growthBadge = `<span class="badge badge-growth-new" title="เพิ่งพบครั้งแรกในรอบนี้ (เด็กเกิดใหม่ / สแกนครั้งแรก)">👶 เกิดใหม่</span>`;
     } else if (p.deltaCA > 0) {
-      growthBadge = `<span class="badge badge-growth-up">+${p.deltaCA} CA (+${p.growthPercent}%)</span>`;
+      const originDate = p.firstSeenDate || 'เริ่มเซฟ';
+      const tooltip = `เติบโต +${p.deltaCA} CA ตั้งแต่ ${originDate} (เดิม ${p.prevCA || '-'})`;
+      growthBadge = `<span class="badge badge-growth-up" title="${tooltip}">+${p.deltaCA} CA (+${p.growthPercent}%)</span>`;
     } else if (p.deltaCA < 0) {
-      growthBadge = `<span class="badge badge-growth-down">${p.deltaCA} CA (${p.growthPercent}%)</span>`;
+      const originDate = p.firstSeenDate || 'เริ่มเซฟ';
+      const tooltip = `ลดลง ${p.deltaCA} CA ตั้งแต่ ${originDate} (เดิม ${p.prevCA || '-'})`;
+      growthBadge = `<span class="badge badge-growth-down" title="${tooltip}">${p.deltaCA} CA (${p.growthPercent}%)</span>`;
     } else {
-      growthBadge = `<span class="badge badge-growth-neutral">คงที่ (0 CA)</span>`;
+      const originDate = p.firstSeenDate || 'เริ่มเซฟ';
+      growthBadge = `<span class="badge badge-growth-neutral" title="ค่าพลังคงที่ตั้งแต่ ${originDate}">คงที่ (0 CA)</span>`;
     }
 
     const trend = p.trend || { label: 'คงที่', icon: '➖', badgeClass: 'badge-trend-neutral' };

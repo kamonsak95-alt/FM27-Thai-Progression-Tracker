@@ -47,6 +47,10 @@
           <span class="pill-label">วันที่ในเกม:</span>
           <span class="pill-value text-green" id="info-date">กำลังโหลด...</span>
         </div>
+        <div class="info-pill" id="baseline-badge" title="เปรียบเทียบพัฒนาการกับจุดเริ่มต้น (นักเตะเดิมเทียบกับวันเริ่มเซฟ / เด็กเกิดใหม่เทียบกับวันที่เกิดในเกม)">
+          <span class="pill-label">เปรียบเทียบ:</span>
+          <span class="pill-value text-accent" id="info-baseline">จุดเริ่มอาชีพ</span>
+        </div>
         <button id="btn-scan" class="btn btn-primary" title="ดึงข้อมูลล่าสุดจากเกม FM27 ที่กำลังเปิดอยู่">
           <span class="btn-icon">🔄</span>
           <span id="btn-scan-text">ดึงข้อมูลสดจากเกม (FM27)</span>
@@ -84,22 +88,8 @@
     
     <!-- Tab 1: Players & Progression Section -->
     <div id="section-players">
-      <!-- Snapshot Comparison Bar -->
-      <section class="snapshot-bar card">
-      <div class="snapshot-bar-left">
-        <span class="icon">⏱️</span>
-        <span class="font-medium">เปรียบเทียบพัฒนาการกับรอบ:</span>
-        <select id="select-baseline" class="form-select">
-          <option value="">(ยังไม่ได้เลือก - แสดงข้อมูลล่าสุด)</option>
-        </select>
-      </div>
-      <div class="snapshot-bar-right text-muted text-sm" id="comparison-summary">
-        กำลังโหลดข้อมูลรอบที่บันทึก...
-      </div>
-    </section>
-
-    <!-- Filters Section -->
-    <section class="filters-card card">
+      <!-- Filters Section -->
+      <section class="filters-card card">
       <div class="filter-row search-row">
         <div class="search-box">
           <span class="search-icon">🔍</span>
@@ -714,6 +704,6 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.0.7"></script>
+  <script src="app.js?v=1.0.8"></script>
 </body>
 </html>

@@ -76,3 +76,46 @@ test('saveSnapshot and listSnapshots use isolated temp file and do not overwrite
     }
   }
 });
+
+test('calculateFirstSeenDeltas tracks original players from Day 1 and newgens from their intake date', () => {
+  const { calculateFirstSeenDeltas } = require('../server/historyEngine');
+
+  const snapshots = [
+    {
+      gameDate: '2026-07-01',
+      players: {
+        '10': { ca: 140, pa: 170 } // Original player
+      }
+    },
+    {
+      gameDate: '2027-03-15',
+      players: {
+        '10': { ca: 145, pa: 170 },
+        '99': { ca: 80, pa: 165 } // Newgen born in March 2027!
+      }
+    }
+  ];
+
+  // In 2028-06-01:
+  const currentPlayers = [
+    { id: 10, name: 'Original Player', ca: 155, pa: 170 },
+    { id: 99, name: 'Somchai Wonderkid', ca: 110, pa: 165 },
+    { id: 200, name: 'Brand New Intake', ca: 75, pa: 150 }
+  ];
+
+  const result = calculateFirstSeenDeltas(currentPlayers, snapshots, '2028-06-01');
+
+  // Original Player: compared against 2026-07-01 (140 -> 155 = +15 CA)
+  assert.strictEqual(result[0].deltaCA, 15);
+  assert.strictEqual(result[0].firstSeenDate, '2026-07-01');
+  assert.strictEqual(result[0].isNew, false);
+
+  // Somchai Newgen: compared against his birth snapshot in 2027-03-15 (80 -> 110 = +30 CA)
+  assert.strictEqual(result[1].deltaCA, 30);
+  assert.strictEqual(result[1].firstSeenDate, '2027-03-15');
+  assert.strictEqual(result[1].isNew, false);
+
+  // Brand New Intake: born in 2028-06-01, first time seen!
+  assert.strictEqual(result[2].deltaCA, 0);
+  assert.strictEqual(result[2].isNew, true);
+});

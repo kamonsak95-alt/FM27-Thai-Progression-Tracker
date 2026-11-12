@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
-const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas } = require('./historyEngine');
+const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
@@ -190,9 +190,15 @@ const server = http.createServer(async (req, res) => {
     const baselineDate = parsedUrl.query.baseline || '';
     if (baselineDate !== currentBaselineDate || !cachedPlayersWithDeltas) {
       currentBaselineDate = baselineDate;
-      const snap = baselineDate ? getSnapshot(baselineDate) : null;
       const validPlayers = dump.players.filter(p => p && p.name && p.name.trim() && p.name.trim() !== '?');
-      const deltas = calculateDeltas(validPlayers, snap ? snap.players : {});
+      let deltas;
+      if (baselineDate) {
+        const snap = getSnapshot(baselineDate);
+        deltas = calculateDeltas(validPlayers, snap ? snap.players : {});
+      } else {
+        const store = loadHistoryStore();
+        deltas = calculateFirstSeenDeltas(validPlayers, store.snapshots, dump.meta?.gameDate);
+      }
       cachedPlayersWithDeltas = deltas.map(p => {
         const trend = predictDevelopmentTrend(p, p.deltaCA);
         return {
