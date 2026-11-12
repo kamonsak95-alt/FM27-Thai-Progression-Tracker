@@ -137,6 +137,30 @@ body {
   align-items: center;
 }
 
+.manager-pill {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(59, 130, 246, 0.12));
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.22);
+  transition: all 0.2s ease;
+}
+
+.manager-pill:hover {
+  border-color: rgba(168, 85, 247, 0.75);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.4);
+  transform: translateY(-1px);
+}
+
+.manager-pill .pill-icon {
+  font-size: 1rem;
+}
+
+.manager-pill .manager-name {
+  color: #faf5ff;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
+}
+
 .pill-label {
   color: var(--text-muted);
 }

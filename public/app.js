@@ -86,6 +86,7 @@ const PERSONALITY_MAP = {
 
 // Elements
 const el = {
+  infoManager: document.getElementById('info-manager'),
   infoClub: document.getElementById('info-club'),
   infoSave: document.getElementById('info-save'),
   infoDate: document.getElementById('info-date'),
@@ -897,6 +898,9 @@ async function loadStatus() {
       state.gameDate = data.meta.gameDate || '';
       el.infoClub.textContent = state.myClub;
       el.infoDate.textContent = state.gameDate || '-';
+      if (el.infoManager) {
+        el.infoManager.textContent = data.meta.manager || 'ไม่ระบุ';
+      }
     }
 
     if (el.infoSave) {
