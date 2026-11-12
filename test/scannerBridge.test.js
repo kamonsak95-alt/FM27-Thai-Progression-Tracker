@@ -1,6 +1,15 @@
 const assert = require('node:assert');
 const test = require('node:test');
-const path = require('node:path');
+
+test('scanner messages explain in Thai when FM27 is closed', () => {
+  const { formatScanError } = require('../server/scannerBridge');
+  const warning = '2026-11-13 00:30:06 [32640] WARN fm.exe draait niet - niets te scannen.';
+  const expected = 'ยังไม่ได้เปิด FM27 กรุณาเปิดเกมและโหลดเซฟ แล้วกดโหลดข้อมูลเกมอีกครั้ง';
+  assert.strictEqual(formatScanError(warning, ''), expected);
+  assert.strictEqual(formatScanError(warning, 'Scanner exited with an error'), expected);
+  assert.strictEqual(formatScanError('', warning), expected);
+  assert.strictEqual(formatScanError('', 'Other scanner error'), 'Other scanner error');
+});
 
 // Test that scannerBridge exports required functions and reads dump
 test('scannerBridge exports and functions exist', () => {

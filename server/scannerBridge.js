@@ -91,6 +91,14 @@ function getLatestDump() {
   }
 }
 
+function formatScanError(stdout, stderr) {
+  if (/\bfm\.exe draait niet\b/i.test(`${stdout}\n${stderr}`)) {
+    return 'ยังไม่ได้เปิด FM27 กรุณาเปิดเกมและโหลดเซฟ แล้วกดโหลดข้อมูลเกมอีกครั้ง';
+  }
+
+  return stderr || stdout || 'การสแกนล้มเหลว (ตรวจสอบว่าเปิดเกม FM27 อยู่หรือไม่)';
+}
+
 /**
  * Executes a scan using the external C# scanner
  */
@@ -128,7 +136,7 @@ function runScan() {
         return resolve({
           ok: false,
           code,
-          error: stderr || stdout || 'การสแกนล้มเหลว (ตรวจสอบว่าเปิดเกม FM27 อยู่หรือไม่)',
+          error: formatScanError(stdout, stderr),
           elapsed
         });
       }
@@ -159,6 +167,7 @@ module.exports = {
   getScannerStatus,
   getLatestDump,
   runScan,
+  formatScanError,
   normalizeGameDate,
   SCANNER_EXE,
   DUMP_FILE
