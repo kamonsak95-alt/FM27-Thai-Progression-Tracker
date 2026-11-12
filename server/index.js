@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
-const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore, saveHistoryStore, computeSaveRefCode, renameSnapshotDate, resolveCareer, resolveEffectiveGameDate } = require('./historyEngine');
+const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas, calculateFirstSeenDeltas, loadHistoryStore, saveHistoryStore, computeSaveRefCode, renameSnapshotDate, resolveCareer, resolveEffectiveGameDate, confirmScanRoundDate } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
@@ -28,10 +28,12 @@ function getOrLoadDump() {
   if (!cachedDump) {
     cachedDump = getLatestDump();
     if (cachedDump) {
+      if (!cachedDump.meta) cachedDump.meta = {};
+      cachedDump.meta.scanId = cachedDump.meta.scanId || `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       syncDumpWithCareer(cachedDump);
     }
-    if (cachedDump?.meta?.gameDate && cachedDump?.players) {
-      // Auto-save initial snapshot
+    // Only auto-save snapshot if date does NOT require confirmation
+    if (cachedDump?.meta?.gameDate && cachedDump?.players && !cachedDump?.meta?.requiresDateConfirmation) {
       const refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
       saveSnapshot(
         cachedDump.meta.gameDate,
@@ -137,9 +139,13 @@ const server = http.createServer(async (req, res) => {
         cachedDump = getLatestDump();
         cachedPlayersWithDeltas = null;
         if (cachedDump) {
+          if (!cachedDump.meta) cachedDump.meta = {};
+          cachedDump.meta.scanId = `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          cachedDump.meta.gameDateConfirmed = false;
           syncDumpWithCareer(cachedDump);
         }
-        if (cachedDump?.meta?.gameDate && cachedDump?.players) {
+        // Only auto-save snapshot if date does NOT require confirmation
+        if (cachedDump?.meta?.gameDate && cachedDump?.players && !cachedDump?.meta?.requiresDateConfirmation) {
           refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
           saveSnapshot(
             cachedDump.meta.gameDate,
@@ -149,6 +155,8 @@ const server = http.createServer(async (req, res) => {
             refCode,
             cachedDump.staff
           );
+        } else if (cachedDump?.meta) {
+          refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
         }
       }
       sendJson(res, result.ok ? 200 : 500, {
@@ -168,32 +176,59 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode) });
   }
 
-  if (pathname === '/api/set-date' && req.method === 'POST') {
+  if ((pathname === '/api/confirm-date' || pathname === '/api/set-date') && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       try {
-        const { gameDate, oldDate } = JSON.parse(body || '{}');
-        if (!gameDate) return sendJson(res, 400, { ok: false, error: 'Missing gameDate' });
-        const dump = getOrLoadDump();
-        if (dump && dump.meta) {
-          const oldGameDate = oldDate || dump.meta.gameDate;
-          dump.meta.gameDate = gameDate;
-          dump.meta.gameDateConfirmed = true;
-          dump.meta.requiresDateConfirmation = false;
-          dump.meta.dateStatus = 'confirmed';
-          const store = loadHistoryStore();
-          const career = resolveCareer(store, dump.meta, dump.staff);
-          if (career) {
-            career.confirmedGameDate = gameDate;
-            career.updatedAt = new Date().toISOString();
-            saveHistoryStore(store);
-          }
-          const refCode = computeSaveRefCode(dump.meta, dump.staff);
-          renameSnapshotDate(oldGameDate, gameDate, dump.meta.manager, dump.meta.myClub, refCode, dump.players);
-          cachedPlayersWithDeltas = null;
+        const { gameDate, scanId, refCode } = JSON.parse(body || '{}');
+        if (!gameDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(gameDate).trim())) {
+          return sendJson(res, 400, { ok: false, error: 'INVALID_DATE', message: 'กรุณาระบุวันที่ในรูปแบบ YYYY-MM-DD' });
         }
-        sendJson(res, 200, { ok: true, gameDate });
+
+        const dump = getOrLoadDump();
+        if (!dump || !dump.meta) {
+          return sendJson(res, 404, { ok: false, error: 'NO_DUMP', message: 'ไม่พบข้อมูลการสแกนในระบบ' });
+        }
+
+        const activeRefCode = computeSaveRefCode(dump.meta, dump.staff);
+
+        // Verification: ensure confirmation matches the active scan round and save
+        if (scanId && dump.meta.scanId && scanId !== dump.meta.scanId) {
+          return sendJson(res, 409, {
+            ok: false,
+            error: 'STALE_SCAN_ROUND',
+            message: 'รอบการสแกนเปลี่ยนไปแล้ว คำยืนยันนี้ไม่ตรงกับรอบปัจจุบัน'
+          });
+        }
+
+        if (refCode && activeRefCode && refCode !== activeRefCode) {
+          return sendJson(res, 409, {
+            ok: false,
+            error: 'CAREER_MISMATCH',
+            message: 'เซฟเกมที่กำลังเปิดอยู่ไม่ตรงกับคำยืนยัน'
+          });
+        }
+
+        const store = loadHistoryStore();
+        const result = confirmScanRoundDate(
+          store,
+          dump.meta,
+          String(gameDate).trim(),
+          dump.players || [],
+          dump.staff || [],
+          activeRefCode
+        );
+
+        cachedPlayersWithDeltas = null;
+
+        sendJson(res, 200, {
+          ok: true,
+          gameDate: result.gameDate,
+          scanId: dump.meta.scanId,
+          refCode: activeRefCode,
+          snapshot: result.snapshot
+        });
       } catch (e) {
         sendJson(res, 500, { ok: false, error: e.message });
       }

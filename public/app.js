@@ -896,8 +896,14 @@ async function loadStatus() {
     if (data.meta) {
       state.myClub = data.meta.myClub || 'ไม่ระบุ';
       state.gameDate = data.meta.gameDate || '';
+      state.scanId = data.meta.scanId || '';
+      state.refCode = data.refCode || '';
       el.infoClub.textContent = state.myClub;
-      el.infoDate.textContent = state.gameDate || '-';
+      if (data.meta.requiresDateConfirmation) {
+        el.infoDate.textContent = `${state.gameDate || data.meta.suggestedGameDate || '-'} (⚠️ รอยืนยัน)`;
+      } else {
+        el.infoDate.textContent = state.gameDate || '-';
+      }
       if (el.infoManager) {
         el.infoManager.textContent = data.meta.manager || 'ไม่ระบุ';
       }
@@ -905,7 +911,7 @@ async function loadStatus() {
       const dateBadgeEl = document.getElementById('date-badge');
       if (dateBadgeEl) {
         if (data.meta.requiresDateConfirmation) {
-          dateBadgeEl.title = `⚠️ วันที่จาก scanner (${data.meta.rawGameDate || state.gameDate}) อาจคลาดเคลื่อนและยังไม่ได้รับการยืนยัน - คลิกเพื่อแก้ไข`;
+          dateBadgeEl.title = `⚠️ วันที่จาก scanner (${data.meta.rawGameDate || state.gameDate}) รอยืนยันสำหรับรอบสแกนนี้ (แนะนำ: ${data.meta.suggestedGameDate || '2026-07-13'}) - คลิกเพื่อยืนยัน`;
           dateBadgeEl.style.outline = '2px dashed #f59e0b';
         } else if (data.meta.gameDateCorrected) {
           dateBadgeEl.title = `วันที่ในเกม: ${state.gameDate} (ปรับจากค่า scanner: ${data.meta.rawGameDate} ให้ตรงกับวันเริ่มเซฟ) - คลิกเพื่อแก้ไข`;
@@ -919,8 +925,8 @@ async function loadStatus() {
           dateBadgeEl._boundClick = true;
           dateBadgeEl.style.cursor = 'pointer';
           dateBadgeEl.addEventListener('click', async () => {
-            const defaultPrompt = state.gameDate || '2026-07-13';
-            const input = prompt('ยืนยันหรือระบุวันที่ในเกม FM27 ให้ถูกต้อง (รูปแบบ YYYY-MM-DD):', defaultPrompt);
+            const defaultPrompt = data.meta?.suggestedGameDate || state.gameDate || '2026-07-13';
+            const input = prompt('ยืนยันหรือระบุวันที่ในเกม FM27 สำหรับรอบนี้ (รูปแบบ YYYY-MM-DD):', defaultPrompt);
             if (!input) return;
             const trimmed = input.trim();
             if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -928,18 +934,22 @@ async function loadStatus() {
               return;
             }
             try {
-              const res = await fetch('/api/set-date', {
+              const res = await fetch('/api/confirm-date', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ gameDate: trimmed, oldDate: state.gameDate })
+                body: JSON.stringify({
+                  gameDate: trimmed,
+                  scanId: state.scanId,
+                  refCode: state.refCode
+                })
               });
               const result = await res.json();
-              if (result.ok) {
-                showToast(`✅ ยืนยันวันที่ในเกมเป็น ${trimmed} เรียบร้อยแล้ว`);
+              if (res.ok && result.ok) {
+                showToast(`✅ ยืนยันวันที่ในเกมเป็น ${trimmed} และบันทึกประวัติเรียบร้อยแล้ว`);
                 await loadStatus();
                 await loadPlayers();
               } else {
-                showToast(`❌ เกิดข้อผิดพลาด: ${result.error || 'ไม่สามารถตั้งวันที่ได้'}`, true);
+                showToast(`❌ ${result.message || result.error || 'ไม่สามารถยืนยันวันที่ได้'}`, true);
               }
             } catch (err) {
               showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, true);
