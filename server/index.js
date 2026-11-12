@@ -5,7 +5,7 @@ const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
 const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
-const { checkForUpdates, applyUpdate } = require('./updaterEngine');
+const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -76,7 +76,7 @@ function serveStatic(req, res, pathname) {
   }
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
 
@@ -84,9 +84,15 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/status') {
     const status = getScannerStatus();
     const dump = getOrLoadDump();
+    let currentCommit = 'local';
+    try {
+      const commitHash = await getLocalCommit();
+      currentCommit = commitHash ? commitHash.slice(0, 7) : 'local';
+    } catch {}
     return sendJson(res, 200, {
       ...status,
       meta: dump?.meta || null,
+      currentCommit,
       totalPlayers: dump?.players?.length || 0,
       snapshots: listSnapshots()
     });

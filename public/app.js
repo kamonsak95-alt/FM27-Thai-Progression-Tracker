@@ -21,7 +21,8 @@ let state = {
   totalPages: 1,
   total: 0,
   myClub: '',
-  gameDate: ''
+  gameDate: '',
+  loadedCommit: ''
 };
 
 let debounceTimer = null;
@@ -93,8 +94,10 @@ const el = {
   modalClose: document.getElementById('modal-close-btn'),
   toast: document.getElementById('toast'),
   updateBanner: document.getElementById('update-banner'),
+  updateBannerBadge: document.getElementById('update-banner-badge'),
   updateDesc: document.getElementById('update-banner-desc'),
   btnApplyUpdate: document.getElementById('btn-apply-update'),
+  btnBannerReload: document.getElementById('btn-banner-reload'),
   btnDismissUpdate: document.getElementById('btn-dismiss-update'),
   btnCheckUpdate: document.getElementById('btn-check-update'),
   btnViewChangelog: document.getElementById('btn-view-changelog'),
@@ -106,6 +109,9 @@ const el = {
   btnReloadUI: document.getElementById('btn-reload-ui'),
   changelogMeta: document.getElementById('changelog-meta'),
   changelogList: document.getElementById('changelog-list'),
+  changelogStaleAlert: document.getElementById('changelog-stale-alert'),
+  alertLoadedCommit: document.getElementById('alert-loaded-commit'),
+  alertLatestCommit: document.getElementById('alert-latest-commit'),
   tacticalPitchSection: document.getElementById('tactical-pitch-section'),
   btnTogglePitch: document.getElementById('btn-toggle-pitch'),
   pitchToggleIcon: document.getElementById('pitch-toggle-icon'),
@@ -123,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStatus();
   loadPlayers();
   checkForUpdates(true); // check quietly in background
+  setInterval(() => checkForUpdates(true), 60000); // periodically check every 60s
 });
 
 function initEventListeners() {
@@ -352,6 +359,11 @@ function initEventListeners() {
   if (el.btnCheckUpdate) {
     el.btnCheckUpdate.addEventListener('click', () => checkForUpdates(false));
   }
+  if (el.btnBannerReload) {
+    el.btnBannerReload.addEventListener('click', () => {
+      window.location.reload();
+    });
+  }
   if (el.btnReloadUI) {
     el.btnReloadUI.addEventListener('click', () => {
       window.location.reload();
@@ -442,6 +454,9 @@ async function loadStatus() {
   try {
     const res = await fetch('/api/status');
     const data = await res.json();
+    if (!state.loadedCommit && data.currentCommit) {
+      state.loadedCommit = data.currentCommit;
+    }
     if (data.meta) {
       state.myClub = data.meta.myClub || 'ไม่ระบุ';
       state.gameDate = data.meta.gameDate || '';
@@ -817,15 +832,47 @@ async function checkForUpdates(silent = false) {
     const data = await res.json();
     latestUpdateData = data;
 
-    if (data.hasUpdate) {
+    const currentCommit = data.currentCommit || '';
+    const latestCommit = data.latestCommit || currentCommit;
+
+    // Detect if window UI is older than what's on disk, or if remote GitHub has new commits
+    const isDiskAheadOfUI = Boolean(state.loadedCommit && currentCommit && state.loadedCommit !== currentCommit);
+    const isRemoteAheadOfDisk = Boolean(data.hasUpdate);
+    const isUiStale = Boolean(state.loadedCommit && latestCommit && state.loadedCommit !== latestCommit);
+
+    if (isRemoteAheadOfDisk) {
+      // Case 1: Remote GitHub has an unpulled update
       const summaryText = data.latestMessage ? `: <strong class="text-white">${escapeHtml(data.latestMessage)}</strong>` : '';
-      el.updateDesc.innerHTML = `ตรวจพบการอัปเดตใหม่บน GitHub${summaryText}`;
+      if (el.updateBannerBadge) {
+        el.updateBannerBadge.textContent = '🚀 อัปเดตใหม่!';
+        el.updateBannerBadge.className = 'update-badge';
+      }
+      el.updateDesc.innerHTML = `ตรวจพบเวอร์ชันใหม่บน GitHub (${latestCommit})${summaryText}`;
+      if (el.btnApplyUpdate) el.btnApplyUpdate.style.display = 'inline-flex';
+      if (el.btnBannerReload) el.btnBannerReload.style.display = 'none';
       el.updateBanner.style.display = 'block';
+
       if (!silent) {
-        showToast(`🚀 พบการอัปเดตใหม่!`);
+        showToast(`🚀 ตรวจพบเวอร์ชันใหม่บน GitHub!`);
+        openChangelogModal(data);
+      }
+    } else if (isDiskAheadOfUI) {
+      // Case 2: Code on disk has been updated, but this browser window was loaded earlier
+      if (el.updateBannerBadge) {
+        el.updateBannerBadge.textContent = '⚡ ต้องรีโหลดหน้าจอ';
+        el.updateBannerBadge.className = 'update-badge badge-warning';
+      }
+      el.updateDesc.innerHTML = `ตรวจพบเวอร์ชันใหม่พร้อมใช้งาน (หน้าต่างเปิดค้างไว้ที่ <code>${state.loadedCommit}</code> ➔ ล่าสุด <code>${currentCommit}</code>) กรุณากดปุ่มเพื่ออัปเดตการแสดงผล`;
+      if (el.btnApplyUpdate) el.btnApplyUpdate.style.display = 'none';
+      if (el.btnBannerReload) el.btnBannerReload.style.display = 'inline-flex';
+      el.updateBanner.style.display = 'block';
+
+      if (!silent) {
+        showToast(`⚡ หน้าต่างนี้ยังเป็นเวอร์ชันเดิม กรุณากดปุ่ม 🔄 รีโหลดหน้าจอ เพื่อเริ่มใช้งาน`);
         openChangelogModal(data);
       }
     } else {
+      // Case 3: Fully up to date
       el.updateBanner.style.display = 'none';
       if (!silent) {
         showToast(data.message || '✅ โปรแกรมของคุณเป็นเวอร์ชันล่าสุดแล้ว');
@@ -845,11 +892,25 @@ async function checkForUpdates(silent = false) {
 function openChangelogModal(data) {
   if (!el.changelogModal || !data) return;
 
+  const currentCommit = data.currentCommit || '';
+  const latestCommit = data.latestCommit || currentCommit;
   const isNew = data.hasUpdate;
-  const targetCommit = data.latestCommit || data.currentCommit || '-';
+  const isUiStale = Boolean(state.loadedCommit && latestCommit && state.loadedCommit !== latestCommit);
+
   el.changelogMeta.innerHTML = isNew 
-    ? `มีเวอร์ชันใหม่รอให้อัปเดต &bull; Commit เป้าหมาย: <strong class="text-accent">${targetCommit}</strong>`
-    : `เวอร์ชันปัจจุบัน: v${data.currentVersion || '1.0.0'} &bull; Commit ล่าสุด: <strong class="text-green">${targetCommit}</strong>`;
+    ? `มีเวอร์ชันใหม่รอให้อัปเดต &bull; Commit เป้าหมาย: <strong class="text-accent">${latestCommit}</strong>`
+    : `เวอร์ชันปัจจุบัน: v${data.currentVersion || '1.0.0'} &bull; Commit ล่าสุด: <strong class="text-green">${latestCommit}</strong>`;
+
+  // Display Stale UI Alert Box if window commit is behind
+  if (el.changelogStaleAlert) {
+    if (isUiStale) {
+      if (el.alertLoadedCommit) el.alertLoadedCommit.textContent = state.loadedCommit || 'เดิม';
+      if (el.alertLatestCommit) el.alertLatestCommit.textContent = latestCommit;
+      el.changelogStaleAlert.style.display = 'flex';
+    } else {
+      el.changelogStaleAlert.style.display = 'none';
+    }
+  }
 
   if (data.changes && data.changes.length > 0) {
     el.changelogList.innerHTML = data.changes.map(c => `
@@ -865,7 +926,7 @@ function openChangelogModal(data) {
     el.btnChangelogApply.style.display = isNew ? 'inline-flex' : 'none';
   }
   if (el.btnChangelogReload) {
-    el.btnChangelogReload.style.display = isNew ? 'none' : 'inline-flex';
+    el.btnChangelogReload.style.display = (isUiStale || !isNew) ? 'inline-flex' : 'none';
   }
 
   el.changelogModal.style.display = 'flex';

@@ -152,5 +152,6 @@ module.exports = {
   checkForUpdates,
   applyUpdate,
   getLocalVersion,
+  getLocalCommit,
   formatCommitMessage
 };

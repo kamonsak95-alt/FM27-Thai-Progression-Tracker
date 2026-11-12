@@ -1191,3 +1191,48 @@ body {
   gap: 0.5rem;
   line-height: 1.4;
 }
+
+.update-badge.badge-warning {
+  background: #d97706;
+  color: #fff;
+}
+
+.btn-update.btn-reload {
+  background: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+}
+
+.btn-update.btn-reload:hover {
+  background: linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%);
+  transform: translateY(-1px);
+}
+
+/* Changelog Stale Warning Box */
+.changelog-alert-box {
+  background: rgba(217, 119, 6, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.85rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  color: #fef3c7;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.changelog-alert-box .alert-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.changelog-alert-box code {
+  background: rgba(0, 0, 0, 0.4);
+  color: #fbbf24;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 600;
+}
