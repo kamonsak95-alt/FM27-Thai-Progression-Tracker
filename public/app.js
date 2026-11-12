@@ -10,6 +10,7 @@ let state = {
   maxPA: 200,
   pos: 'ALL',
   preset: 'all',
+  trend: '',
   baseline: '',
   sort: 'growthPercent',
   order: 'desc',
@@ -231,6 +232,7 @@ function initEventListeners() {
 }
 
 function applyPreset(preset) {
+  state.trend = '';
   if (preset === 'all') {
     el.minAge.value = 15; el.maxAge.value = 45;
     el.minCA.value = 1; el.maxCA.value = 200;
@@ -243,6 +245,10 @@ function applyPreset(preset) {
     el.minPA.value = 150; el.maxPA.value = 200;
     state.minAge = 15; state.maxAge = 21;
     state.minPA = 150; state.maxPA = 200;
+  } else if (preset === 'explosive') {
+    state.trend = 'explosive';
+  } else if (preset === 'declining') {
+    state.trend = 'declining';
   } else if (preset === 'growth') {
     state.sort = 'growthPercent';
     state.order = 'desc';
@@ -323,6 +329,7 @@ async function loadPlayers() {
   });
 
   if (state.q) params.set('q', state.q);
+  if (state.trend) params.set('trend', state.trend);
   if (state.preset === 'wonderkids') params.set('wonderkids', '1');
   if (state.preset === 'myclub') params.set('myClub', '1');
 
@@ -351,7 +358,7 @@ async function loadPlayers() {
 
 function renderTable(players) {
   if (players.length === 0) {
-    el.tableBody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-muted">ไม่พบข้อมูลนักเตะที่ตรงกับเงื่อนไข</td></tr>`;
+    el.tableBody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-muted">ไม่พบข้อมูลนักเตะที่ตรงกับเงื่อนไข</td></tr>`;
     return;
   }
 
@@ -366,6 +373,9 @@ function renderTable(players) {
     } else {
       growthBadge = `<span class="badge badge-growth-neutral">คงที่ (0)</span>`;
     }
+
+    const trend = p.trend || { label: 'คงที่', icon: '➖', badgeClass: 'badge-trend-neutral' };
+    const trendBadge = `<span class="badge ${trend.badgeClass}">${trend.icon} ${trend.label}</span>`;
 
     const valueStr = formatCurrency(p.value);
     const wageStr = formatCurrency(p.wage);
@@ -382,6 +392,7 @@ function renderTable(players) {
         <td>${escapeHtml(p.club || '-')}</td>
         <td class="text-center font-bold text-accent">${p.ca}</td>
         <td class="text-center font-bold text-green">${p.pa}</td>
+        <td class="text-center">${trendBadge}</td>
         <td class="text-center">${growthBadge}</td>
         <td class="text-right text-muted">${valueStr}</td>
         <td class="text-right text-muted">${wageStr}</td>
@@ -396,7 +407,7 @@ async function openPlayerModal(id) {
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
-    const { player, historyPoints } = await res.json();
+    const { player, trend, historyPoints } = await res.json();
 
     document.getElementById('modal-name').textContent = player.name;
     document.getElementById('modal-pos').textContent = player.pos || '-';
@@ -405,6 +416,22 @@ async function openPlayerModal(id) {
     document.getElementById('modal-age').textContent = `${player.age} ปี (เกิด ${player.birthYear || '-'})`;
     document.getElementById('modal-ca').textContent = player.ca;
     document.getElementById('modal-pa').textContent = player.pa;
+
+    // Render Development Forecast Box
+    const forecastBox = document.getElementById('modal-forecast-box');
+    if (forecastBox) {
+      const tr = trend || { label: 'คงที่', icon: '➖', reason: 'รักษามาตรฐานค่าพลัง', badgeClass: 'badge-trend-neutral' };
+      forecastBox.innerHTML = `
+        <div class="forecast-icon">${tr.icon}</div>
+        <div class="forecast-content">
+          <div class="forecast-title">
+            <span>แนวโน้ม: <strong class="text-accent">${tr.label}</strong></span>
+            <span class="badge ${tr.badgeClass}">${tr.icon} ${tr.label}</span>
+          </div>
+          <div class="forecast-desc">${escapeHtml(tr.reason)}</div>
+        </div>
+      `;
+    }
 
     // Render Timeline
     const timelineEl = document.getElementById('modal-history-timeline');

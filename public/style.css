@@ -491,6 +491,85 @@ body {
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+/* Trend Badges */
+.badge-trend-explosive {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(16, 185, 129, 0.25) 100%);
+  color: #a7f3d0;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
+
+.badge-trend-up {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.badge-trend-peak {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fde047;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.badge-trend-plateau {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+.badge-trend-down {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.badge-trend-neutral {
+  background: rgba(100, 116, 139, 0.15);
+  color: #cbd5e1;
+}
+
+/* Forecast Card in Modal */
+.forecast-card {
+  background: linear-gradient(135deg, #181c2e 0%, #121422 100%);
+  border: 1px solid var(--border-highlight);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.forecast-icon {
+  font-size: 2.25rem;
+  background: #242940;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.forecast-content {
+  flex: 1;
+}
+
+.forecast-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.forecast-desc {
+  font-size: 0.875rem;
+  color: #cbd5e1;
+}
+
 /* Pagination */
 .pagination-footer {
   display: flex;

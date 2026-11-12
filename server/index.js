@@ -4,6 +4,7 @@ const path = require('node:path');
 const url = require('node:url');
 const { getLatestDump, runScan, getScannerStatus } = require('./scannerBridge');
 const { saveSnapshot, listSnapshots, getSnapshot, calculateDeltas } = require('./historyEngine');
+const { predictDevelopmentTrend } = require('./trendEngine');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -144,7 +145,15 @@ const server = http.createServer((req, res) => {
     if (baselineDate !== currentBaselineDate || !cachedPlayersWithDeltas) {
       currentBaselineDate = baselineDate;
       const snap = baselineDate ? getSnapshot(baselineDate) : null;
-      cachedPlayersWithDeltas = calculateDeltas(dump.players, snap ? snap.players : {});
+      const deltas = calculateDeltas(dump.players, snap ? snap.players : {});
+      cachedPlayersWithDeltas = deltas.map(p => {
+        const trend = predictDevelopmentTrend(p, p.deltaCA);
+        return {
+          ...p,
+          trend,
+          trendScore: trend.score
+        };
+      });
     }
 
     let result = cachedPlayersWithDeltas;
@@ -189,6 +198,12 @@ const server = http.createServer((req, res) => {
       }
     }
 
+    // Filter by Trend
+    const trendFilter = (parsedUrl.query.trend || '').trim().toLowerCase();
+    if (trendFilter) {
+      result = result.filter(p => p.trend && p.trend.code === trendFilter);
+    }
+
     // Wonderkids shortcut: age <= 21 and pa >= 150
     if (parsedUrl.query.wonderkids === '1') {
       result = result.filter(p => p.age <= 21 && p.pa >= 150);
@@ -231,6 +246,8 @@ const server = http.createServer((req, res) => {
       deltaCA: p.deltaCA,
       growthPercent: p.growthPercent,
       isNew: p.isNew,
+      trend: p.trend,
+      trendScore: p.trendScore,
       value: p.value,
       wage: p.wage
     }));
@@ -271,8 +288,11 @@ const server = http.createServer((req, res) => {
       }
     }
 
+    const trend = predictDevelopmentTrend(player, 0);
+
     return sendJson(res, 200, {
       player,
+      trend,
       historyPoints
     });
   }
