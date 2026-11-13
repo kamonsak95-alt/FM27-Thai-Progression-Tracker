@@ -261,6 +261,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(() => {
     if (latestUpdateData?.isGit === true) checkForUpdates(true);
   }, 60000);
+  setInterval(() => {
+    if (latestUpdateData?.isGit !== true) checkForUpdates(true);
+  }, 10 * 60 * 1000);
 });
 
 function getPositionGroup(position = '') {
