@@ -1,6 +1,7 @@
 const { execFile, spawn } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { promisify } = require('node:util');
 const { Readable, Transform } = require('node:stream');
@@ -28,22 +29,22 @@ function validateArchiveEntries(list) {
   }
 }
 
-async function downloadArchive(update, destination) {
+async function downloadAsset(update, destination) {
   const response = await fetch(update.downloadUrl, { signal: AbortSignal.timeout(120000) });
-  if (!response.ok || !response.body) throw new Error(`ดาวน์โหลด ZIP ไม่สำเร็จ (HTTP ${response.status})`);
+  if (!response.ok || !response.body) throw new Error(`ดาวน์โหลดไฟล์อัปเดตไม่สำเร็จ (HTTP ${response.status})`);
   const digest = createHash('sha256');
   let size = 0;
   const verify = new Transform({
     transform(chunk, encoding, callback) {
       size += chunk.length;
-      if (size > maxBytes || size > update.assetSize) return callback(new Error('ขนาด ZIP เกินที่ระบุ'));
+      if (size > maxBytes || size > update.assetSize) return callback(new Error('ขนาดไฟล์อัปเดตเกินที่ระบุ'));
       digest.update(chunk);
       callback(null, chunk);
     }
   });
   await pipeline(Readable.fromWeb(response.body), verify, fs.createWriteStream(destination, { flags: 'wx' }));
   if (size !== update.assetSize || `sha256:${digest.digest('hex')}` !== update.assetDigest) {
-    throw new Error('ขนาดหรือ SHA-256 ของ ZIP ไม่ตรงกับ GitHub Release');
+    throw new Error('ขนาดหรือ SHA-256 ของไฟล์ไม่ตรงกับ GitHub Release');
   }
 }
 
@@ -59,7 +60,7 @@ async function stageUpdate(root, update) {
   const staging = fs.mkdtempSync(path.join(root, '.fm27-update-'));
   try {
     const archive = path.join(staging, 'release.zip');
-    await downloadArchive(update, archive);
+    await downloadAsset(update, archive);
     const tar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
     const options = { windowsHide: true, timeout: 30000, maxBuffer: 1024 * 1024 };
     const { stdout: entries } = await run(tar, ['-tf', archive], options);
@@ -75,6 +76,19 @@ async function stageUpdate(root, update) {
         !fs.statSync(path.join(extracted, 'public', 'index.html')).isFile()) {
       throw new Error('ไฟล์โปรแกรมใน ZIP ไม่ตรงกับรุ่นที่เลือก');
     }
+    fs.copyFileSync(__filename, path.join(staging, 'installer.js'));
+    return staging;
+  } catch (error) {
+    removeStage(root, staging);
+    throw error;
+  }
+}
+
+async function stageSetup(update) {
+  const root = os.tmpdir();
+  const staging = fs.mkdtempSync(path.join(root, '.fm27-update-'));
+  try {
+    await downloadAsset(update, path.join(staging, 'setup.exe'));
     fs.copyFileSync(__filename, path.join(staging, 'installer.js'));
     return staging;
   } catch (error) {
@@ -165,13 +179,39 @@ async function finishUpdate(root, staging, updateId) {
   removeStage(root, staging);
 }
 
+async function finishSetup(root, staging, updateId, version) {
+  let failed = false;
+  try {
+    const powershell = path.join(process.env.SystemRoot || 'C:\\Windows',
+      'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    await run(powershell, ['-NoProfile', '-NonInteractive', '-Command',
+      '$ErrorActionPreference = "Stop"; ' +
+      '$dir = \'/DIR="\' + $env:FM27_INSTALL_ROOT + \'"\'; ' +
+      '$p = Start-Process -FilePath $env:FM27_SETUP_PATH -ArgumentList @($dir, "/SILENT", "/NORESTART", "/NOCLOSEAPPLICATIONS", "/NORESTARTAPPLICATIONS") -Verb RunAs -Wait -PassThru; ' +
+      'exit $p.ExitCode'
+    ], {
+      windowsHide: true,
+      env: { ...process.env, FM27_SETUP_PATH: path.join(staging, 'setup.exe'), FM27_INSTALL_ROOT: root }
+    });
+    const installed = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    failed = installed.version !== version;
+  } catch (error) {
+    failed = true;
+    console.error('Setup update failed:', error.message);
+  }
+  await startTracker(root, updateId, failed);
+  removeStage(os.tmpdir(), staging);
+}
+
 if (require.main === module) {
   process.once('disconnect', () => {
-    finishUpdate(...process.argv.slice(2)).catch(error => {
+    const [root, staging, updateId, version] = process.argv.slice(2);
+    const result = version ? finishSetup(root, staging, updateId, version) : finishUpdate(root, staging, updateId);
+    result.catch(error => {
       fs.writeFileSync(path.join(__dirname, 'error.log'), String(error));
       process.exitCode = 1;
     });
   });
 }
 
-module.exports = { validateArchiveEntries, installFiles, stageUpdate, removeStage };
+module.exports = { validateArchiveEntries, installFiles, stageUpdate, stageSetup, removeStage };

@@ -20,7 +20,7 @@ const {
 } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
 const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
-const { stageUpdate, removeStage } = require('./zipInstaller');
+const { stageUpdate, stageSetup, removeStage } = require('./zipInstaller');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
 const { decodeSnapshotAttributes } = require('./snapshotAttributes');
 
@@ -139,14 +139,18 @@ const server = http.createServer(async (req, res) => {
     if (zipUpdateInProgress) return sendJson(res, 409, { error: 'กำลังติดตั้งอัปเดตอยู่' });
     zipUpdateInProgress = true;
     let staging;
+    let stagingRoot = PROJECT_ROOT;
     try {
       const update = await checkForUpdates();
       if (!update.canInstall) throw new Error(update.error || 'รุ่นนี้ต้องดาวน์โหลดและติดตั้งด้วยตนเอง');
-      staging = await stageUpdate(PROJECT_ROOT, update);
+      const isSetup = update.installMode === 'setup';
+      if (isSetup) stagingRoot = require('node:os').tmpdir();
+      staging = isSetup ? await stageSetup(update) : await stageUpdate(PROJECT_ROOT, update);
       const updateId = randomUUID();
       const installer = spawn(process.execPath, [
-        path.join(staging, 'installer.js'), PROJECT_ROOT, staging, updateId
-      ], { cwd: PROJECT_ROOT, windowsHide: true, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+        path.join(staging, 'installer.js'), PROJECT_ROOT, staging, updateId,
+        ...(isSetup ? [update.latestVersion] : [])
+      ], { cwd: stagingRoot, windowsHide: true, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
       await once(installer, 'spawn');
       shuttingDownForUpdate = true;
       res.setHeader('Connection', 'close');
@@ -158,11 +162,11 @@ const server = http.createServer(async (req, res) => {
         });
         server.closeIdleConnections?.();
       });
-      return sendJson(res, 202, { ok: true, updateId });
+      return sendJson(res, 202, { ok: true, updateId, installMode: update.installMode });
     } catch (error) {
       zipUpdateInProgress = false;
       if (staging) {
-        try { removeStage(PROJECT_ROOT, staging); }
+        try { removeStage(stagingRoot, staging); }
         catch (cleanupError) { console.error(cleanupError); }
       }
       return sendJson(res, 500, { error: error.message });

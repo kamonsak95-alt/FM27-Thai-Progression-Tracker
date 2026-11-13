@@ -45,7 +45,7 @@ function formatCommitMessage(msg) {
     .replace(/^refactor(\(.*\))?:\s*/i, '♻️ [ปรับโครงสร้างโค้ด] ');
 }
 
-async function checkReleaseUpdate(currentVersion, request = fetch) {
+async function checkReleaseUpdate(currentVersion, request = fetch, installMode = 'zip') {
   const base = { hasUpdate: false, isGit: false, currentVersion, changes: [] };
 
   try {
@@ -63,7 +63,10 @@ async function checkReleaseUpdate(currentVersion, request = fetch) {
     const latestVersion = latest.slice(1).join('.');
     const difference = latest.slice(1).map((part, index) => Number(part) - Number(installed[index + 1])).find(Boolean);
     const hasUpdate = difference > 0;
-    const assetUrl = `${RELEASES_URL}/download/${release.tag_name}/FM27-Tracker-Windows-v${latestVersion}.zip`;
+    const assetName = installMode === 'setup'
+      ? `FM27-Tracker-Setup-v${latestVersion}.exe`
+      : `FM27-Tracker-Windows-v${latestVersion}.zip`;
+    const assetUrl = `${RELEASES_URL}/download/${release.tag_name}/${assetName}`;
     const asset = release.assets?.find(asset => asset.browser_download_url === assetUrl);
     const downloadUrl = asset
       ? assetUrl
@@ -73,10 +76,11 @@ async function checkReleaseUpdate(currentVersion, request = fetch) {
       ...base,
       hasUpdate,
       latestVersion,
+      installMode,
       downloadUrl,
       canInstall: hasUpdate && process.platform === 'win32' && Boolean(
         /^sha256:[a-f0-9]{64}$/.test(asset?.digest) &&
-        Number.isSafeInteger(asset?.size) && asset.size > 0
+        Number.isSafeInteger(asset?.size) && asset.size > 0 && asset.size <= 100 * 1024 * 1024
       ),
       assetDigest: asset?.digest,
       assetSize: asset?.size,
@@ -96,7 +100,8 @@ async function checkForUpdates() {
   const isGitRepo = fs.existsSync(path.join(PROJECT_ROOT, '.git'));
 
   if (!isGitRepo) {
-    return checkReleaseUpdate(currentVersion);
+    const installMode = fs.existsSync(path.join(PROJECT_ROOT, 'installation.ini')) ? 'setup' : 'zip';
+    return checkReleaseUpdate(currentVersion, fetch, installMode);
   }
 
   const currentCommit = await getLocalCommit();

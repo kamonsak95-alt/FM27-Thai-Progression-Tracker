@@ -1637,7 +1637,7 @@ function openChangelogModal(data, isCelebration = false) {
   el.changelogModal.style.display = 'flex';
 }
 
-async function installZipUpdate() {
+async function installReleaseUpdate() {
   const buttons = [el.btnApplyUpdate, el.btnChangelogApply];
   buttons.forEach(button => { button.disabled = true; });
   el.btnApplyUpdate.textContent = 'กำลังดาวน์โหลดและตรวจไฟล์';
@@ -1649,15 +1649,19 @@ async function installZipUpdate() {
     const result = await response.json();
     if (!response.ok || !result.updateId) throw new Error(result.error || 'เริ่มติดตั้งไม่ได้');
 
-    el.btnApplyUpdate.textContent = 'กำลังเปิด Tracker ใหม่';
-    const deadline = Date.now() + 90000;
+    const isSetup = result.installMode === 'setup';
+    el.btnApplyUpdate.textContent = isSetup ? 'รออนุมัติจาก Windows' : 'กำลังเปิด Tracker ใหม่';
+    if (isSetup) showToast('อนุมัติหน้าต่าง Windows เพื่อเริ่มติดตั้ง');
+    const deadline = Date.now() + (isSetup ? 300000 : 90000);
     while (Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       const state = await fetch('/api/update-state', {
         cache: 'no-store', signal: AbortSignal.timeout(2000)
       }).then(res => res.json()).catch(() => null);
       if (state?.updateId !== result.updateId) continue;
-      if (state.rolledBack) throw new Error('รุ่นใหม่เปิดไม่ได้ ระบบคืนไฟล์โปรแกรมเดิมแล้ว');
+      if (state.rolledBack) throw new Error(isSetup
+        ? 'Setup ติดตั้งไม่สำเร็จหรือถูกยกเลิก กรุณาลองอีกครั้ง'
+        : 'รุ่นใหม่เปิดไม่ได้ ระบบคืนไฟล์โปรแกรมเดิมแล้ว');
       window.location.reload();
       return;
     }
@@ -1672,7 +1676,7 @@ async function installZipUpdate() {
 
 async function applyUpdate() {
   if (!confirm('ต้องการเริ่มการอัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดทันทีใช่หรือไม่?')) return;
-  if (latestUpdateData?.canInstall) return installZipUpdate();
+  if (latestUpdateData?.canInstall) return installReleaseUpdate();
 
   el.btnApplyUpdate.disabled = true;
   el.btnApplyUpdate.textContent = 'กำลังดาวน์โหลดและอัปเดตไฟล์...';

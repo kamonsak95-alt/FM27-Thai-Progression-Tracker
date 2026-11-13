@@ -29,6 +29,23 @@ test('ZIP update check ignores releases at or below the installed version', asyn
   }
 });
 
+test('Setup installations select only the versioned Setup asset with a valid digest', async () => {
+  const version = '1.0.10';
+  const downloadUrl = `${root}/releases/download/v${version}/FM27-Tracker-Setup-v${version}.exe`;
+  const digest = 'sha256:' + 'a'.repeat(64);
+  const request = async () => new Response(JSON.stringify({
+    tag_name: `v${version}`,
+    assets: [{ browser_download_url: downloadUrl, digest, size: 100 }]
+  }));
+  const setup = await checkReleaseUpdate('1.0.9', request, 'setup');
+  assert.equal(setup.downloadUrl, downloadUrl);
+  assert.equal(setup.assetDigest, digest);
+  assert.equal(setup.canInstall, process.platform === 'win32');
+  const withoutSetup = await checkReleaseUpdate('1.0.9', release(version), 'setup');
+  assert.equal(withoutSetup.canInstall, false);
+  assert.equal(withoutSetup.downloadUrl, `${root}/releases/tag/v${version}`);
+});
+
 test('ZIP update check reports GitHub failures and falls back to the release page for a missing asset', async () => {
   const failed = await checkReleaseUpdate('1.0.0', async () => new Response(null, { status: 403 }));
   assert.equal(failed.hasUpdate, false);

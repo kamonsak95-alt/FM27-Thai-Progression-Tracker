@@ -10,6 +10,9 @@ function getHistoryFilePath() {
   if (process.env.NODE_ENV === 'test') {
     return path.join(require('node:os').tmpdir(), 'fm27_test_history.json');
   }
+  if (process.env.LOCALAPPDATA && fs.existsSync(path.join(__dirname, '..', 'installation.ini'))) {
+    return path.join(process.env.LOCALAPPDATA, 'FM27 Tracker', 'data', 'history.json');
+  }
   return path.join(DATA_DIR, 'history.json');
 }
 
