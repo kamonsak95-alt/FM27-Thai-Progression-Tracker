@@ -53,3 +53,15 @@ test('ZIP update check reports GitHub failures and falls back to the release pag
   const result = await checkReleaseUpdate('1.0.0', release('1.0.1', 'https://example.com/file.zip'));
   assert.equal(result.downloadUrl, `${root}/releases/tag/v1.0.1`);
 });
+
+test('release update returns the release notes and falls back to the title for empty notes', async () => {
+  const request = body => async () => new Response(JSON.stringify({
+    tag_name: 'v1.0.15', name: 'FM27 Tracker v1.0.15', body
+  }));
+  const result = await checkReleaseUpdate('1.0.14', request(
+    '## มีอะไรใหม่\r\n\r\n- เพิ่มตัวกรอง **สัญชาติ**\r\n- ใช้กับ Wonderkids ได้'
+  ));
+  assert.deepEqual(result.changes, ['มีอะไรใหม่', 'เพิ่มตัวกรอง สัญชาติ', 'ใช้กับ Wonderkids ได้']);
+  const fallback = await checkReleaseUpdate('1.0.14', request('  '));
+  assert.deepEqual(fallback.changes, ['FM27 Tracker v1.0.15']);
+});

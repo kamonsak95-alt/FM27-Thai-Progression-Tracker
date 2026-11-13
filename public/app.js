@@ -311,6 +311,11 @@ const clearNationality = document.getElementById('clear-nationality');
 let selectedNationality = '';
 
 function initEventListeners() {
+  const careerDetails = document.getElementById('btn-career-details');
+  careerDetails.addEventListener('click', () => {
+    const expanded = careerDetails.getAttribute('aria-expanded') === 'true';
+    careerDetails.setAttribute('aria-expanded', String(!expanded));
+  });
   nationalityInput.addEventListener('input', () => {
     const value = nationalityInput.value.trim().toLowerCase();
     const match = Array.from(nationalityOptions.options)
@@ -1244,6 +1249,8 @@ async function loadPlayers() {
     }
 
     state.total = data.total || 0;
+    document.getElementById('active-nationality').textContent =
+      selectedNationality ? `สัญชาติที่ใช้ · ${selectedNationality}` : '';
     state.totalPages = data.totalPages || 1;
     state.page = data.page || 1;
 
@@ -1327,13 +1334,13 @@ function renderTable(players, comparisonDate, refCode) {
         </td>
         <td class="text-center font-medium">${p.age}</td>
         <td class="text-center"><span class="player-positions">${renderPositionBadges(p.pos)}</span></td>
-        <td><span class="text-club">${escapeHtml(p.club || '-')}</span></td>
+        <td class="player-table-secondary"><span class="text-club">${escapeHtml(p.club || '-')}</span></td>
         <td class="text-center font-semibold">${p.ca}</td>
         <td class="text-center text-secondary">${p.pa}</td>
-        <td class="text-center text-muted">${trendLabel}</td>
+        <td class="text-center text-muted player-table-secondary">${trendLabel}</td>
         <td class="text-right">${growthBadge}</td>
-        <td class="text-right text-secondary font-mono">${valueStr}</td>
-        <td class="text-right text-muted font-mono">${wageStr}</td>
+        <td class="text-right text-secondary font-mono player-table-secondary">${valueStr}</td>
+        <td class="text-right text-muted font-mono player-table-secondary">${wageStr}</td>
       </tr>
     `;
   });
@@ -1371,6 +1378,8 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
     document.getElementById('modal-club').textContent = player.club || '-';
     document.getElementById('modal-nat').textContent = Array.isArray(player.nat) ? player.nat.join(', ') : (player.nat || '-');
     document.getElementById('modal-age').textContent = `${player.age} ปี (เกิด ${player.birthYear || '-'})`;
+    document.getElementById('modal-value').textContent = formatCurrency(player.value);
+    document.getElementById('modal-wage').textContent = formatCurrency(player.wage);
     document.getElementById('modal-ca').textContent = player.ca;
     document.getElementById('modal-pa').textContent = player.pa;
 

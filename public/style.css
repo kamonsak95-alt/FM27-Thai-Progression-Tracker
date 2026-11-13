@@ -135,6 +135,21 @@ body {
   margin-inline-start: auto;
 }
 
+#btn-career-details {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  #btn-career-details {
+    display: inline-flex;
+    align-self: flex-start;
+  }
+
+  #btn-career-details[aria-expanded="false"] + .header-career-row {
+    display: none;
+  }
+}
+
 .info-pill {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -396,6 +411,100 @@ body {
 .filter-grid {
   margin-top: 0;
   border-top: 1px solid var(--border-color);
+}
+
+.player-filters-card {
+  gap: 16px;
+}
+
+.player-search-icon {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.player-search-icon::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 1.5px;
+  background: currentColor;
+  top: 9px;
+  left: 8px;
+  transform: rotate(45deg);
+  transform-origin: left center;
+}
+
+.player-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.35fr) minmax(168px, 1fr) repeat(3, minmax(144px, 1fr));
+  gap: 12px 16px;
+  padding-top: 16px;
+  align-items: start;
+}
+
+.player-filter-grid .filter-group {
+  min-width: 0;
+  gap: 8px;
+}
+
+.player-filter-grid .filter-label,
+.player-filter-grid .filter-label-row {
+  min-height: 24px;
+  align-content: center;
+}
+
+.player-filter-grid .pos-btn,
+.player-filter-grid .range-inputs .form-input {
+  height: 36px;
+  box-sizing: border-box;
+}
+
+.player-filter-grid .num-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.player-filter-grid .btn-text-action {
+  padding: 2px 4px;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.player-filter-grid .nationality-inputs {
+  gap: 4px;
+}
+
+@media (max-width: 1080px) {
+  .player-filter-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .player-position-filter,
+  .player-nationality-filter {
+    grid-column: span 3;
+  }
+
+  .player-range-filter {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 600px) {
+  .player-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .player-range-filter {
+    grid-column: span 1;
+  }
+
+  .player-position-filter,
+  .player-nationality-filter,
+  .player-age-filter {
+    grid-column: 1 / -1;
+  }
 }
 
 .filter-group {
@@ -853,7 +962,13 @@ body {
 }
 
 #clear-nationality {
-  flex: 0 0 auto;
+  flex: 0 0 36px;
+  font-size: 1rem;
+}
+
+#clear-nationality:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .num-input {
@@ -915,6 +1030,56 @@ body {
 .player-col-trend { width: 10%; }
 .player-col-growth { width: 12%; }
 .player-col-money { width: 7%; }
+
+@media (max-width: 1000px) {
+  #players-table {
+    min-width: 0;
+  }
+
+  #players-table .player-table-secondary,
+  #players-table :is(.player-col-club, .player-col-trend, .player-col-money) {
+    display: none;
+  }
+
+  .player-col-name { width: 30%; }
+  .player-col-age { width: 10%; }
+  .player-col-position { width: 24%; }
+  .player-col-ability { width: 8%; }
+  .player-col-growth { width: 20%; }
+
+  #players-table :is(td, th) {
+    padding-inline: 8px;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 540px) {
+  #players-table :is(.player-col-age, .player-col-growth, [data-sort="age"], [data-sort="growthPercent"],
+    td:nth-child(2), td:nth-child(8)):not([colspan]) {
+    display: none;
+  }
+
+  .player-col-name { width: 44%; }
+  .player-col-position { width: 32%; }
+  .player-col-ability { width: 12%; }
+}
+
+.player-contract-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 0 0 16px;
+  font-size: 0.875rem;
+}
+
+.player-contract-details dt {
+  color: var(--text-muted);
+}
+
+.player-contract-details dd {
+  margin: 4px 0 0;
+  font-variant-numeric: tabular-nums;
+}
 
 #players-table td {
   overflow-wrap: anywhere;

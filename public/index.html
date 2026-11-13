@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.15-nationality">
+  <link rel="stylesheet" href="style.css?v=1.0.16">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -53,7 +53,9 @@
           </button>
         </div>
 
-        <div class="header-career-row">
+        <button type="button" id="btn-career-details" class="btn btn-secondary btn-sm"
+          aria-expanded="false" aria-controls="career-details">รายละเอียดเซฟ</button>
+        <div class="header-career-row" id="career-details">
           <div class="info-pill manager-pill" id="manager-badge" title="ผู้จัดการทีม / กุนซือ (Gaffer)">
             <span class="pill-label">กุนซือ:</span>
             <span class="pill-value manager-name" id="info-manager">กำลังโหลด...</span>
@@ -101,10 +103,10 @@
     <!-- Tab 1: Players & Progression Section -->
     <div id="section-players">
       <!-- Filters Section -->
-      <section class="filters-card card">
+      <section class="filters-card card player-filters-card">
       <div class="filter-row search-row">
         <div class="search-box">
-          <span class="search-icon">🔍</span>
+          <span class="search-icon player-search-icon" aria-hidden="true"></span>
           <input type="text" id="filter-search" class="form-input" placeholder="ค้นหาชื่อนักเตะ" aria-label="ค้นหาชื่อนักเตะ">
           <button id="btn-clear-search" class="btn-clear" style="display:none;">✕</button>
         </div>
@@ -121,17 +123,17 @@
       </div>
 
       <!-- Detail Filter Sliders & Dropdowns -->
-      <div class="filter-grid row g-3">
+      <div class="filter-grid player-filter-grid">
         <!-- Position Filter -->
-        <div class="filter-group col-12 col-md-4 col-xl-3">
+        <div class="filter-group player-position-filter">
           <div class="filter-label-row">
             <label class="filter-label">ตำแหน่ง</label>
             <div class="pitch-mode-actions">
               <button type="button" id="btn-toggle-compact-pos" class="btn-text-action" title="เปิด/ปิดแถบตำแหน่งย่อ">
-                <span>📏 แถบย่อ</span>
+                <span>แถบย่อ</span>
               </button>
               <button type="button" id="btn-toggle-pitch" class="btn-text-action" title="เปิด/ปิดผังสนาม 2D">
-                <span>⚽ ผังสนาม</span>
+                <span>ผังสนาม</span>
                 <span id="pitch-toggle-icon">▼</span>
               </button>
             </div>
@@ -169,8 +171,17 @@
           </div>
         </div>
 
+        <div class="filter-group player-nationality-filter">
+          <label class="filter-label" for="filter-nationality">สัญชาติ</label>
+          <div class="range-inputs nationality-inputs">
+            <input type="text" id="filter-nationality" class="form-input" list="nationality-options"
+              placeholder="ทุกสัญชาติ" autocomplete="off" disabled>
+            <button type="button" id="clear-nationality" class="pos-btn" aria-label="ล้างตัวกรองสัญชาติ" disabled>×</button>
+          </div>
+          <datalist id="nationality-options"></datalist>
+        </div>
         <!-- Age Range -->
-        <div class="filter-group col-6 col-md-2 col-xl-3">
+        <div class="filter-group player-range-filter player-age-filter">
           <label class="filter-label">ช่วงอายุ: <span id="val-age" class="text-accent font-semibold">15 - 45</span> ปี</label>
           <div class="range-inputs">
             <input type="number" id="min-age" class="form-input num-input" value="15" min="15" max="45">
@@ -180,7 +191,7 @@
         </div>
 
         <!-- CA Range -->
-        <div class="filter-group col-6 col-md-3 col-xl-3">
+        <div class="filter-group player-range-filter">
           <label class="filter-label">ค่าพลังปัจจุบัน (CA): <span id="val-ca" class="text-accent font-semibold">1 - 200</span></label>
           <div class="range-inputs">
             <input type="number" id="min-ca" class="form-input num-input" value="1" min="1" max="200">
@@ -190,25 +201,13 @@
         </div>
 
         <!-- PA Range -->
-        <div class="filter-group col-6 col-md-3 col-xl-3">
+        <div class="filter-group player-range-filter">
           <label class="filter-label">ศักยภาพสูงสุด (PA): <span id="val-pa" class="text-accent font-semibold">1 - 200</span></label>
           <div class="range-inputs">
             <input type="number" id="min-pa" class="form-input num-input" value="1" min="1" max="200">
             <span class="text-muted">ถึง</span>
             <input type="number" id="max-pa" class="form-input num-input" value="200" min="1" max="200">
           </div>
-        </div>
-      </div>
-
-      <div class="row g-3 mt-0">
-        <div class="filter-group col-12 col-md-4 col-xl-3">
-          <label class="filter-label" for="filter-nationality">สัญชาติ</label>
-          <div class="range-inputs">
-            <input type="text" id="filter-nationality" class="form-input" list="nationality-options"
-              placeholder="ทุกสัญชาติ" autocomplete="off" disabled>
-            <button type="button" id="clear-nationality" class="pos-btn" aria-label="ล้างตัวกรองสัญชาติ" disabled>×</button>
-          </div>
-          <datalist id="nationality-options"></datalist>
         </div>
       </div>
 
@@ -356,6 +355,7 @@
           พบนักเตะทั้งหมด <span id="total-count" class="font-bold text-accent">0</span> คน 
           <span class="text-muted text-sm">(แสดงหน้า <span id="current-page">1</span> จาก <span id="total-pages">1</span>)</span>
           <div id="player-comparison-basis" class="text-muted text-sm">เทียบ CA กับรอบแรกที่พบนักเตะ</div>
+          <div id="active-nationality" class="text-muted text-sm" aria-live="polite"></div>
         </div>
 
         <div class="table-actions">
@@ -386,13 +386,13 @@
               <th data-sort="name" class="sortable col-name" title="ชื่อนักเตะและสัญชาติ">นักเตะ</th>
               <th data-sort="age" class="sortable text-center" title="อายุ (ปี)">อายุ</th>
               <th data-sort="pos" class="sortable text-center" title="ตำแหน่งที่เล่นได้">ตำแหน่ง</th>
-              <th data-sort="club" class="sortable" title="สโมสรปัจจุบัน">สโมสร</th>
+              <th data-sort="club" class="sortable player-table-secondary" title="สโมสรปัจจุบัน">สโมสร</th>
               <th data-sort="ca" class="sortable text-center active-sort desc" aria-sort="descending" title="Current Ability (ค่าพลังปัจจุบัน 1-200)">CA</th>
               <th data-sort="pa" class="sortable text-center" title="Potential Ability (ศักยภาพสูงสุด 1-200)">PA</th>
-              <th data-sort="trendScore" class="sortable text-center" title="แนวโน้มพัฒนาการประเมินจากอายุและช่องว่าง CA/PA">แนวโน้ม</th>
+              <th data-sort="trendScore" class="sortable text-center player-table-secondary" title="แนวโน้มพัฒนาการประเมินจากอายุและช่องว่าง CA/PA">แนวโน้ม</th>
               <th data-sort="growthPercent" class="sortable text-right" aria-describedby="player-comparison-basis">พัฒนาการ CA</th>
-              <th data-sort="value" class="sortable text-right" title="มูลค่าประเมินในตลาด">มูลค่า</th>
-              <th data-sort="wage" class="sortable text-right" title="ค่าเหนื่อยต่อสัปดาห์">ค่าเหนื่อย</th>
+              <th data-sort="value" class="sortable text-right player-table-secondary" title="มูลค่าประเมินในตลาด">มูลค่า</th>
+              <th data-sort="wage" class="sortable text-right player-table-secondary" title="ค่าเหนื่อยต่อสัปดาห์">ค่าเหนื่อย</th>
             </tr>
           </thead>
           <tbody id="table-body">
@@ -651,6 +651,10 @@
       </div>
 
       <div class="modal-body player-modal-details" tabindex="0" role="region" aria-label="ค่าพลังและสถิติแฝงนักเตะ">
+        <dl class="player-contract-details">
+          <div><dt>มูลค่า</dt><dd id="modal-value"></dd></div>
+          <div><dt>ค่าเหนื่อยต่อสัปดาห์</dt><dd id="modal-wage"></dd></div>
+        </dl>
         <!-- Attributes Grid -->
         <div class="modal-section">
           <h3 class="section-title">📊 ค่าพลังนักเตะ (Attributes)</h3>
@@ -760,6 +764,6 @@
   <div id="toast" class="toast" style="display:none;"></div>
 
   <script src="shortlist.js?v=1.0.13"></script>
-  <script src="app.js?v=1.0.15"></script>
+  <script src="app.js?v=1.0.16"></script>
 </body>
 </html>

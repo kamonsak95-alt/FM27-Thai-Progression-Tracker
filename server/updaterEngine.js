@@ -78,6 +78,12 @@ async function checkReleaseUpdate(currentVersion, request = fetch, installMode =
     const downloadUrl = asset
       ? assetUrl
       : `${RELEASES_URL}/tag/${release.tag_name}`;
+    const notes = typeof release.body === 'string' ? release.body.split(/\r?\n/)
+      .map(line => line.trim()
+        .replace(/^(?:#{1,6}|[-*+])\s+/, '')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/`([^`]+)`/g, '$1'))
+      .filter(Boolean) : [];
 
     return {
       ...base,
@@ -91,7 +97,7 @@ async function checkReleaseUpdate(currentVersion, request = fetch, installMode =
       ),
       assetDigest: asset?.digest,
       assetSize: asset?.size,
-      changes: release.name ? [release.name] : [],
+      changes: notes.length ? notes : (release.name ? [release.name] : []),
       message: hasUpdate ? `FM27 Tracker v${latestVersion} พร้อมดาวน์โหลด` : 'โปรแกรมเป็นเวอร์ชันล่าสุดแล้ว'
     };
   } catch (err) {
