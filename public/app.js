@@ -256,7 +256,9 @@ async function toggleShortlistStar(event, button) {
   pendingShortlistChanges.add(key);
   try {
     const legacy = shortlist.read(ref);
-    if (legacy.length) await requestShortlist(ref, { action: 'seed', ids: legacy });
+    if (!serverShortlists.has(ref) && legacy.length) {
+      await requestShortlist(ref, { action: 'seed', ids: legacy });
+    }
     const result = await requestShortlist(ref, { action: 'toggle', id: Number(playerId) });
     serverShortlists.set(ref, result.ids);
     const saved = result.ids.includes(Number(playerId));
@@ -560,10 +562,8 @@ function initEventListeners() {
       state[stateMaxKey] = max;
       valEl.textContent = `${min} - ${max}`;
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        state.page = 1;
-        loadPlayers();
-      }, 300);
+      state.page = 1;
+      loadPlayers();
     };
     minInput.addEventListener('change', update);
     maxInput.addEventListener('change', update);
@@ -1215,7 +1215,7 @@ async function loadPlayers() {
   if (state.preset === 'myclub') params.set('myClub', '1');
   try {
     const ref = state.refCode;
-    if (ref?.startsWith('#')) {
+    if (ref?.startsWith('#') && !serverShortlists.has(ref)) {
       try {
         let result = await requestShortlist(ref, null, request.signal);
         const legacy = shortlist.read(ref);
@@ -1239,7 +1239,10 @@ async function loadPlayers() {
 
     const nationalities = data.nationalities || [];
     nationalityInput.disabled = !nationalities.length;
-    nationalityOptions.replaceChildren(...nationalities.map(name => new Option(name)));
+    if (nationalities.length !== nationalityOptions.options.length ||
+        nationalities.some((name, index) => nationalityOptions.options[index].value !== name)) {
+      nationalityOptions.replaceChildren(...nationalities.map(name => new Option(name)));
+    }
     if (selectedNationality && !nationalities.includes(selectedNationality)) {
       selectedNationality = '';
       nationalityInput.value = '';
@@ -1478,6 +1481,8 @@ async function triggerScan() {
     const res = await fetch('/api/scan', { method: 'POST' });
     const data = await res.json();
     if (data.ok) {
+      playerListRequest?.abort();
+      serverShortlists.clear();
       const pCount = (data.playersCount || 0).toLocaleString();
       const sCount = (data.staffCount || 0).toLocaleString();
       const sec = (data.elapsed / 1000).toFixed(1);

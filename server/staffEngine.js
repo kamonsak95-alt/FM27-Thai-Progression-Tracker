@@ -409,8 +409,13 @@ function filterStaff(staffList, query = {}) {
 
   // Presets
   const preset = (query.preset || '').trim().toLowerCase();
+  const coachingRatings = new Map();
+  function coachingRating(staff) {
+    if (!coachingRatings.has(staff)) coachingRatings.set(staff, calculateCoachingRating(staff));
+    return coachingRatings.get(staff);
+  }
   if (preset === 'five_star') {
-    result = result.filter(s => calculateCoachingRating(s).stars >= 4.5);
+    result = result.filter(s => coachingRating(s).stars >= 4.5);
   } else if (preset === 'hoyd') {
     result = result.filter(s => (s.staffAttrs?.Jeugd || 0) >= 16 && (s.staffAttrs?.Oordeel_potentie || 0) >= 15);
   } else if (preset === 'diamond_scout' || preset === 'scout_elite') {
@@ -438,8 +443,8 @@ function filterStaff(staffList, query = {}) {
       va = a.worldRep || a.curRep || 0;
       vb = b.worldRep || b.curRep || 0;
     } else if (sortBy === 'coachStars') {
-      va = calculateCoachingRating(a).bestScore;
-      vb = calculateCoachingRating(b).bestScore;
+      va = coachingRating(a).bestScore;
+      vb = coachingRating(b).bestScore;
     } else if (sortBy === 'jpa') {
       va = a.staffAttrs?.Oordeel_vermogen || 0;
       vb = b.staffAttrs?.Oordeel_vermogen || 0;

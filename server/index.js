@@ -39,6 +39,7 @@ let shuttingDownForUpdate = false;
 
 // In-memory cache of current parsed dump
 let cachedDump = null;
+let cachedRefCode = null;
 let cachedPlayersWithDeltas = null;
 let currentBaselineDate = null;
 let currentSaveKey = null;
@@ -65,16 +66,16 @@ function getOrLoadDump() {
       if (!cachedDump.meta) cachedDump.meta = {};
       cachedDump.meta.scanId = cachedDump.meta.scanId || `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       syncDumpWithCareer(cachedDump);
+      cachedRefCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
     }
     // Auto-save snapshot whenever we have valid data (no manual confirmation needed)
     if (cachedDump?.meta?.gameDate && cachedDump?.players) {
-      const refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
       saveSnapshot(
         cachedDump.meta.gameDate,
         cachedDump.players,
         cachedDump.meta.manager,
         cachedDump.meta.myClub,
-        refCode,
+        cachedRefCode,
         cachedDump.staff
       );
     }
@@ -238,7 +239,7 @@ const server = http.createServer(async (req, res) => {
       } catch {}
     }
 
-    const refCode = dump?.meta ? computeSaveRefCode(dump.meta, dump.staff) : null;
+    const refCode = cachedRefCode;
     return sendJson(res, 200, {
       ...status,
       meta: dump?.meta || null,
@@ -256,27 +257,27 @@ const server = http.createServer(async (req, res) => {
       let refCode = null;
       if (result.ok) {
         cachedDump = getLatestDump();
+        cachedRefCode = null;
         cachedPlayersWithDeltas = null;
         if (cachedDump) {
           if (!cachedDump.meta) cachedDump.meta = {};
           cachedDump.meta.scanId = `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
           cachedDump.meta.gameDateConfirmed = false;
           syncDumpWithCareer(cachedDump);
+          cachedRefCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
         }
         // Auto-save snapshot after every scan (no manual confirmation needed)
         if (cachedDump?.meta?.gameDate && cachedDump?.players) {
-          refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
           saveSnapshot(
             cachedDump.meta.gameDate,
             cachedDump.players,
             cachedDump.meta.manager,
             cachedDump.meta.myClub,
-            refCode,
+            cachedRefCode,
             cachedDump.staff
           );
-        } else if (cachedDump?.meta) {
-          refCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
         }
+        refCode = cachedRefCode;
       }
       sendJson(res, result.ok ? 200 : 500, {
         ...result,
@@ -291,7 +292,7 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/snapshots') {
     const dump = getOrLoadDump();
-    const refCode = dump?.meta ? computeSaveRefCode(dump.meta, dump.staff) : null;
+    const refCode = cachedRefCode;
     return sendJson(res, 200, { snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode) });
   }
 
@@ -319,7 +320,7 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 404, { ok: false, error: 'NO_DUMP', message: 'ไม่พบข้อมูลการสแกนในระบบ' });
         }
 
-        const activeRefCode = computeSaveRefCode(dump.meta, dump.staff);
+        const activeRefCode = cachedRefCode;
 
         // Verification: ensure confirmation matches the active scan round and save
         if (scanId !== dump.meta.scanId) {
@@ -349,6 +350,7 @@ const server = http.createServer(async (req, res) => {
         );
 
         cachedPlayersWithDeltas = null;
+        cachedRefCode = computeSaveRefCode(dump.meta, dump.staff);
 
         sendJson(res, 200, {
           ok: true,
@@ -394,7 +396,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     const baselineDate = query.baseline || '';
-    const refCode = computeSaveRefCode(dump.meta, dump.staff);
+    const refCode = cachedRefCode;
     const activeSaveKey = refCode || `${dump.meta?.manager || ''}__${dump.meta?.myClub || ''}`;
     if (baselineDate !== currentBaselineDate || activeSaveKey !== currentSaveKey || !cachedPlayersWithDeltas) {
       currentBaselineDate = baselineDate;
@@ -576,7 +578,7 @@ const server = http.createServer(async (req, res) => {
     const previousAttributes = decodeSnapshotAttributes(baseline?.previousAttributeValues);
     return sendJson(res, 200, {
       player,
-      refCode: computeSaveRefCode(dump.meta, dump.staff),
+      refCode: cachedRefCode,
       trend: predictDevelopmentTrend(player, 0),
       previousAttributes,
       attributeBaselineDate: previousAttributes ? (baseline.attributeBaselineDate || currentBaselineDate) : null

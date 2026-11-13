@@ -9,7 +9,7 @@ test('nationality options come from the save and match either nationality before
   const scanner = path.join(dir, 'FMSuperScout');
   fs.mkdirSync(scanner);
   fs.writeFileSync(path.join(scanner, 'dump.json'), JSON.stringify({
-    meta: { game: 'FM27' },
+    meta: { game: 'FM27', manager: 'Test Manager', myClub: 'Test Club' },
     players: [
       { id: 1, name: 'Dual', nat: ['Portugal', 'Brazil'], age: 18, ca: 80, pa: 160, pos: 'MC' },
       { id: 2, name: 'Veteran', nat: ' Brazil ', age: 30, ca: 90, pa: 155, pos: 'MC' },
@@ -20,6 +20,7 @@ test('nationality options come from the save and match either nationality before
   }));
   process.env.LOCALAPPDATA = dir;
   process.env.FM27_HISTORY_FILE = path.join(dir, 'history.json');
+  fs.writeFileSync(process.env.FM27_HISTORY_FILE, '{"careers":[],"snapshots":[]}');
   const server = require('../server/index');
   t.after(async () => {
     await new Promise(resolve => server.close(resolve));
@@ -34,4 +35,11 @@ test('nationality options come from the save and match either nationality before
   assert.equal(filtered.page, 1);
   assert.equal((await get('?nationality=BRA')).total, 0);
   assert.equal((await get('')).total, 5);
+
+  const readFile = fs.readFileSync;
+  const reads = t.mock.method(fs, 'readFileSync', (file, ...args) => readFile(file, ...args));
+  const sorted = await get('?sort=pa');
+  const detail = await (await fetch(url.replace('/players', '/player/1'))).json();
+  assert.equal(detail.refCode, sorted.refCode);
+  assert.equal(reads.mock.calls.filter(call => call.arguments[0] === process.env.FM27_HISTORY_FILE).length, 0);
 });
