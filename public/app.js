@@ -14,7 +14,7 @@ let state = {
   preset: 'all',
   trend: '',
   baseline: '',
-  sort: 'growthPercent',
+  sort: 'ca',
   order: 'desc',
   page: 1,
   limit: 50,
@@ -549,7 +549,7 @@ function initEventListeners() {
   });
 
   // Table Column Sort
-  document.querySelectorAll('th.sortable').forEach(th => {
+  document.querySelectorAll('#players-table th[data-sort]').forEach(th => {
     th.addEventListener('click', () => {
       const sortKey = th.dataset.sort;
       if (state.sort === sortKey) {
@@ -559,10 +559,7 @@ function initEventListeners() {
         state.order = (sortKey === 'name' || sortKey === 'club') ? 'asc' : 'desc';
       }
 
-      document.querySelectorAll('th.sortable').forEach(t => {
-        t.classList.remove('active-sort', 'asc', 'desc');
-      });
-      th.classList.add('active-sort', state.order);
+      updatePlayerSortHeaders();
 
       state.page = 1;
       loadPlayers();
@@ -838,6 +835,19 @@ function initEventListeners() {
   }
 }
 
+function updatePlayerSortHeaders() {
+  document.querySelectorAll('#players-table th[data-sort]').forEach(th => {
+    const active = th.dataset.sort === state.sort;
+    th.classList.remove('active-sort', 'asc', 'desc');
+    if (active) {
+      th.classList.add('active-sort', state.order);
+      th.setAttribute('aria-sort', state.order === 'asc' ? 'ascending' : 'descending');
+    } else {
+      th.removeAttribute('aria-sort');
+    }
+  });
+}
+
 function applyPreset(preset) {
   const leavingWonderkids = state.preset === 'wonderkids' && preset !== 'wonderkids';
   state.preset = preset;
@@ -851,6 +861,8 @@ function applyPreset(preset) {
   } else if (preset === 'wonderkids') {
     state.minAge = 15; state.maxAge = 21;
     state.minPA = 150; state.maxPA = 200;
+    state.sort = 'pa';
+    state.order = 'desc';
   } else if (preset === 'explosive') {
     state.trend = 'explosive';
   } else if (preset === 'declining') {
@@ -859,6 +871,7 @@ function applyPreset(preset) {
     state.sort = 'growthPercent';
     state.order = 'desc';
   }
+  updatePlayerSortHeaders();
   for (const field of ['minAge', 'maxAge', 'minCA', 'maxCA', 'minPA', 'maxPA']) {
     el[field].value = state[field];
   }
