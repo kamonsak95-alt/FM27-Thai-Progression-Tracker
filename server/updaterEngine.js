@@ -171,7 +171,7 @@ async function applyUpdate() {
   }
 
   try {
-    const pullOut = await execPromise('git pull origin main');
+    const pullOut = await execPromise('git pull --ff-only origin main');
     const newCommit = await getLocalCommit();
     return {
       ok: true,
@@ -180,6 +180,12 @@ async function applyUpdate() {
       message: 'อัปเดตไฟล์เรียบร้อยแล้ว'
     };
   } catch (err) {
+    if (/would be overwritten|local changes|untracked working tree files/i.test(err.message)) {
+      return {
+        ok: false,
+        error: 'โฟลเดอร์นี้มีไฟล์ที่แก้ไว้และชนกับอัปเดต กรุณาเก็บงานก่อนอัปเดต'
+      };
+    }
     return {
       ok: false,
       error: `การอัปเดตล้มเหลว: ${err.message}`

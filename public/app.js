@@ -1180,7 +1180,6 @@ async function loadPlayers() {
       ? `เทียบ CA กับรอบ ${formatGameDate(comparisonDate)}`
       : 'เทียบ CA กับรอบแรกที่พบนักเตะ';
     renderTable(data.players || [], comparisonDate, data.refCode);
-    renderTable(data.players || [], comparisonDate, data.refCode, agesUnreliable);
   } catch (err) {
     if (request.signal.aborted) return;
     console.error('Failed to load players:', err);
@@ -1681,18 +1680,15 @@ async function applyUpdate() {
 
   try {
     const res = await fetch('/api/apply-update', { method: 'POST' });
-    if (!res.ok) {
-      throw new Error('เซิร์ฟเวอร์ในเครื่องยังเป็นเวอร์ชันเดิม กรุณาปิดแล้วเปิดโปรแกรมใหม่');
-    }
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
 
-    if (data.ok) {
+    if (res.ok && data?.ok) {
       showToast('✅ อัปเดตไฟล์สำเร็จเรียบร้อยแล้ว! กำลังรีโหลดหน้าต่างโปรแกรมใน 2 วินาที...');
       setTimeout(() => {
         window.location.reload();
       }, 2000);
     } else {
-      showToast(`❌ การอัปเดตล้มเหลว: ${data.error}`, true);
+      showToast(data?.error || `❌ อัปเดตไม่สำเร็จ (HTTP ${res.status})`, true);
       el.btnApplyUpdate.disabled = false;
       el.btnApplyUpdate.textContent = 'ลองใหม่อีกครั้ง';
     }
