@@ -904,6 +904,28 @@ body {
   overflow-wrap: anywhere;
 }
 
+#staff-table {
+  table-layout: fixed;
+  min-width: 1080px;
+}
+
+.staff-col-name { width: 17%; }
+.staff-col-role { width: 20%; }
+.staff-col-club { width: 14%; }
+.staff-col-rating { width: 5%; }
+.staff-col-skills { width: 12%; }
+.staff-col-wage { width: 9%; }
+.staff-col-reputation { width: 13%; }
+
+#staff-table td,
+#staff-table .badge-role {
+  overflow-wrap: anywhere;
+}
+
+#staff-table .badge-role {
+  white-space: normal;
+}
+
 .data-table thead {
   background: #19293e;
 }
