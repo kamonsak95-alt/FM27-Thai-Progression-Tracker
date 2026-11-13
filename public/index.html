@@ -43,10 +43,10 @@
             <span class="pill-label">สโมสร:</span>
             <span class="pill-value text-accent" id="info-club">กำลังโหลด...</span>
           </div>
-          <div class="info-pill" id="date-badge" title="คลิกเพื่อแก้ไขวันที่ในกรณีที่รู้ว่าเกมเดินไปแล้ว">
-            <span class="pill-label">วันที่ยืนยันได้ล่าสุด:</span>
+          <div class="info-pill" id="date-badge">
+            <span class="pill-label">วันที่ในเกม:</span>
             <span class="pill-value text-green" id="info-date">กำลังโหลด...</span>
-            <span class="date-disclaimer-icon" id="date-disclaimer" style="display:none;" title="วันที่ที่ Tracker อ่านได้จาก FM27 ล่าสุด อาจไม่ตรงกับวันจริงในเกมเนื่องจากข้อจำกัดในการตรวจสอบวันที่">ℹ️</span>
+            <span class="date-disclaimer-icon" id="date-disclaimer" style="display:none;" title="วันที่นี้เป็นค่าประมาณจากระบบและอาจไม่ตรงกับวันที่ในเกม ค่าประมาณนี้ไม่มีผลต่อค่า CA/PA ปัจจุบันที่อ่านจากเกม">ℹ️</span>
           </div>
           <button id="btn-scan" class="btn btn-primary" title="โหลดข้อมูลล่าสุดจากเกม FM27 ที่กำลังเปิดอยู่ (ตรวจจับเซฟอัตโนมัติ)">
             <span id="btn-scan-text">โหลดข้อมูลเกม (FM27)</span>
@@ -736,7 +736,7 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="shortlist.js"></script>
-  <script src="app.js?v=1.1.16"></script>
+  <script src="shortlist.js?v=1.0.7"></script>
+  <script src="app.js?v=1.0.7"></script>
 </body>
 </html>

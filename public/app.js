@@ -975,72 +975,14 @@ async function loadStatus() {
       state.scanId = data.meta.scanId || '';
       state.refCode = data.refCode || '';
       el.infoClub.textContent = state.myClub;
-      el.infoDate.textContent = state.gameDate || 'ไม่ทราบวันที่';
-      if (el.infoManager) {
-        el.infoManager.textContent = data.meta.manager || 'ไม่ระบุ';
-      }
+      el.infoDate.textContent = formatGameDate(state.gameDate) || 'ไม่ทราบวันที่';
+      if (el.infoManager) el.infoManager.textContent = data.meta.manager || 'ไม่ระบุ';
 
       const dateBadgeEl = document.getElementById('date-badge');
-      const disclaimerEl = document.getElementById('date-disclaimer');
-      if (dateBadgeEl) {
-        const isEstimated = data.meta.gameDateEstimated === true;
-        const noHistory = data.meta.dateStatus === 'estimated_no_history';
-
-        // Show/hide disclaimer icon
-        if (disclaimerEl) {
-          if (isEstimated) {
-            disclaimerEl.style.display = 'inline';
-            if (noHistory) {
-              disclaimerEl.title = 'วันที่ที่ Tracker อ่านได้จาก FM27 ล่าสุด อาจไม่ตรงกับวันจริงในเกมเนื่องจากข้อจำกัดในการตรวจสอบวันที่ (ยังไม่มีวันที่ยืนยันก่อนหน้า — ลองกดโหลดข้อมูลหลังจากเกมเริ่มซีซันจริง)';
-            } else {
-              disclaimerEl.title = 'วันที่ที่ Tracker อ่านได้จาก FM27 ล่าสุด อาจไม่ตรงกับวันจริงในเกมเนื่องจากข้อจำกัดในการตรวจสอบวันที่';
-            }
-          } else {
-            disclaimerEl.style.display = 'none';
-          }
-        }
-
-        dateBadgeEl.style.outline = 'none';
-        dateBadgeEl.title = isEstimated
-          ? `วันที่ยืนยันได้ล่าสุด: ${state.gameDate} — คลิกเพื่อแก้ไขหากรู้ว่าเกมเดินไปแล้ว`
-          : `วันที่ในเกม: ${state.gameDate} — คลิกเพื่อแก้ไข`;
-
-        if (!dateBadgeEl._boundClick) {
-          dateBadgeEl._boundClick = true;
-          dateBadgeEl.style.cursor = 'pointer';
-          dateBadgeEl.addEventListener('click', async () => {
-            const defaultPrompt = state.gameDate;
-            const input = prompt('ระบุวันที่ในเกม FM27 (รูปแบบ YYYY-MM-DD)\nดูจากมุมบนซ้ายของหน้าจอเกม:', defaultPrompt);
-            if (!input) return;
-            const trimmed = input.trim();
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-              alert('กรุณาระบุวันที่ในรูปแบบ YYYY-MM-DD (เช่น 2026-07-13)');
-              return;
-            }
-            try {
-              const res = await fetch('/api/confirm-date', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  gameDate: trimmed,
-                  scanId: state.scanId,
-                  refCode: state.refCode
-                })
-              });
-              const result = await res.json();
-              if (res.ok && result.ok) {
-                showToast(`✅ อัปเดตวันที่เป็น ${trimmed} และบันทึกประวัติเรียบร้อยแล้ว`);
-                await loadStatus();
-                await loadPlayers();
-              } else {
-                showToast(`❌ ${result.message || result.error || 'ไม่สามารถอัปเดตวันที่ได้'}`, true);
-              }
-            } catch (err) {
-              showToast(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ${err.message}`, true);
-            }
-          });
-        }
-      }
+      const isEstimated = data.meta.gameDateEstimated === true || data.meta.gameDateSource === 'derived';
+      dateBadgeEl.querySelector('.pill-label').textContent = isEstimated
+        ? 'วันที่ในเกม (ประมาณ):' : 'วันที่ในเกม:';
+      document.getElementById('date-disclaimer').style.display = isEstimated ? 'inline' : 'none';
     }
 
     if (el.infoSave) {
@@ -1051,9 +993,9 @@ async function loadStatus() {
     if (el.infoBaseline) {
       if (data.snapshots && data.snapshots.length > 1) {
         const earliest = data.snapshots[0].gameDate;
-        el.infoBaseline.textContent = `${earliest} (วันเริ่มบันทึกข้อมูล)`;
+        el.infoBaseline.textContent = `${formatGameDate(earliest)} (วันเริ่มบันทึกข้อมูล)`;
       } else if (data.snapshots && data.snapshots.length === 1) {
-        el.infoBaseline.textContent = `รอบแรก (${data.snapshots[0].gameDate})`;
+        el.infoBaseline.textContent = `รอบแรก (${formatGameDate(data.snapshots[0].gameDate)})`;
       } else {
         el.infoBaseline.textContent = 'จุดเริ่มอาชีพ';
       }
@@ -1067,7 +1009,7 @@ async function loadStatus() {
           const opt = document.createElement('option');
           opt.value = snap.gameDate;
           const isCurrent = snap.gameDate === state.gameDate;
-          opt.textContent = `${snap.gameDate} (${snap.totalPlayers.toLocaleString()} คน)${isCurrent ? ' [รอบปัจจุบัน]' : ''}`;
+          opt.textContent = `${formatGameDate(snap.gameDate)} (${snap.totalPlayers.toLocaleString()} คน)${isCurrent ? ' [รอบปัจจุบัน]' : ''}`;
           if (data.snapshots.length > 1 && idx === 0) {
             opt.selected = true;
             state.baseline = snap.gameDate;
@@ -1090,6 +1032,11 @@ async function loadStatus() {
   }
 }
 
+function formatGameDate(date) {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || '');
+  return parts ? `${parts[3]}/${parts[2]}/${parts[1]}` : '';
+}
+
 function updateComparisonSummary() {
   if (!el.comparisonSummary) return;
   if (!state.baseline) {
@@ -1097,9 +1044,9 @@ function updateComparisonSummary() {
     return;
   }
   if (state.baseline === state.gameDate) {
-    el.comparisonSummary.innerHTML = `กำลังเปรียบเทียบกับรอบปัจจุบัน (<span class="text-accent font-semibold">${state.baseline}</span>)`;
+    el.comparisonSummary.innerHTML = `กำลังเปรียบเทียบกับรอบปัจจุบัน (<span class="text-accent font-semibold">${formatGameDate(state.baseline)}</span>)`;
   } else {
-    el.comparisonSummary.innerHTML = `กำลังเปรียบเทียบพัฒนาการ: <span class="text-accent font-semibold">${state.baseline}</span> ➔ <span class="text-green font-semibold">${state.gameDate}</span>`;
+    el.comparisonSummary.innerHTML = `กำลังเปรียบเทียบพัฒนาการ: <span class="text-accent font-semibold">${formatGameDate(state.baseline)}</span> ➔ <span class="text-green font-semibold">${formatGameDate(state.gameDate)}</span>`;
   }
 }
 
@@ -1230,7 +1177,7 @@ async function loadPlayers() {
 
     const comparisonDate = data.baselineDate && data.baselineDate !== state.gameDate ? data.baselineDate : '';
     document.getElementById('player-comparison-basis').textContent = comparisonDate
-      ? `เทียบ CA กับรอบ ${comparisonDate}`
+      ? `เทียบ CA กับรอบ ${formatGameDate(comparisonDate)}`
       : 'เทียบ CA กับรอบแรกที่พบนักเตะ';
     renderTable(data.players || [], comparisonDate, data.refCode);
     renderTable(data.players || [], comparisonDate, data.refCode, agesUnreliable);
@@ -1259,7 +1206,7 @@ function renderTable(players, comparisonDate, refCode) {
   const savedIds = new Set(readShortlist(refCode));
   const rows = players.map(p => {
     const originDate = comparisonDate || p.firstSeenDate || '';
-    const originLabel = escapeHtml(originDate || 'รอบแรกที่พบ');
+    const originLabel = formatGameDate(originDate) || 'รอบแรกที่พบ';
     let growthBadge = '';
     if (p.isFirstScan) {
       growthBadge = `<span class="badge badge-growth-neutral text-muted" title="สแกนครั้งแรก (ยังไม่มีประวัติรอบเปรียบเทียบ)">- (รอบแรก)</span>`;
@@ -1353,7 +1300,7 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
       progression.dataset.direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
       document.getElementById('modal-ca-range').textContent = `${previousCA} → ${player.ca}`;
       document.getElementById('modal-ca-basis').textContent = comparisonDate
-        ? `เทียบกับรอบ ${comparisonDate}`
+        ? `เทียบกับรอบ ${formatGameDate(comparisonDate)}`
         : 'เทียบกับรอบแรกที่พบ';
       const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
       const percentage = ((Math.abs(delta) / previousCA) * 100).toFixed(2);
@@ -1374,7 +1321,7 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
     // Render Attributes
     const attrs = player.attrs || {};
     document.getElementById('modal-attribute-baseline').textContent = attributeBaselineDate
-      ? `เทียบค่าพลังรายช่องกับรอบ ${attributeBaselineDate}`
+      ? `เทียบค่าพลังรายช่องกับรอบ ${formatGameDate(attributeBaselineDate)}`
       : 'ยังไม่มีค่าพลังรายช่องจากรอบก่อนหน้าให้เปรียบเทียบ';
     const attrsGrid = document.getElementById('modal-attrs-grid');
     attrsGrid.innerHTML = Object.entries(ATTR_GROUPS).map(([catName, list]) => {

@@ -876,35 +876,24 @@ test('P1 Regression Control Case 2: phantom date without prior history — auto-
   }
 });
 
-test('P1 Regression: both careers retain their original snapshots and remain isolated as history grows', () => {
-  const { loadHistoryStore, listSnapshots } = require('../server/historyEngine');
+test('Career history stays isolated as new snapshots are added', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fm27-career-history-'));
+  process.env.FM27_HISTORY_FILE = path.join(dir, 'history.json');
+  t.after(() => {
+    delete process.env.FM27_HISTORY_FILE;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
 
-  // Verify real store integrity
-  const store = loadHistoryStore();
-  assert.ok(Array.isArray(store.careers), 'Store must have careers array');
-  assert.ok(Array.isArray(store.snapshots), 'Store must have snapshots array');
+  const { saveSnapshot, listSnapshots } = require('../server/historyEngine');
+  const manager = 'Test Manager';
+  const club = 'Test Club';
+  const dates = ref => listSnapshots(manager, club, ref).map(s => s.gameDate);
+  const save = (date, ref, id) => saveSnapshot(date, [{ id, ca: 55 }], manager, club, ref,
+    [{ name: manager, job: 'Manager', id }]);
 
-  // Check Save 1 #MU-55649B snapshots
-  const snaps1 = listSnapshots('MY Mind', 'Manchester United', '#MU-55649B');
-  const expectedDates1 = [
-    '2026-11-07',
-    '2026-11-21',
-    '2026-11-25',
-    '2026-11-28',
-    '2026-11-29',
-    '2026-12-01'
-  ];
-  const dates1 = new Set(snaps1.map(s => s.gameDate));
-  assert.ok(expectedDates1.every(date => dates1.has(date)), 'Original dates must be preserved');
-
-  // Check Save 2 #MU-556432 snapshots
-  const snaps2 = listSnapshots('MY Mind', 'Manchester United', '#MU-556432');
-  assert.strictEqual(snaps2.filter(s => s.gameDate === '2026-07-13').length, 1);
-
-  // Verify no snapshot bleeding between careers
-  const snap1Ids = new Set(snaps1.map(s => s.id));
-  const snap2Ids = new Set(snaps2.map(s => s.id));
-  for (const id of snap1Ids) {
-    assert.strictEqual(snap2Ids.has(id), false, 'Snapshots must not bleed between Save 1 and Save 2');
-  }
+  save('2026-07-13', '#TC-000001', 1);
+  save('2026-07-13', '#TC-000002', 2);
+  save('2026-07-16', '#TC-000001', 1);
+  assert.deepStrictEqual(dates('#TC-000001'), ['2026-07-13', '2026-07-16']);
+  assert.deepStrictEqual(dates('#TC-000002'), ['2026-07-13']);
 });
