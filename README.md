@@ -6,6 +6,19 @@
 
 ---
 
+## ดูฟีเจอร์จากหน้าจอจริง
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/promo/player-search-thai-readme.webp" alt="ค้นหานักเตะ" width="100%"><br><strong>ค้นหานักเตะ</strong><br>กรองตามตำแหน่ง อายุ และค่าพลัง CA / PA เพื่อหานักเตะที่ตรงกับทีม</td>
+<td width="50%" valign="top"><img src="docs/promo/shortlist-thai-readme.webp" alt="Shortlist แยกตามเซฟ" width="100%"><br><strong>Shortlist แยกตามเซฟ</strong><br>กดดาวเก็บนักเตะที่สนใจ แล้วเปิดดูรายชื่อของเซฟนั้นได้ทันที</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/promo/ca-progression-thai-readme.webp" alt="ติดตามพัฒนาการ CA" width="100%"><br><strong>ติดตามพัฒนาการ CA</strong><br>ดูค่าพลังปัจจุบันและส่วนต่างจากรอบแรกที่ Tracker พบนักเตะคนนั้น</td>
+<td width="50%" valign="top"><img src="docs/promo/staff-scout-thai-readme.webp" alt="ส่องทีมงาน" width="100%"><br><strong>ส่องทีมงาน</strong><br>ค้นหาโค้ช แมวมอง และทีมแพทย์ตามตำแหน่ง ทักษะ หรือสถานะว่างงาน</td>
+</tr>
+</table>
+
 ## 🌟 ฟีเจอร์หลัก (Key Features)
 
 ### 1. 📈 ระบบติดตามพัฒนาการนักเตะ (Player Progression Tracking)
