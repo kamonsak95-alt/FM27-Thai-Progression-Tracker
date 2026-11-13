@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.17">
+  <link rel="stylesheet" href="style.css?v=1.0.18">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -115,6 +115,7 @@
           <button class="pill-btn" data-preset="declining">เริ่มถดถอย</button>
           <button class="pill-btn" data-preset="myclub">นักเตะทีมเรา</button>
           <button class="pill-btn" data-preset="growth">พัฒนาการสูงสุด</button>
+          <button class="pill-btn" data-preset="shortlist">Shortlist</button>
         </div>
       </div>
 
@@ -578,6 +579,7 @@
           <div class="player-headline">
             <div class="modal-name-row">
               <h2 id="modal-name" class="modal-player-name">Player Name</h2>
+              <button type="button" id="modal-shortlist" class="shortlist-star" hidden></button>
               <span id="modal-player-id" class="modal-player-id" hidden></span>
               <button type="button" id="btn-copy-player-name" class="btn-copy-name" title="คัดลอกชื่อนักเตะเพื่อนำไปค้นหาในเกม FM27">
                 <span class="copy-icon">📋</span>
@@ -734,6 +736,7 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
-  <script src="app.js?v=1.1.12"></script>
+  <script src="shortlist.js"></script>
+  <script src="app.js?v=1.1.16"></script>
 </body>
 </html>

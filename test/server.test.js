@@ -34,6 +34,17 @@ test('Server responds to /api/status and /api/players', async () => {
     assert.ok('firstSeenDate' in playersRes.body.players[0], 'Must include firstSeenDate field');
 
     const player = playersRes.body.players[0];
+    if (statusRes.body.refCode?.startsWith('#')) {
+      const shortlist = new URLSearchParams({
+        shortlistRef: statusRes.body.refCode, shortlistIds: String(player.id), page: '2'
+      });
+      const saved = await get(`/api/players?${shortlist}`);
+      assert.deepStrictEqual(saved.body.players.map(p => p.id), [player.id]);
+      assert.strictEqual(saved.body.page, 1);
+      shortlist.set('shortlistRef', '#OTHER-SAVE');
+      const other = await get(`/api/players?${shortlist}`);
+      assert.deepStrictEqual(other.body.players, []);
+    }
     const detailRes = await get(`/api/player/${player.id}`);
     assert.strictEqual(detailRes.status, 200);
     assert.strictEqual(detailRes.body.player.id, player.id);

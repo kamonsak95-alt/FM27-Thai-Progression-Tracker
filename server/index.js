@@ -379,6 +379,13 @@ const server = http.createServer(async (req, res) => {
 
     let result = cachedPlayersWithDeltas;
 
+    if (query.shortlistRef !== undefined) {
+      const ids = new Set((query.shortlistIds || '').split(',').filter(id => /^[1-9]\d*$/.test(id)).map(Number));
+      result = refCode.startsWith('#') && query.shortlistRef === refCode
+        ? result.filter(player => ids.has(Number(player.id)))
+        : [];
+    }
+
     // Filter by name
     const q = (query.q || '').trim().toLowerCase();
     if (q) {
@@ -454,8 +461,8 @@ const server = http.createServer(async (req, res) => {
     });
 
     const totalCount = result.length;
-    const page = Math.max(1, parseInt(query.page, 10) || 1);
     const limit = Math.min(200, Math.max(10, parseInt(query.limit, 10) || 50));
+    const page = Math.min(Math.max(1, Math.ceil(totalCount / limit)), Math.max(1, parseInt(query.page, 10) || 1));
     const offset = (page - 1) * limit;
 
     const paginated = result.slice(offset, offset + limit).map(p => ({
@@ -485,6 +492,7 @@ const server = http.createServer(async (req, res) => {
 
     return sendJson(res, 200, {
       meta: dump.meta,
+      refCode,
       total: totalCount,
       page,
       limit,
@@ -507,6 +515,7 @@ const server = http.createServer(async (req, res) => {
     const previousAttributes = decodeSnapshotAttributes(baseline?.previousAttributeValues);
     return sendJson(res, 200, {
       player,
+      refCode: computeSaveRefCode(dump.meta, dump.staff),
       trend: predictDevelopmentTrend(player, 0),
       previousAttributes,
       attributeBaselineDate: previousAttributes ? (baseline.attributeBaselineDate || currentBaselineDate) : null

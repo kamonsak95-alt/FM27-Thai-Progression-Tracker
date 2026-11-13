@@ -354,6 +354,38 @@ body {
   color: #b5d0ef;
 }
 
+.shortlist-star {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.shortlist-star:hover,
+.shortlist-star:focus-visible {
+  border-color: var(--border-highlight);
+}
+
+.shortlist-star[aria-pressed="true"] {
+  color: var(--stat-orange);
+}
+
+.shortlist-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shortlist-name .player-name-cell {
+  min-width: 0;
+}
+
 .filter-grid {
   margin-top: 0;
   border-top: 1px solid var(--border-color);

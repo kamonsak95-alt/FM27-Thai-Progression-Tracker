@@ -208,6 +208,44 @@ const el = {
 let latestUpdateData = null;
 let currentPlayerName = '';
 let currentStaffName = '';
+const shortlist = createShortlist({
+  getItem: key => localStorage.getItem(key),
+  setItem: (key, value) => localStorage.setItem(key, value)
+});
+
+function readShortlist(ref) {
+  try {
+    return shortlist.read(ref);
+  } catch {
+    return [];
+  }
+}
+
+function setShortlistStar(button, saved) {
+  const label = saved ? 'นำออกจาก Shortlist' : 'เพิ่มใน Shortlist';
+  button.textContent = saved ? '★' : '☆';
+  button.setAttribute('aria-pressed', String(saved));
+  button.setAttribute('aria-label', label);
+  button.title = label;
+}
+
+function toggleShortlistStar(event, button) {
+  event.stopPropagation();
+  const { ref, playerId } = button.dataset;
+  if (!ref || ref !== state.refCode || el.btnScan.disabled) {
+    showToast('รอให้ Tracker โหลดข้อมูลเซฟปัจจุบันก่อน', true);
+    return;
+  }
+  try {
+    const saved = shortlist.toggle(ref, Number(playerId));
+    document.querySelectorAll('.shortlist-star[data-player-id]').forEach(star => {
+      if (star.dataset.ref === ref && star.dataset.playerId === playerId) setShortlistStar(star, saved);
+    });
+    if (state.preset === 'shortlist') loadPlayers();
+  } catch {
+    showToast('บันทึก Shortlist ในเบราว์เซอร์ไม่สำเร็จ', true);
+  }
+}
 let playerListRequest;
 let staffListRequest;
 
@@ -218,8 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (group) button.dataset.positionGroup = group;
   });
   initEventListeners();
-  loadStatus();
-  loadPlayers();
+  loadStatus().then(loadPlayers);
   checkForUpdates(true); // check quietly in background
   setInterval(() => {
     if (latestUpdateData?.isGit === true) checkForUpdates(true);
@@ -1152,6 +1189,10 @@ async function loadPlayers() {
   if (state.natOnly) params.set('natOnly', '1');
   if (state.preset === 'wonderkids') params.set('wonderkids', '1');
   if (state.preset === 'myclub') params.set('myClub', '1');
+  if (state.preset === 'shortlist') {
+    params.set('shortlistRef', state.refCode || '');
+    params.set('shortlistIds', readShortlist(state.refCode).join(','));
+  }
 
   try {
     const res = await fetch(`/api/players?${params.toString()}`, { signal: request.signal });
@@ -1178,7 +1219,8 @@ async function loadPlayers() {
     document.getElementById('player-comparison-basis').textContent = comparisonDate
       ? `เทียบ CA กับรอบ ${comparisonDate}`
       : 'เทียบ CA กับรอบแรกที่พบนักเตะ';
-    renderTable(data.players || [], comparisonDate);
+    renderTable(data.players || [], comparisonDate, data.refCode);
+    renderTable(data.players || [], comparisonDate, data.refCode, agesUnreliable);
   } catch (err) {
     if (request.signal.aborted) return;
     console.error('Failed to load players:', err);
@@ -1191,12 +1233,17 @@ async function loadPlayers() {
   }
 }
 
-function renderTable(players, comparisonDate) {
+function renderTable(players, comparisonDate, refCode) {
   if (players.length === 0) {
-    el.tableBody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-muted">ไม่พบข้อมูลนักเตะที่ตรงกับเงื่อนไข</td></tr>`;
+    const message = state.preset === 'shortlist' && !readShortlist(refCode).length
+      ? 'ยังไม่มีนักเตะใน Shortlist ของเซฟนี้ กดดาวข้างชื่อนักเตะเพื่อเพิ่ม'
+      : 'ไม่พบข้อมูลนักเตะที่ตรงกับเงื่อนไข';
+    el.tableBody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-muted">${message}</td></tr>`;
     return;
   }
 
+  const canSave = refCode?.startsWith('#');
+  const savedIds = new Set(readShortlist(refCode));
   const rows = players.map(p => {
     const originDate = comparisonDate || p.firstSeenDate || '';
     const originLabel = escapeHtml(originDate || 'รอบแรกที่พบ');
@@ -1226,11 +1273,14 @@ function renderTable(players, comparisonDate) {
     const natStr = Array.isArray(p.nat) ? p.nat.join(', ') : (p.nat || '-');
 
     return `
-      <tr data-comparison-date="${escapeHtml(originDate)}" onclick="openPlayerModal(${p.id}, ${Number.isFinite(p.prevCA) ? p.prevCA : 'null'}, this.dataset.comparisonDate)">
+      <tr data-ref="${escapeHtml(refCode || '')}" data-comparison-date="${escapeHtml(originDate)}" onclick="openPlayerModal(${p.id}, ${Number.isFinite(p.prevCA) ? p.prevCA : 'null'}, this.dataset.comparisonDate, this.dataset.ref)">
         <td class="col-name sticky-col">
-          <div class="player-name-cell">
-            <button type="button" class="player-name player-name-button">${escapeHtml(p.name)}</button>
-            <span class="nat-badge text-muted text-xs">${escapeHtml(natStr)}</span>
+          <div class="shortlist-name">
+            ${canSave ? `<button type="button" class="shortlist-star" data-player-id="${Number(p.id)}" data-ref="${escapeHtml(refCode)}" onclick="toggleShortlistStar(event, this)"></button>` : ''}
+            <div class="player-name-cell">
+              <button type="button" class="player-name player-name-button">${escapeHtml(p.name)}</button>
+              <span class="nat-badge text-muted text-xs">${escapeHtml(natStr)}</span>
+            </div>
           </div>
         </td>
         <td class="text-center font-medium">${p.age}</td>
@@ -1247,13 +1297,23 @@ function renderTable(players, comparisonDate) {
   });
 
   el.tableBody.innerHTML = rows.join('');
+  el.tableBody.querySelectorAll('.shortlist-star').forEach(button => {
+    setShortlistStar(button, savedIds.has(Number(button.dataset.playerId)));
+  });
 }
 
-async function openPlayerModal(id, previousCA, comparisonDate) {
+async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
-    const { player, trend, previousAttributes, attributeBaselineDate } = await res.json();
+    const { player, trend, previousAttributes, attributeBaselineDate, refCode } = await res.json();
+    if (expectedRef && (refCode !== expectedRef || state.refCode !== expectedRef || el.btnScan.disabled)) return;
+    const star = document.getElementById('modal-shortlist');
+    star.hidden = !refCode?.startsWith('#');
+    star.dataset.ref = refCode || '';
+    star.dataset.playerId = player.id;
+    star.onclick = event => toggleShortlistStar(event, star);
+    setShortlistStar(star, readShortlist(refCode).includes(Number(player.id)));
 
     currentPlayerName = player.name;
     if (el.btnCopyPlayerName) {
