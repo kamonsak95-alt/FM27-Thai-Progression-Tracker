@@ -212,10 +212,25 @@ const shortlist = createShortlist({
   getItem: key => localStorage.getItem(key),
   setItem: (key, value) => localStorage.setItem(key, value)
 });
+const serverShortlists = new Map();
+const pendingShortlistChanges = new Set();
+
+async function requestShortlist(ref, change, signal) {
+  const response = await fetch('/api/shortlist?ref=' + encodeURIComponent(ref), {
+    signal,
+    ...(change && {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-FM27-Shortlist': '1' },
+      body: JSON.stringify(change)
+    })
+  });
+  if (!response.ok) throw new Error('Shortlist HTTP ' + response.status);
+  return response.json();
+}
 
 function readShortlist(ref) {
   try {
-    return shortlist.read(ref);
+    return serverShortlists.get(ref) ?? shortlist.read(ref);
   } catch {
     return [];
   }
@@ -229,21 +244,30 @@ function setShortlistStar(button, saved) {
   button.title = label;
 }
 
-function toggleShortlistStar(event, button) {
+async function toggleShortlistStar(event, button) {
   event.stopPropagation();
   const { ref, playerId } = button.dataset;
   if (!ref || ref !== state.refCode || el.btnScan.disabled) {
     showToast('รอให้ Tracker โหลดข้อมูลเซฟปัจจุบันก่อน', true);
     return;
   }
+  const key = ref;
+  if (pendingShortlistChanges.has(key)) return;
+  pendingShortlistChanges.add(key);
   try {
-    const saved = shortlist.toggle(ref, Number(playerId));
+    const legacy = shortlist.read(ref);
+    if (legacy.length) await requestShortlist(ref, { action: 'seed', ids: legacy });
+    const result = await requestShortlist(ref, { action: 'toggle', id: Number(playerId) });
+    serverShortlists.set(ref, result.ids);
+    const saved = result.ids.includes(Number(playerId));
     document.querySelectorAll('.shortlist-star[data-player-id]').forEach(star => {
       if (star.dataset.ref === ref && star.dataset.playerId === playerId) setShortlistStar(star, saved);
     });
     if (state.preset === 'shortlist') loadPlayers();
   } catch {
-    showToast('บันทึก Shortlist ในเบราว์เซอร์ไม่สำเร็จ', true);
+    showToast('บันทึก Shortlist ไม่สำเร็จ', true);
+  } finally {
+    pendingShortlistChanges.delete(key);
   }
 }
 let playerListRequest;
@@ -1158,12 +1182,25 @@ async function loadPlayers() {
   if (state.natOnly) params.set('natOnly', '1');
   if (state.preset === 'wonderkids') params.set('wonderkids', '1');
   if (state.preset === 'myclub') params.set('myClub', '1');
-  if (state.preset === 'shortlist') {
-    params.set('shortlistRef', state.refCode || '');
-    params.set('shortlistIds', readShortlist(state.refCode).join(','));
-  }
-
   try {
+    const ref = state.refCode;
+    if (ref?.startsWith('#')) {
+      try {
+        let result = await requestShortlist(ref, null, request.signal);
+        const legacy = shortlist.read(ref);
+        if (!result.exists && legacy.length) {
+          result = await requestShortlist(ref, { action: 'seed', ids: legacy }, request.signal);
+        }
+        if (!request.signal.aborted && !pendingShortlistChanges.has(ref)) serverShortlists.set(ref, result.ids);
+      } catch (error) {
+        if (request.signal.aborted) return;
+        if (state.preset === 'shortlist') showToast('โหลด Shortlist ไม่สำเร็จ', true);
+      }
+    }
+    if (state.preset === 'shortlist') {
+      params.set('shortlistRef', ref || '');
+      params.set('shortlistIds', readShortlist(ref).join(','));
+    }
     const res = await fetch(`/api/players?${params.toString()}`, { signal: request.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();

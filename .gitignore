@@ -4,3 +4,5 @@ npm-debug.log*
 .DS_Store
 /data/history.json
 dump.json
+/data/
+/data.rar

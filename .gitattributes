@@ -1,1 +1,2 @@
 server/build-info.json export-subst
+bin/notices/**/*.TXT -text

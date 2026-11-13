@@ -80,9 +80,11 @@
 | รุ่น | วิธีเปิด | ที่เก็บประวัติ |
 | --- | --- | --- |
 | **Windows Setup (v1.0.9 ขึ้นไป)** | เปิด `FM27-Tracker-Setup-v…exe` ค่าเริ่มต้นคือ `C:\Program Files\FM27 Tracker` จากนั้นเปิด **FM27 Tracker** จาก Start Menu | `%LOCALAPPDATA%\FM27 Tracker\data\history.json` |
-| **Windows ZIP** | แตก ZIP แล้วเปิด `Start-FM27-Tracker-Window.vbs` หรือ `Start-FM27-Tracker.bat` | `data\history.json` ในโฟลเดอร์ที่แตก ZIP |
+| **Windows ZIP** | แตก ZIP ทั้งหมดแล้วเปิด `bin\FM27-Tracker.exe` หรือใช้ไฟล์เปิดโปรแกรมที่โฟลเดอร์หลัก | `data\history.json` ในโฟลเดอร์ที่แตก ZIP |
 
-ทั้งสองรุ่นต้องมี Node.js ติดตั้งอยู่ Setup ใช้สิทธิ์แอดมินและยังไม่ได้เซ็นดิจิทัล ไฟล์ SHA-256 อยู่ในหน้า Release
+แพ็กเกจ Windows x64 ที่สร้างด้วย `installer/Build-Portable.ps1` มี Node.js LTS พร้อมประกาศสิทธิ์ใน `bin/node-runtime/` เปิดได้โดยไม่ต้องติดตั้ง Node.js แยก Setup ใช้สิทธิ์แอดมินและยังไม่ได้เซ็นดิจิทัล ไฟล์ SHA-256 อยู่ในหน้า Release
+
+สำหรับผู้จัดทำ Release ให้สร้าง ZIP ด้วย `installer/Build-Portable.ps1 -OutputFolder <folder>` แล้วส่ง ZIP ที่ได้ให้ `installer/Build-Installer.ps1` ผ่าน `-ReleaseZip` สคริปต์ ZIP ตรวจ SHA-256 ของ Node.js Windows x64 ก่อนนำไปบรรจุ ส่วนการรันจากซอร์สด้วย `npm start` ใช้ Node.js ของเครื่องพัฒนา
 
 ### เริ่มใช้งาน
 
@@ -92,7 +94,7 @@
 
 ### ย้ายประวัติจากรุ่นเดิม
 
-ถ้าย้ายจาก Setup v1.0.8 ให้ปิด Tracker และเซิร์ฟเวอร์เดิม แล้วคัดลอก `history.json` จาก `%LOCALAPPDATA%\Programs\FM27 Tracker\data` ไปยัง `%LOCALAPPDATA%\FM27 Tracker\data` ถ้ามาจาก ZIP ให้ใช้ไฟล์ในโฟลเดอร์ `data` ของรุ่นนั้น สำรองไฟล์ปลายทางก่อนหากมีประวัติอยู่แล้ว เพราะการวางทับจะแทนที่ข้อมูลเดิม ส่วน Shortlist ใช้เบราว์เซอร์และโปรไฟล์เดิมที่ `http://localhost:3000`
+ถ้าย้ายจาก Setup v1.0.8 ให้ปิด Tracker และเซิร์ฟเวอร์เดิม แล้วคัดลอก `history.json` จาก `%LOCALAPPDATA%\Programs\FM27 Tracker\data` ไปยัง `%LOCALAPPDATA%\FM27 Tracker\data` ถ้ามาจาก ZIP ให้ใช้ไฟล์ในโฟลเดอร์ `data` ของรุ่นนั้น สำรองไฟล์ปลายทางก่อนหากมีประวัติอยู่แล้ว เพราะการวางทับจะแทนที่ข้อมูลเดิม ตั้งแต่ v1.0.14 ให้สำรอง `shortlist.json` ข้าง `history.json` ด้วย รุ่นนี้ย้าย Shortlist จากเบราว์เซอร์ให้อัตโนมัติเมื่อเปิดผ่านที่อยู่และโปรไฟล์เดิมและเซฟยังไม่มีรายการในไฟล์ หากเปลี่ยนไปใช้พอร์ตสำรอง รายการจากพอร์ตเดิมจะยังไม่แสดง
 
 ---
 

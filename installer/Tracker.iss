@@ -1,6 +1,9 @@
 #ifndef AppVersion
   #error AppVersion is required
 #endif
+#ifndef InnoLicense
+  #error InnoLicense is required
+#endif
 #ifndef AppSource
   #error AppSource is required
 #endif
@@ -30,6 +33,8 @@ CloseApplications=yes
 
 [Files]
 Source: "{#AppSource}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AppSource}\bin\FM27-Tracker.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#InnoLicense}"; DestDir: "{app}\bin\notices"; DestName: "INNO-SETUP-LICENSE.TXT"; Flags: ignoreversion
 
 [INI]
 Filename: "{app}\installation.ini"; Section: "Tracker"; Key: "Mode"; String: "Setup"; Flags: uninsdeletesection

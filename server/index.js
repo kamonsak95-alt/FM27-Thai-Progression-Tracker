@@ -1,6 +1,5 @@
 const http = require('node:http');
-const { spawn } = require('node:child_process');
-const { randomUUID } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const { once } = require('node:events');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -25,13 +24,16 @@ const runningBuild = getLocalCommit().then(commit => ({
   version: startupVersion,
   commit: commit === 'local' ? null : commit.slice(0, 7)
 }));
-const { stageUpdate, stageSetup, removeStage } = require('./zipInstaller');
+const { stageUpdate, stageSetup, removeStage, startUpdateWorker } = require('./zipInstaller');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
 const { decodeSnapshotAttributes } = require('./snapshotAttributes');
+const { shortlist, validRef } = require('./shortlistStore');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const PROJECT_ROOT = path.dirname(__dirname);
+const desktopInstallId = createHash('sha256')
+  .update(PROJECT_ROOT.toUpperCase()).digest('hex').toUpperCase();
 let zipUpdateInProgress = false;
 let shuttingDownForUpdate = false;
 
@@ -128,10 +130,40 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === '/api/update-state') {
+    res.setHeader('X-FM27-Desktop', process.env.FM27_DESKTOP_INSTALL || desktopInstallId);
     return sendJson(res, 200, {
       updateId: process.env.FM27_UPDATE_ID || null,
       rolledBack: process.env.FM27_UPDATE_ROLLBACK === '1'
     });
+  }
+
+  if (pathname === '/api/shortlist' && ['GET', 'POST'].includes(req.method)) {
+    const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+    if (!loopback || !['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname) ||
+        (req.headers.origin && req.headers.origin !== parsedUrl.origin) ||
+        (req.method === 'POST' && req.headers['x-fm27-shortlist'] !== '1')) {
+      return sendJson(res, 403, { error: 'เปิด Tracker บนเครื่องนี้เพื่อใช้ Shortlist' });
+    }
+    if (!validRef(query.ref)) return sendJson(res, 400, { error: 'ยังระบุเซฟไม่ได้' });
+    try {
+      let change;
+      if (req.method === 'POST') {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 65536) {
+            sendJson(res, 413, { error: 'รายการ Shortlist มีขนาดใหญ่เกินไป' });
+            return;
+          }
+        }
+        change = JSON.parse(body);
+        if (!change || typeof change !== 'object') throw new TypeError('Invalid shortlist request');
+      }
+      return sendJson(res, 200, shortlist(query.ref, change));
+    } catch (error) {
+      const invalid = error instanceof TypeError || error instanceof SyntaxError;
+      return sendJson(res, invalid ? 400 : 500, { error: 'อ่านหรือบันทึก Shortlist ไม่สำเร็จ' });
+    }
   }
 
   if (pathname === '/api/install-release' && req.method === 'POST') {
@@ -152,10 +184,7 @@ const server = http.createServer(async (req, res) => {
       if (isSetup) stagingRoot = require('node:os').tmpdir();
       staging = isSetup ? await stageSetup(update) : await stageUpdate(PROJECT_ROOT, update);
       const updateId = randomUUID();
-      const installer = spawn(process.execPath, [
-        path.join(staging, 'installer.js'), PROJECT_ROOT, staging, updateId,
-        ...(isSetup ? [update.latestVersion] : [])
-      ], { cwd: stagingRoot, windowsHide: true, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+      const installer = startUpdateWorker(PROJECT_ROOT, staging, updateId, isSetup ? update.latestVersion : undefined);
       await once(installer, 'spawn');
       shuttingDownForUpdate = true;
       res.setHeader('Connection', 'close');
@@ -581,10 +610,11 @@ if (require.main === module) {
   });
   server.on('error', (err) => {
     console.error('[SERVER ERROR] HTTP Server error:', err);
+    if (process.env.FM27_DESKTOP_INSTALL) process.exit(['EACCES', 'EADDRINUSE'].includes(err.code) ? 73 : 1);
     if (process.send) process.exit(1);
   });
 
-  server.listen(PORT, () => {
+  server.listen(PORT, process.env.FM27_DESKTOP_INSTALL ? '127.0.0.1' : undefined, () => {
     if (process.send) process.send('fm27-ready');
     console.log(`=======================================================`);
     console.log(`⚽ FM27 Thai Progression Tracker & Scout Tool`);

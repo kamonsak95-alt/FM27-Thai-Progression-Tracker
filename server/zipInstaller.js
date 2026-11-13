@@ -12,6 +12,42 @@ const directories = ['public', 'server', 'bin'];
 const files = ['package.json', 'LICENSE', 'README.md', 'PRIVACY.md', 'Start-FM27-Tracker-Window.vbs', 'Start-FM27-Tracker.bat'];
 const releaseRoot = 'FM27-Tracker';
 const maxBytes = 100 * 1024 * 1024;
+const bundledRuntime = root => path.join(root, 'bin', 'node-runtime', 'node.exe');
+
+function startUpdateWorker(root, staging, updateId, version) {
+  const args = [path.join(staging, 'installer.js'), root, staging, updateId, ...(version ? [version] : [])];
+  const options = { cwd: os.tmpdir(), windowsHide: true, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] };
+  if (path.relative(root, process.execPath).toLowerCase() !== path.join('bin', 'node-runtime', 'node.exe'))
+    return spawn(process.execPath, args, options);
+
+  // Windows locks running executables, so run the worker outside the installation.
+  const workerDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'fm27-update-runtime-'));
+  const workerRuntime = path.join(workerDirectory, 'node.exe');
+  try {
+    fs.copyFileSync(process.execPath, workerRuntime);
+    const worker = spawn(workerRuntime, args, options);
+    const cleanup = () => fs.rmSync(workerDirectory, { recursive: true, force: true });
+    worker.once('error', cleanup);
+    worker.once('spawn', () => {
+      const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32',
+        'WindowsPowerShell', 'v1.0', 'powershell.exe');
+      const cleaner = spawn(powershell, ['-NoProfile', '-NonInteractive', '-Command',
+        'Wait-Process -Id $env:FM27_WORKER_PID -ErrorAction SilentlyContinue; ' +
+        'Remove-Item -LiteralPath $env:FM27_WORKER_EXE -Force; ' +
+        'Remove-Item -LiteralPath (Split-Path -Parent $env:FM27_WORKER_EXE) -Force'
+      ], {
+        cwd: os.tmpdir(), detached: true, windowsHide: true, stdio: 'ignore',
+        env: { ...process.env, FM27_WORKER_PID: String(worker.pid), FM27_WORKER_EXE: workerRuntime }
+      });
+      cleaner.on('error', error => console.error('Update runtime cleanup could not start:', error.message));
+      cleaner.unref();
+    });
+    return worker;
+  } catch (error) {
+    fs.rmSync(workerDirectory, { recursive: true, force: true });
+    throw error;
+  }
+}
 
 function validateArchiveEntries(list) {
   const seen = new Set();
@@ -62,14 +98,15 @@ async function stageUpdate(root, update) {
     const archive = path.join(staging, 'release.zip');
     await downloadAsset(update, archive);
     const tar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
-    const options = { windowsHide: true, timeout: 30000, maxBuffer: 1024 * 1024 };
-    const { stdout: entries } = await run(tar, ['-tf', archive], options);
+    // Windows tar builds may decode command arguments using the system code page.
+    const options = { cwd: staging, windowsHide: true, timeout: 30000, maxBuffer: 1024 * 1024 };
+    const { stdout: entries } = await run(tar, ['-tf', 'release.zip'], options);
     validateArchiveEntries(entries);
-    const { stdout: details } = await run(tar, ['-tvf', archive], options);
+    const { stdout: details } = await run(tar, ['-tvf', 'release.zip'], options);
     if (details.trimEnd().split(/\r?\n/).some(line => !/^[-d]/.test(line))) {
       throw new Error('ไฟล์ ZIP มีรายการที่ไม่ใช่ไฟล์หรือโฟลเดอร์');
     }
-    await run(tar, ['-xf', archive, '-C', staging], options);
+    await run(tar, ['-xf', 'release.zip'], options);
     const extracted = path.join(staging, releaseRoot);
     if (JSON.parse(fs.readFileSync(path.join(extracted, 'package.json'), 'utf8')).version !== update.latestVersion ||
         !fs.statSync(path.join(extracted, 'server', 'index.js')).isFile() ||
@@ -143,7 +180,8 @@ function installFiles(root, extracted, backup) {
 
 function startTracker(root, updateId, rolledBack = false) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [path.join(root, 'server', 'index.js')], {
+    const runtime = bundledRuntime(root);
+    const child = spawn(fs.existsSync(runtime) ? runtime : process.execPath, [path.join(root, 'server', 'index.js')], {
       cwd: root, detached: true, windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
       env: { ...process.env, FM27_UPDATE_ID: updateId, FM27_UPDATE_ROLLBACK: rolledBack ? '1' : '' }
     });
@@ -214,4 +252,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { validateArchiveEntries, installFiles, stageUpdate, stageSetup, removeStage };
+module.exports = { validateArchiveEntries, installFiles, stageUpdate, stageSetup, removeStage, startUpdateWorker };
