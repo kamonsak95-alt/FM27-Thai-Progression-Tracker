@@ -28,6 +28,13 @@ function getLocalVersion() {
 
 async function getLocalCommit() {
   try {
+    const { commit } = JSON.parse(fs.readFileSync(path.join(__dirname, 'build-info.json'), 'utf8'));
+    if (/^[a-f0-9]{40}$/i.test(commit)) return commit;
+  } catch {
+    // Source checkouts and older packages can lack embedded metadata.
+  }
+  if (!fs.existsSync(path.join(PROJECT_ROOT, '.git'))) return 'local';
+  try {
     return await execPromise('git rev-parse HEAD');
   } catch {
     return 'local';

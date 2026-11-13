@@ -19,7 +19,12 @@ const {
   confirmScanRoundDate
 } = require('./historyEngine');
 const { predictDevelopmentTrend } = require('./trendEngine');
-const { checkForUpdates, applyUpdate, getLocalCommit } = require('./updaterEngine');
+const { checkForUpdates, applyUpdate, getLocalCommit, getLocalVersion } = require('./updaterEngine');
+const startupVersion = getLocalVersion();
+const runningBuild = getLocalCommit().then(commit => ({
+  version: startupVersion,
+  commit: commit === 'local' ? null : commit.slice(0, 7)
+}));
 const { stageUpdate, stageSetup, removeStage } = require('./zipInstaller');
 const { filterStaff, getStaffDetail } = require('./staffEngine');
 const { decodeSnapshotAttributes } = require('./snapshotAttributes');
@@ -202,6 +207,7 @@ const server = http.createServer(async (req, res) => {
       meta: dump?.meta || null,
       refCode,
       currentCommit,
+      build: await runningBuild,
       justUpdated,
       totalPlayers: dump?.players?.length || 0,
       snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode)

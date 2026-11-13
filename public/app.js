@@ -963,6 +963,12 @@ async function loadStatus() {
   try {
     const res = await fetch('/api/status');
     const data = await res.json();
+    const buildLabel = document.getElementById('header-build');
+    if (buildLabel && data.build?.version) {
+      const { version, commit } = data.build;
+      buildLabel.textContent = commit ? `v${version} · ${commit}` : `v${version}`;
+      buildLabel.hidden = false;
+    }
     if (!state.loadedCommit && data.currentCommit) {
       state.loadedCommit = data.currentCommit;
     }

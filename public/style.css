@@ -160,6 +160,13 @@ body {
   color: var(--text-secondary);
 }
 
+.header-build {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .header-career-row .btn-secondary:hover {
   border-color: var(--border-color);
 }
