@@ -42,6 +42,14 @@ let cachedDump = null;
 let cachedPlayersWithDeltas = null;
 let currentBaselineDate = null;
 let currentSaveKey = null;
+let playerNationalities = [];
+
+function getNationalities(player) {
+  return (Array.isArray(player.nat) ? player.nat : [player.nat])
+    .filter(value => typeof value === 'string')
+    .map(value => value.trim())
+    .filter(value => value && value !== '-');
+}
 
 function syncDumpWithCareer(dump) {
   if (!dump || !dump.meta) return;
@@ -380,6 +388,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         meta: null,
         total: 0,
+        nationalities: [],
         players: []
       });
     }
@@ -391,6 +400,14 @@ const server = http.createServer(async (req, res) => {
       currentBaselineDate = baselineDate;
       currentSaveKey = activeSaveKey;
       const validPlayers = dump.players.filter(p => p && p.name && p.name.trim() && p.name.trim() !== '?');
+      const nationalities = new Map();
+      for (const player of validPlayers) {
+        for (const name of getNationalities(player)) {
+          const key = name.toLowerCase();
+          if (!nationalities.has(key)) nationalities.set(key, name);
+        }
+      }
+      playerNationalities = [...nationalities.values()].sort((a, b) => a.localeCompare(b));
       let deltas;
       if (baselineDate && baselineDate !== dump.meta?.gameDate) {
         const snap = getSnapshot(baselineDate, dump.meta?.manager, dump.meta?.myClub, refCode);
@@ -417,6 +434,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     let result = cachedPlayersWithDeltas;
+    const nationality = (query.nationality || '').trim().toLowerCase();
+    if (nationality) {
+      result = result.filter(player => getNationalities(player).some(name => name.toLowerCase() === nationality));
+    }
 
     if (query.shortlistRef !== undefined) {
       const ids = new Set((query.shortlistIds || '').split(',').filter(id => /^[1-9]\d*$/.test(id)).map(Number));
@@ -537,6 +558,7 @@ const server = http.createServer(async (req, res) => {
       limit,
       totalPages: Math.ceil(totalCount / limit),
       baselineDate: currentBaselineDate,
+      nationalities: playerNationalities,
       players: paginated
     });
   }

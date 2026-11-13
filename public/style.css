@@ -847,6 +847,15 @@ body {
   gap: 0.5rem;
 }
 
+#filter-nationality {
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+}
+
+#clear-nationality {
+  flex: 0 0 auto;
+}
+
 .num-input {
   padding: 0.45rem 0.5rem;
   text-align: center;

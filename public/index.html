@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.20">
+  <link rel="stylesheet" href="style.css?v=1.0.15-nationality">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -197,6 +197,18 @@
             <span class="text-muted">ถึง</span>
             <input type="number" id="max-pa" class="form-input num-input" value="200" min="1" max="200">
           </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mt-0">
+        <div class="filter-group col-12 col-md-4 col-xl-3">
+          <label class="filter-label" for="filter-nationality">สัญชาติ</label>
+          <div class="range-inputs">
+            <input type="text" id="filter-nationality" class="form-input" list="nationality-options"
+              placeholder="ทุกสัญชาติ" autocomplete="off" disabled>
+            <button type="button" id="clear-nationality" class="pos-btn" aria-label="ล้างตัวกรองสัญชาติ" disabled>×</button>
+          </div>
+          <datalist id="nationality-options"></datalist>
         </div>
       </div>
 
@@ -748,6 +760,6 @@
   <div id="toast" class="toast" style="display:none;"></div>
 
   <script src="shortlist.js?v=1.0.13"></script>
-  <script src="app.js?v=1.0.14"></script>
+  <script src="app.js?v=1.0.15"></script>
 </body>
 </html>

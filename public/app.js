@@ -305,7 +305,32 @@ function renderPositionBadges(positions) {
     .join('') || '–';
 }
 
+const nationalityInput = document.getElementById('filter-nationality');
+const nationalityOptions = document.getElementById('nationality-options');
+const clearNationality = document.getElementById('clear-nationality');
+let selectedNationality = '';
+
 function initEventListeners() {
+  nationalityInput.addEventListener('input', () => {
+    const value = nationalityInput.value.trim().toLowerCase();
+    const match = Array.from(nationalityOptions.options)
+      .find(option => option.value.toLowerCase() === value);
+    if (value && !match) return;
+    const next = match?.value || '';
+    if (next === selectedNationality) return;
+    selectedNationality = next;
+    clearNationality.disabled = !next;
+    state.page = 1;
+    loadPlayers();
+  });
+  nationalityInput.addEventListener('blur', () => {
+    nationalityInput.value = selectedNationality;
+  });
+  clearNationality.addEventListener('click', () => {
+    nationalityInput.value = '';
+    nationalityInput.dispatchEvent(new Event('input'));
+    nationalityInput.focus();
+  });
   // Copy Name Buttons
   if (el.btnCopyPlayerName) {
     el.btnCopyPlayerName.addEventListener('click', (e) => {
@@ -1178,6 +1203,7 @@ async function loadPlayers() {
   if (state.baseline) params.set('baseline', state.baseline);
 
   if (state.q) params.set('q', state.q);
+  if (selectedNationality) params.set('nationality', selectedNationality);
   if (state.trend) params.set('trend', state.trend);
   if (state.natOnly) params.set('natOnly', '1');
   if (state.preset === 'wonderkids') params.set('wonderkids', '1');
@@ -1205,6 +1231,17 @@ async function loadPlayers() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (request.signal.aborted) return;
+
+    const nationalities = data.nationalities || [];
+    nationalityInput.disabled = !nationalities.length;
+    nationalityOptions.replaceChildren(...nationalities.map(name => new Option(name)));
+    if (selectedNationality && !nationalities.includes(selectedNationality)) {
+      selectedNationality = '';
+      nationalityInput.value = '';
+      clearNationality.disabled = true;
+      state.page = 1;
+      return loadPlayers();
+    }
 
     state.total = data.total || 0;
     state.totalPages = data.totalPages || 1;
