@@ -52,6 +52,14 @@ body {
 .text-secondary { color: var(--text-secondary); }
 .text-club { color: #c4d0df; font-weight: 500; }
 .nat-badge { color: var(--text-muted); font-size: 0.75rem; }
+.nationality-item { display: inline-block; white-space: nowrap; }
+.nationality-flag {
+  width: 16px;
+  height: 12px;
+  margin-inline-end: 4px;
+  border-radius: 2px;
+  vertical-align: -2px;
+}
 .font-semibold { font-weight: 600; }
 .font-bold { font-weight: 700; }
 .text-sm { font-size: 0.875rem; }

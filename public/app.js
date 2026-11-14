@@ -133,7 +133,6 @@ const el = {
   btnChangelogApply: document.getElementById('btn-changelog-apply'),
   btnChangelogDownload: document.getElementById('btn-changelog-download'),
   btnChangelogReload: document.getElementById('btn-changelog-reload'),
-  btnReloadUI: document.getElementById('btn-reload-ui'),
   changelogMeta: document.getElementById('changelog-meta'),
   changelogList: document.getElementById('changelog-list'),
   changelogStaleAlert: document.getElementById('changelog-stale-alert'),
@@ -632,11 +631,6 @@ function initEventListeners() {
   }
   if (el.btnBannerReload) {
     el.btnBannerReload.addEventListener('click', () => {
-      window.location.reload();
-    });
-  }
-  if (el.btnReloadUI) {
-    el.btnReloadUI.addEventListener('click', () => {
       window.location.reload();
     });
   }
@@ -1322,7 +1316,6 @@ function renderTable(players, comparisonDate, refCode) {
 
     const valueStr = formatCurrency(p.value);
     const wageStr = formatCurrency(p.wage);
-    const natStr = Array.isArray(p.nat) ? p.nat.join(', ') : (p.nat || '-');
 
     return `
       <tr data-ref="${escapeHtml(refCode || '')}" data-comparison-date="${escapeHtml(originDate)}" onclick="openPlayerModal(${p.id}, ${Number.isFinite(p.prevCA) ? p.prevCA : 'null'}, this.dataset.comparisonDate, this.dataset.ref)">
@@ -1331,7 +1324,7 @@ function renderTable(players, comparisonDate, refCode) {
             ${canSave ? `<button type="button" class="shortlist-star" data-player-id="${Number(p.id)}" data-ref="${escapeHtml(refCode)}" onclick="toggleShortlistStar(event, this)"></button>` : ''}
             <div class="player-name-cell">
               <button type="button" class="player-name player-name-button">${escapeHtml(p.name)}</button>
-              <span class="nat-badge text-muted text-xs">${escapeHtml(natStr)}</span>
+              <span class="nat-badge text-muted text-xs">${renderPrimaryNationality(p.nat)}</span>
             </div>
           </div>
         </td>
@@ -1379,7 +1372,7 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
     playerId.textContent = player.id == null ? '' : `ID ${player.id}`;
     document.getElementById('modal-pos').innerHTML = renderPositionBadges(player.pos);
     document.getElementById('modal-club').textContent = player.club || '-';
-    document.getElementById('modal-nat').textContent = Array.isArray(player.nat) ? player.nat.join(', ') : (player.nat || '-');
+    document.getElementById('modal-nat').innerHTML = renderPrimaryNationality(player.nat);
     document.getElementById('modal-age').textContent = `${player.age} ปี (เกิด ${player.birthYear || '-'})`;
     document.getElementById('modal-value').textContent = formatCurrency(player.value);
     document.getElementById('modal-wage').textContent = formatCurrency(player.wage);
@@ -1565,6 +1558,17 @@ function formatCurrency(val) {
   return `£${val.toLocaleString()}`;
 }
 
+function renderPrimaryNationality(value) {
+  const primary = Array.isArray(value) ? value.find(name => typeof name === 'string' && name.trim()) : value;
+  const name = typeof primary === 'string' ? primary.trim() : '';
+  if (!name) return '–';
+  const key = name.toLowerCase();
+  const code = Object.hasOwn(nationalityFlagCodes, key) ? nationalityFlagCodes[key] : '';
+  const flag = code ? `<img class="nationality-flag" src="/vendor/flag-icons/flags/4x3/${code}.svg"
+    width="16" height="12" alt="" decoding="async" loading="lazy">` : '';
+  return `<span class="nationality-item">${flag}${escapeHtml(name)}</span>`;
+}
+
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -1728,7 +1732,7 @@ function openChangelogModal(data, isCelebration = false) {
   showUpdateInstall(el.btnChangelogApply, data);
   showUpdateDownload(el.btnChangelogDownload, data);
   if (el.btnChangelogReload) {
-    el.btnChangelogReload.style.display = data.isGit !== false && (isUiStale || (!isNew && !isCelebration)) ? 'inline-flex' : 'none';
+    el.btnChangelogReload.style.display = data.isGit !== false && isUiStale ? 'inline-flex' : 'none';
   }
 
   el.changelogModal.style.display = 'flex';
