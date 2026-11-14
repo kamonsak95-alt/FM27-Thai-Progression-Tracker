@@ -1282,8 +1282,8 @@ async function loadPlayers() {
 const trendIndicators = {
   explosive: '↑↑',
   developing: '↑',
-  peak: '→',
-  plateau: '→',
+  peak: '↗',
+  plateau: '↔',
   stable: '→',
   declining: '↓'
 };

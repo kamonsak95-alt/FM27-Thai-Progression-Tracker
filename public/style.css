@@ -1091,7 +1091,8 @@ body {
 
 .player-trend[data-trend="explosive"] { color: #77d7a6; }
 .player-trend[data-trend="developing"] { color: #a0d9b8; }
-.player-trend:is([data-trend="peak"], [data-trend="plateau"]) { color: #a7c9ed; }
+.player-trend[data-trend="peak"] { color: #a7c9ed; }
+.player-trend[data-trend="plateau"] { color: #c6b5e8; }
 .player-trend[data-trend="declining"] { color: #efa0a9; }
 .player-col-growth { width: 12%; }
 .player-col-money { width: 7%; }
