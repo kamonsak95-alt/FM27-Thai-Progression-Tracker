@@ -1279,6 +1279,20 @@ async function loadPlayers() {
   }
 }
 
+const trendIndicators = {
+  explosive: '↑↑',
+  developing: '↑',
+  peak: '→',
+  plateau: '→',
+  stable: '→',
+  declining: '↓'
+};
+
+function renderPlayerTrend(trend) {
+  const code = Object.hasOwn(trendIndicators, trend?.code) ? trend.code : 'stable';
+  return `<span class="player-trend" data-trend="${code}"><span class="player-trend-arrow" aria-hidden="true">${trendIndicators[code]}</span>${escapeHtml(trend?.label || 'คงที่')}</span>`;
+}
+
 function renderTable(players, comparisonDate, refCode) {
   if (players.length === 0) {
     const message = state.preset === 'shortlist' && !readShortlist(refCode).length
@@ -1312,8 +1326,6 @@ function renderTable(players, comparisonDate, refCode) {
       growthBadge = `<span class="badge badge-growth-neutral" title="ค่าพลังคงที่เมื่อเทียบกับ ${originLabel}">คงที่ (0 CA)</span>`;
     }
 
-    const trendLabel = escapeHtml(p.trend?.label || 'คงที่');
-
     const valueStr = formatCurrency(p.value);
     const wageStr = formatCurrency(p.wage);
 
@@ -1333,7 +1345,7 @@ function renderTable(players, comparisonDate, refCode) {
         <td class="player-table-secondary"><span class="text-club">${escapeHtml(p.club || '-')}</span></td>
         <td class="text-center font-semibold">${p.ca}</td>
         <td class="text-center text-secondary">${p.pa}</td>
-        <td class="text-center text-muted player-table-secondary">${trendLabel}</td>
+        <td class="text-center player-table-secondary">${renderPlayerTrend(p.trend)}</td>
         <td class="text-right">${growthBadge}</td>
         <td class="text-right text-secondary font-mono player-table-secondary">${valueStr}</td>
         <td class="text-right text-muted font-mono player-table-secondary">${wageStr}</td>

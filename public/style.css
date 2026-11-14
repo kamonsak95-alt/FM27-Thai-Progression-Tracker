@@ -1075,6 +1075,24 @@ body {
 .player-col-club { width: 18%; }
 .player-col-ability { width: 5%; }
 .player-col-trend { width: 10%; }
+.player-trend {
+  display: inline-grid;
+  grid-template-columns: 1.3em minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px;
+  text-align: start;
+  color: var(--text-muted);
+}
+
+.player-trend-arrow {
+  text-align: center;
+  font-weight: 600;
+}
+
+.player-trend[data-trend="explosive"] { color: #77d7a6; }
+.player-trend[data-trend="developing"] { color: #a0d9b8; }
+.player-trend:is([data-trend="peak"], [data-trend="plateau"]) { color: #a7c9ed; }
+.player-trend[data-trend="declining"] { color: #efa0a9; }
 .player-col-growth { width: 12%; }
 .player-col-money { width: 7%; }
 
