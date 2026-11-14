@@ -579,6 +579,7 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, {
       player,
       refCode: cachedRefCode,
+      scanId: dump.meta?.scanId,
       trend: predictDevelopmentTrend(player, 0),
       previousAttributes,
       attributeBaselineDate: previousAttributes ? (baseline.attributeBaselineDate || currentBaselineDate) : null

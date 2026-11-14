@@ -94,21 +94,18 @@ body {
 }
 
 .brand-logo {
-  font-size: 2rem;
-  background: #101c2c;
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
   overflow: hidden;
 }
 
 .brand-logo-img {
-  width: 38px;
-  height: 38px;
+  width: 100%;
+  height: 100%;
   display: block;
   object-fit: contain;
 }
@@ -123,6 +120,36 @@ body {
   font-size: 0.825rem;
   color: var(--text-muted);
 }
+
+.compare-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(820px, calc(100% - 24px));
+  max-height: 90vh;
+  padding: clamp(12px, 3vw, 24px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.compare-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.compare-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.compare-header h2 { font-size: 1.2rem; margin: 0; }
+#compare-first { margin: 8px 0 16px; }
+#compare-status:not(:empty) { margin-top: 8px; }
+.compare-table-scroll { max-height: 62vh; max-height: min(62dvh, calc(100dvh - 210px)); overflow: auto; margin-top: 12px; }
+.compare-table thead th { position: sticky; top: 0; z-index: 1; background: var(--bg-input); }
+#compare-search { padding-inline: 12px; margin-top: 4px; }
+.compare-options { list-style: none; padding: 0; display: grid; gap: 4px; }
+.compare-options button { width: 100%; text-align: start; justify-content: flex-start; }
+.compare-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.compare-table :is(th, td) { padding: 8px 4px; text-align: center; overflow-wrap: anywhere; border-bottom: 1px solid var(--border-color); }
+.compare-table tbody th { font-weight: 500; color: var(--text-muted); }
+.compare-table td { font-variant-numeric: tabular-nums; }
+.compare-table .compare-group th { background: var(--bg-input); text-align: start; padding-inline: 8px; }
+.compare-table .compare-higher { color: #a0d9b8; background: rgb(119 215 166 / 12%); font-weight: 700; }
 
 .header-status {
   display: flex;
@@ -139,8 +166,36 @@ body {
   flex-wrap: wrap;
 }
 
-.header-action-row #btn-scan {
+.header-action-row {
+  align-items: flex-start;
+}
+
+.header-scan-action,
+.header-game-date {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.header-game-date {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.header-scan-action {
   margin-inline-start: auto;
+  align-items: flex-end;
+  text-align: end;
+}
+
+.header-notice {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
 #btn-career-details {
@@ -1627,6 +1682,22 @@ body {
   align-items: center;
   gap: 0.65rem;
   flex-wrap: wrap;
+}
+
+.player-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.player-modal-card .attributes-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+@media (max-width: 520px) {
+  .player-modal-card .attributes-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 .modal-player-name {

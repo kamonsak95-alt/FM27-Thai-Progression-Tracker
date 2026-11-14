@@ -72,6 +72,27 @@ const ATTR_GROUPS = {
   ]
 };
 
+const PLAYER_ATTRIBUTE_THAI = {
+  Corners: 'การเปิดลูกเตะมุม', Crossing: 'การเปิดบอลจากริมเส้น', Dribbling: 'การเลี้ยงบอล',
+  Finishing: 'การจบสกอร์', FirstTouch: 'การจับบอลจังหวะแรก', FreeKicks: 'การยิงฟรีคิก',
+  Heading: 'การโหม่ง', LongShots: 'การยิงไกล', LongThrows: 'การทุ่มไกล',
+  Marking: 'การประกบตัว', Passing: 'การจ่ายบอล', PenaltyTaking: 'การยิงจุดโทษ',
+  Tackling: 'การเข้าปะทะแย่งบอล', Technique: 'เทคนิคการเล่นบอล',
+  Aggression: 'ความดุดัน', Anticipation: 'การอ่านจังหวะล่วงหน้า', Bravery: 'ความกล้าเข้าบอล',
+  Composure: 'ความนิ่งในจังหวะกดดัน', Concentration: 'สมาธิในเกม', Decisions: 'การตัดสินใจ',
+  Determination: 'ความมุ่งมั่น', Flair: 'ความคิดสร้างสรรค์ในการเล่น', Leadership: 'ภาวะผู้นำ',
+  OffTheBall: 'การเคลื่อนที่ตอนไม่มีบอล', Positioning: 'การยืนตำแหน่งเกมรับ',
+  Teamwork: 'การเล่นเป็นทีม', Vision: 'วิสัยทัศน์ในการจ่ายบอล', WorkRate: 'ความขยันในสนาม',
+  Acceleration: 'อัตราเร่ง', Agility: 'ความคล่องตัว', Balance: 'การทรงตัว',
+  JumpingReach: 'ระยะเอื้อมเมื่อกระโดด', NaturalFitness: 'ความฟิตตามธรรมชาติ',
+  Pace: 'ความเร็วในการวิ่ง', Stamina: 'ความอึด', Strength: 'ความแข็งแกร่ง',
+  AerialReach: 'ระยะเอื้อมรับบอลกลางอากาศ', CommandOfArea: 'การคุมเขตโทษ',
+  Communication: 'การสื่อสารกับแนวรับ', Eccentricity: 'ความชอบเล่นนอกแบบของผู้รักษาประตู',
+  Handling: 'การรับบอลให้อยู่มือ', Kicking: 'การเตะเปิดบอล', OneOnOnes: 'การเซฟจังหวะตัวต่อตัว',
+  Punching: 'ความถี่ในการชกบอล', Reflexes: 'ปฏิกิริยาการเซฟ',
+  RushingOut: 'ความถี่ในการออกมาตัดบอล', Throwing: 'การขว้างบอลเปิดเกม'
+};
+
 // Personality labels (Thai label with English term)
 const PERSONALITY_MAP = {
   ambition: 'ความทะเยอทะยาน (Ambition)',
@@ -720,6 +741,7 @@ function initEventListeners() {
 
   // Global Escape key to close modals and popovers
   document.addEventListener('keydown', (e) => {
+    if (compareDialog.open) return;
     if (e.key === 'Escape') {
       if (el.tacticalPitchSection && !el.tacticalPitchSection.classList.contains('collapsed')) {
         el.tacticalPitchSection.classList.add('collapsed');
@@ -1414,8 +1436,9 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
-    const { player, trend, previousAttributes, attributeBaselineDate, refCode } = await res.json();
+    const { player, trend, previousAttributes, attributeBaselineDate, refCode, scanId } = await res.json();
     if (expectedRef && (refCode !== expectedRef || state.refCode !== expectedRef || el.btnScan.disabled)) return;
+    document.getElementById('btn-compare-player').onclick = () => openPlayerComparison(player, refCode, scanId);
     const star = document.getElementById('modal-shortlist');
     star.hidden = !refCode?.startsWith('#');
     star.dataset.ref = refCode || '';
@@ -1493,7 +1516,7 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
           change = `<span class="attribute-change" data-direction="${direction}" role="img" aria-label="${description}" title="${description}">${arrow}</span>`;
         }
         return `
-          <div class="attr-row">
+          <div class="attr-row" title="${PLAYER_ATTRIBUTE_THAI[attr]}">
             <span class="attr-name">${attr}</span>
             <span class="attribute-result"><span class="attr-val ${colorClass}">${val}</span>${change}</span>
           </div>
@@ -1513,7 +1536,7 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
     pGrid.innerHTML = Object.entries(PERSONALITY_MAP).map(([key, label]) => {
       const val = player[key] != null ? player[key] : '-';
       return `
-        <div class="personality-item">
+        <div class="personality-item" title="${escapeHtml(label.split(' (')[0])}">
           <span class="text-muted">${label}</span>
           <span class="font-bold text-accent">${val}</span>
         </div>
@@ -1528,7 +1551,127 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
   }
 }
 
+const compareDialog = document.getElementById('player-compare');
+const compareSearch = document.getElementById('compare-search');
+const compareOptions = document.getElementById('compare-options');
+const compareStatus = document.getElementById('compare-status');
+const comparePicker = document.getElementById('compare-picker');
+const compareResults = document.getElementById('compare-results');
+let comparisonSource;
+let comparisonRequest;
+let comparisonTimer;
+
+function showComparisonPicker() {
+  compareResults.hidden = true;
+  comparePicker.hidden = false;
+  compareSearch.value = '';
+  compareOptions.replaceChildren();
+  compareStatus.textContent = '';
+  compareSearch.focus();
+}
+
+function openPlayerComparison(player, refCode, scanId) {
+  if (el.btnScan.disabled || (state.scanId && state.scanId !== scanId)) {
+    showToast('กรุณาเปิดโปรไฟล์นักเตะอีกครั้งหลังโหลดข้อมูล', true);
+    return;
+  }
+  comparisonSource = { player, refCode, scanId };
+  document.getElementById('compare-first').textContent = `เทียบกับ ${player.name}`;
+  compareDialog.showModal();
+  showComparisonPicker();
+}
+
+document.getElementById('compare-close').onclick = () => compareDialog.close();
+document.getElementById('compare-change').onclick = showComparisonPicker;
+compareDialog.addEventListener('close', () => {
+  clearTimeout(comparisonTimer);
+  comparisonRequest?.abort();
+});
+
+compareSearch.addEventListener('input', () => {
+  clearTimeout(comparisonTimer);
+  comparisonRequest?.abort();
+  compareOptions.replaceChildren();
+  const q = compareSearch.value.trim();
+  compareStatus.textContent = q ? 'กำลังค้นหา…' : '';
+  if (q) comparisonTimer = setTimeout(() => searchComparisonPlayers(q), 180);
+});
+
+async function searchComparisonPlayers(q) {
+  const request = comparisonRequest = new AbortController();
+  try {
+    const params = new URLSearchParams({ q, sort: 'name', order: 'asc', limit: '10' });
+    const response = await fetch(`/api/players?${params}`, { signal: request.signal });
+    if (!response.ok) throw new Error('ค้นหานักเตะไม่สำเร็จ');
+    const result = await response.json();
+    if (request.signal.aborted || !compareDialog.open) return;
+    if (result.refCode !== comparisonSource.refCode || result.meta?.scanId !== comparisonSource.scanId) {
+      throw new Error('ข้อมูลเซฟเปลี่ยนแล้ว กรุณาเปิดโปรไฟล์ใหม่');
+    }
+    const matches = result.players.filter(player => player.id !== comparisonSource.player.id);
+    compareStatus.textContent = matches.length ? '' : 'ไม่พบคู่เทียบ ลองระบุชื่อให้เจาะจงขึ้น';
+    compareOptions.replaceChildren(...matches.map(player => {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-secondary';
+      button.textContent = [player.name, player.club, player.pos].filter(Boolean).join(' · ');
+      button.onclick = () => selectComparisonPlayer(player.id);
+      item.append(button);
+      return item;
+    }));
+  } catch (error) {
+    if (!request.signal.aborted) compareStatus.textContent = error.message;
+  }
+}
+
+async function selectComparisonPlayer(id) {
+  comparisonRequest?.abort();
+  const request = comparisonRequest = new AbortController();
+  compareStatus.textContent = 'กำลังโหลดค่าพลัง…';
+  try {
+    const response = await fetch(`/api/player/${id}`, { signal: request.signal });
+    if (!response.ok) throw new Error('โหลดข้อมูลคู่เทียบไม่สำเร็จ');
+    const { player, refCode, scanId } = await response.json();
+    if (request.signal.aborted || !compareDialog.open) return;
+    if (refCode !== comparisonSource.refCode || scanId !== comparisonSource.scanId) {
+      throw new Error('ข้อมูลเซฟเปลี่ยนแล้ว กรุณาเปิดโปรไฟล์ใหม่');
+    }
+    renderPlayerComparison(comparisonSource.player, player);
+    comparePicker.hidden = true;
+    compareResults.hidden = false;
+    document.getElementById('compare-change').focus();
+  } catch (error) {
+    if (!request.signal.aborted) compareStatus.textContent = error.message;
+  }
+}
+
+function renderPlayerComparison(left, right) {
+  document.getElementById('compare-left').textContent = left.name;
+  document.getElementById('compare-right').textContent = right.name;
+  const row = (label, a, b, highlight = false, format = String) => {
+    const comparable = highlight && Number.isFinite(a) && Number.isFinite(b);
+    const cell = (value, wins) => `<td${wins ? ' class="compare-higher" aria-label="' + escapeHtml(format(value)) + ' สูงกว่า"' : ''}>${value == null || value === '' ? '—' : escapeHtml(format(value))}</td>`;
+    const tooltip = PLAYER_ATTRIBUTE_THAI[label] ? ` title="${PLAYER_ATTRIBUTE_THAI[label]}"` : '';
+    return `<tr${tooltip}>${cell(a, comparable && a > b)}<th scope="row">${escapeHtml(label)}</th>${cell(b, comparable && b > a)}</tr>`;
+  };
+  const group = title => `<tr class="compare-group"><th colspan="3">${title}</th></tr>`;
+  document.getElementById('compare-rows').innerHTML = [
+    row('อายุ', left.age, right.age),
+    row('ตำแหน่ง', left.pos, right.pos),
+    row('CA', left.ca, right.ca, true),
+    row('PA', left.pa, right.pa, true),
+    row('มูลค่า', left.value, right.value, false, formatCurrency),
+    row('ค่าเหนื่อยต่อสัปดาห์', left.wage, right.wage, false, formatCurrency),
+    ...Object.entries(ATTR_GROUPS).flatMap(([title, attrs]) => [
+      group(title),
+      ...attrs.map(attr => row(attr, left.attrs?.[attr], right.attrs?.[attr], true))
+    ])
+  ].join('');
+}
+
 async function triggerScan() {
+  if (compareDialog.open) compareDialog.close();
   el.btnScan.disabled = true;
   el.btnScanText.textContent = 'กำลังตรวจจับเซฟและโหลดข้อมูลจาก FM27 (~9 วินาที)...';
   showToast('🚀 กำลังเชื่อมต่อ FM27 และตรวจจับเซฟเกม กรุณารอสักครู่...');

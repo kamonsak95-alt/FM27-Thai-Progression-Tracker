@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FM27 Thai Progression Tracker & Scout</title>
-  <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
+  <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.21">
+  <link rel="stylesheet" href="style.css?v=1.0.22">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
     <div class="header-container">
       <div class="brand">
         <div class="brand-logo">
-          <img src="icon.svg" alt="FM27 Tracker Logo" class="brand-logo-img">
+          <img src="icon.svg?v=blue-ball" alt="FM27 Tracker Logo" class="brand-logo-img">
         </div>
         <div>
           <h1 class="brand-title">FM27 Thai Progression Tracker</h1>
@@ -43,14 +43,21 @@
             <span class="pill-label">สโมสร:</span>
             <span class="pill-value text-accent" id="info-club">กำลังโหลด...</span>
           </div>
-          <div class="info-pill" id="date-badge">
-            <span class="pill-label">วันที่ในเกม:</span>
-            <span class="pill-value text-green" id="info-date">กำลังโหลด...</span>
-            <span class="date-disclaimer-icon" id="date-disclaimer" style="display:none;" title="วันที่นี้เป็นค่าประมาณจากระบบและอาจไม่ตรงกับวันที่ในเกม ค่าประมาณนี้ไม่มีผลต่อค่า CA/PA ปัจจุบันที่อ่านจากเกม">ℹ️</span>
+          <div class="header-game-date">
+            <div class="info-pill" id="date-badge" aria-describedby="game-date-notice">
+              <span class="pill-label">วันที่ในเกม:</span>
+              <span class="pill-value text-green" id="info-date">กำลังโหลด...</span>
+              <span class="date-disclaimer-icon" id="date-disclaimer" style="display:none;" title="วันที่นี้เป็นค่าประมาณจากระบบและอาจไม่ตรงกับวันที่ในเกม ค่าประมาณนี้ไม่มีผลต่อค่า CA/PA ปัจจุบันที่อ่านจากเกม">ℹ️</span>
+            </div>
+            <p id="game-date-notice" class="header-notice">วันที่อาจคลาดเคลื่อนจากวันในเกม</p>
           </div>
-          <button id="btn-scan" class="btn btn-primary" title="โหลดข้อมูลล่าสุดจากเกม FM27 ที่กำลังเปิดอยู่ (ตรวจจับเซฟอัตโนมัติ)">
-            <span id="btn-scan-text">โหลดข้อมูลเกม (FM27)</span>
-          </button>
+          <div class="header-scan-action">
+            <button id="btn-scan" class="btn btn-primary" aria-describedby="new-save-notice"
+              title="โหลดข้อมูลล่าสุดจากเกม FM27 ที่กำลังเปิดอยู่ (ตรวจจับเซฟอัตโนมัติ)">
+              <span id="btn-scan-text">โหลดข้อมูลเกม (FM27)</span>
+            </button>
+            <p id="new-save-notice" class="header-notice"><strong>เซฟใหม่</strong> ลองโหลดข้อมูลเกมครั้งแรกหลังผ่านไป 5–7 วันในเกม</p>
+          </div>
         </div>
 
         <button type="button" id="btn-career-details" class="btn btn-secondary btn-sm"
@@ -64,7 +71,7 @@
             <span class="pill-label">เซฟเกม:</span>
             <span class="pill-value text-accent font-semibold" id="info-save">กำลังโหลด...</span>
           </div>
-          <div class="info-pill" id="baseline-badge" title="เปรียบเทียบพัฒนาการกับจุดเริ่มต้น (นักเตะเดิมเทียบกับวันเริ่มบันทึกข้อมูล / เด็กเกิดใหม่เทียบกับวันที่เกิดในเกม)">
+          <div class="info-pill" id="baseline-badge" title="เทียบ CA กับรอบแรกที่พบนักเตะแต่ละคนในเซฟนี้">
             <span class="pill-label">เปรียบเทียบ:</span>
             <span class="pill-value text-accent" id="info-baseline">จุดเริ่มอาชีพ</span>
           </div>
@@ -604,16 +611,19 @@
               <h2 id="modal-name" class="modal-player-name">Player Name</h2>
               <button type="button" id="modal-shortlist" class="shortlist-star" hidden></button>
               <span id="modal-player-id" class="modal-player-id" hidden></span>
-              <button type="button" id="btn-copy-player-name" class="btn-copy-name" title="คัดลอกชื่อนักเตะเพื่อนำไปค้นหาในเกม FM27">
-                <span class="copy-icon">📋</span>
-                <span class="copy-label">คัดลอกชื่อ</span>
-              </button>
             </div>
             <div class="modal-submeta">
               <span id="modal-pos" class="player-positions"></span>
               <span id="modal-club" class="text-muted">Club Name</span> &bull;
               <span id="modal-nat" class="text-muted">Nationality</span> &bull;
               <span id="modal-age" class="text-muted">21 ปี</span>
+            </div>
+            <div class="player-profile-actions">
+              <button type="button" id="btn-compare-player" class="btn-copy-name">เปรียบเทียบ</button>
+              <button type="button" id="btn-copy-player-name" class="btn-copy-name" title="คัดลอกชื่อนักเตะเพื่อนำไปค้นหาในเกม FM27">
+                <span class="copy-icon">📋</span>
+                <span class="copy-label">คัดลอกชื่อ</span>
+              </button>
             </div>
           </div>
 
@@ -675,6 +685,29 @@
       </div>
     </div>
   </div>
+
+  <dialog id="player-compare" class="compare-dialog" aria-labelledby="compare-title">
+    <header class="compare-header">
+      <h2 id="compare-title">เปรียบเทียบนักเตะ</h2>
+      <button type="button" id="compare-close" class="btn btn-secondary btn-sm">ปิด</button>
+    </header>
+    <p id="compare-first" class="text-muted"></p>
+    <section id="compare-picker">
+      <label for="compare-search">ค้นหาคู่เทียบ</label>
+      <input id="compare-search" class="form-input" type="search" autocomplete="off" placeholder="พิมพ์ชื่อนักเตะ">
+      <p id="compare-status" class="text-muted" role="status"></p>
+      <ul id="compare-options" class="compare-options"></ul>
+    </section>
+    <section id="compare-results" hidden>
+      <button type="button" id="compare-change" class="btn btn-secondary btn-sm">เปลี่ยนคู่เทียบ</button>
+      <div class="compare-table-scroll" tabindex="0" role="region" aria-label="ตารางเทียบค่าพลัง">
+      <table class="compare-table">
+        <thead><tr><th scope="col" id="compare-left"></th><th scope="col">ข้อมูล</th><th scope="col" id="compare-right"></th></tr></thead>
+        <tbody id="compare-rows"></tbody>
+      </table>
+      </div>
+    </section>
+  </dialog>
 
   <!-- Staff Detail Modal -->
   <div id="staff-modal" class="modal-overlay" style="display:none;">
@@ -766,6 +799,6 @@
 
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
-  <script src="app.js?v=1.0.21"></script>
+  <script src="app.js?v=1.0.22"></script>
 </body>
 </html>
