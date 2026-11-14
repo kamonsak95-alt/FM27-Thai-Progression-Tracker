@@ -312,6 +312,26 @@ const clearNationality = document.getElementById('clear-nationality');
 let selectedNationality = '';
 
 function initEventListeners() {
+  document.getElementById('clear-player-filters').addEventListener('click', () => {
+    clearTimeout(debounceTimer);
+    Object.assign(state, { q: '', pos: 'ALL', natOnly: false, baseline: '', sort: 'ca', order: 'desc', page: 1 });
+    state.selectedPitchPositions.clear();
+    selectedNationality = '';
+    nationalityInput.value = '';
+    clearNationality.disabled = true;
+    el.filterSearch.value = '';
+    el.btnClearSearch.style.display = 'none';
+    if (el.checkNatOnly) el.checkNatOnly.checked = false;
+    if (el.selectBaseline) el.selectBaseline.value = '';
+    updateComparisonSummary();
+    document.querySelectorAll('[data-preset]').forEach(button => {
+      button.classList.toggle('active', button.dataset.preset === 'all');
+    });
+    applyPreset('all');
+    updatePitchUI();
+    el.filterSearch.focus();
+    loadPlayers();
+  });
   const careerDetails = document.getElementById('btn-career-details');
   careerDetails.addEventListener('click', () => {
     const expanded = careerDetails.getAttribute('aria-expanded') === 'true';
@@ -899,6 +919,38 @@ function updatePlayerSortHeaders() {
   });
 }
 
+function updatePlayerFilterSummary() {
+  const labels = [];
+  if (state.q.trim()) labels.push(`ค้นหา “${state.q.trim()}”`);
+  if (state.pos !== 'ALL') {
+    const positions = state.pos.split(',').map(code =>
+      document.querySelector(`.pitch-btn[data-pos="${code}"] .pitch-btn-label`)?.textContent.trim() || code);
+    labels.push(`ตำแหน่ง ${positions.join(', ')}`);
+    if (state.natOnly) labels.push('ตำแหน่งถนัดเท่านั้น');
+  }
+  if (selectedNationality) labels.push(`สัญชาติ ${selectedNationality}`);
+  if (state.preset !== 'all') {
+    const preset = document.querySelector(`[data-preset="${state.preset}"]`);
+    if (preset) labels.push(preset.textContent.trim());
+  }
+  if (state.minAge !== 15 || state.maxAge !== (state.preset === 'wonderkids' ? 21 : 45)) {
+    labels.push(`อายุ ${state.minAge}–${state.maxAge} ปี`);
+  }
+  if (state.minCA !== 1 || state.maxCA !== 200) labels.push(`CA ${state.minCA}–${state.maxCA}`);
+  if (state.minPA !== (state.preset === 'wonderkids' ? 150 : 1) || state.maxPA !== 200) {
+    labels.push(`PA ${state.minPA}–${state.maxPA}`);
+  }
+  const canReset = labels.length || state.natOnly || state.baseline || state.sort !== 'ca' || state.order !== 'desc';
+  const summary = document.getElementById('player-filter-summary');
+  summary.hidden = !canReset;
+  summary.firstElementChild.hidden = !labels.length;
+  document.getElementById('player-filter-values').replaceChildren(...labels.map(label => {
+    const chip = document.createElement('span');
+    chip.textContent = label;
+    return chip;
+  }));
+}
+
 function applyPreset(preset) {
   const leavingWonderkids = state.preset === 'wonderkids' && preset !== 'wonderkids';
   state.preset = preset;
@@ -1246,8 +1298,7 @@ async function loadPlayers() {
     }
 
     state.total = data.total || 0;
-    document.getElementById('active-nationality').textContent =
-      selectedNationality ? `สัญชาติที่ใช้ · ${selectedNationality}` : '';
+    updatePlayerFilterSummary();
     state.totalPages = data.totalPages || 1;
     state.page = data.page || 1;
 

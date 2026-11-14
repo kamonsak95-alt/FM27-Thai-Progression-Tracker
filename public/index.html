@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.20">
+  <link rel="stylesheet" href="style.css?v=1.0.21">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -352,7 +352,11 @@
           พบนักเตะทั้งหมด <span id="total-count" class="font-bold text-accent">0</span> คน 
           <span class="text-muted text-sm">(แสดงหน้า <span id="current-page">1</span> จาก <span id="total-pages">1</span>)</span>
           <div id="player-comparison-basis" class="text-muted text-sm">เทียบ CA กับรอบแรกที่พบนักเตะ</div>
-          <div id="active-nationality" class="text-muted text-sm" aria-live="polite"></div>
+          <div id="player-filter-summary" class="player-filter-summary text-sm" hidden>
+            <span class="text-muted">แสดงผลจาก</span>
+            <span id="player-filter-values" class="player-filter-values" aria-live="polite"></span>
+            <button type="button" id="clear-player-filters" class="btn-text-action">ล้างทั้งหมด</button>
+          </div>
         </div>
 
         <div class="table-actions">
@@ -762,6 +766,6 @@
 
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
-  <script src="app.js?v=1.0.20"></script>
+  <script src="app.js?v=1.0.21"></script>
 </body>
 </html>
