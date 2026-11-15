@@ -20,7 +20,9 @@ function predictDevelopmentTrend(player, deltaCA = 0) {
       label: 'เริ่มถดถอย',
       icon: '📉',
       badgeClass: 'badge-trend-down',
-      reason: `อายุ ${age} ปี อยู่ในวัยโรยรา และค่าพลังเริ่มลดลงตามสภาพร่างกาย`
+      reason: deltaCA < 0
+        ? `อายุ ${age} ปี และ CA ลดลง ${-deltaCA} แต้มจากรอบก่อนหน้า`
+        : `ประเมินจากช่วงวัย (${age} ปี) ว่าเข้าสู่ช่วงที่ค่าพลังมีโอกาสลดลง`
     };
   }
 
@@ -32,7 +34,9 @@ function predictDevelopmentTrend(player, deltaCA = 0) {
       label: 'ก้าวกระโดด',
       icon: '🚀',
       badgeClass: 'badge-trend-explosive',
-      reason: `อายุ ${age} ปี ยังพัฒนาได้อีกถึง ${room} แต้ม (PA ${pa}) พร้อมนิสัยเอื้อต่อการเติบโตสูงมาก`
+      reason: `อายุ ${age} ปี ยังพัฒนาได้อีกถึง ${room} แต้ม (PA ${pa}) ${prof >= 13 || amb >= 13
+        ? 'และมีนิสัยเอื้อต่อการพัฒนา'
+        : `และ CA เพิ่มขึ้น ${deltaCA} แต้มจากรอบก่อนหน้า`}`
     };
   }
 
@@ -91,7 +95,7 @@ function predictDevelopmentTrend(player, deltaCA = 0) {
     label: 'คงที่',
     icon: '➖',
     badgeClass: 'badge-trend-neutral',
-    reason: `รักษามาตรฐานค่าพลังได้อย่างสม่ำเสมอ`
+    reason: 'ประเมินจากช่วงวัยและช่องว่างระหว่าง CA กับ PA'
   };
 }
 

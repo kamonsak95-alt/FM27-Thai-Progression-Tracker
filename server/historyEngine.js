@@ -571,6 +571,15 @@ function getSnapshot(gameDate, manager = '', club = '', refCode = '') {
   }) || null;
 }
 
+function getPriorCareerSnapshots(gameDate, manager, club, refCode, store = loadHistoryStore()) {
+  if (!gameDate) return [];
+  const career = resolveCareer(store, { manager, myClub: club }, null, refCode);
+  const key = career?.id ?? getSaveKey(manager, club, refCode);
+  if (key === 'default') return [];
+  return store.snapshots.filter(snapshot => snapshot.gameDate < gameDate && isSnapshotMatchingSave(snapshot, key, store))
+    .sort((a, b) => a.gameDate.localeCompare(b.gameDate));
+}
+
 /**
  * Calculates delta CA, % growth, and status for an array of current players
  * against a baseline map of { [id]: { ca, pa, ... } }.
@@ -721,6 +730,7 @@ module.exports = {
   saveSnapshot,
   listSnapshots,
   getSnapshot,
+  getPriorCareerSnapshots,
   calculateDeltas,
   buildFirstSeenMap,
   calculateFirstSeenDeltas,

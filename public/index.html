@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=squad-prospects">
+  <link rel="stylesheet" href="style.css?v=profile-comparison-periods">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -740,6 +740,7 @@
             <div id="modal-ca-basis" class="text-muted text-sm"></div>
           </div>
           <strong class="ca-progression-change" id="modal-ca-change"></strong>
+          <p id="modal-ca-first" class="ca-first-comparison text-muted text-sm"></p>
         </section>
 
         <!-- Development Forecast Box -->
@@ -766,7 +767,14 @@
         <!-- Attributes Grid -->
         <div class="modal-section">
           <h3 class="section-title">ค่าพลังนักเตะ (Attributes)</h3>
-          <p id="modal-attribute-baseline" class="attribute-baseline text-muted text-sm"></p>
+          <div class="attribute-comparison-controls">
+            <label for="modal-attribute-mode">เทียบลูกศรกับ</label>
+            <select id="modal-attribute-mode" class="form-select form-select-sm">
+              <option value="previous">รอบก่อนหน้า</option>
+              <option value="first">รอบแรกที่มีข้อมูล</option>
+            </select>
+          </div>
+          <p id="modal-attribute-baseline" class="attribute-baseline text-muted text-sm" aria-live="polite"></p>
           <div class="attributes-grid" id="modal-attrs-grid">
             <!-- Technical, Mental, Physical, Goalkeeping columns -->
           </div>
@@ -951,6 +959,6 @@
 
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
-  <script src="app.js?v=squad-youth-benchmarks"></script>
+  <script src="app.js?v=profile-comparison-periods"></script>
 </body>
 </html>

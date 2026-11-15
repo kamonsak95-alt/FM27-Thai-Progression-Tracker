@@ -9,6 +9,7 @@ const {
   saveSnapshot,
   listSnapshots,
   getSnapshot,
+  getPriorCareerSnapshots,
   calculateDeltas,
   calculateFirstSeenDeltas,
   loadHistoryStore,
@@ -43,6 +44,7 @@ let cachedDump = null;
 let cachedRefCode = null;
 let cachedPlayersWithDeltas = null;
 let currentBaselineDate = null;
+let profileHistory;
 let currentSaveKey = null;
 let playerNationalities = [];
 
@@ -119,6 +121,25 @@ function getOrLoadDump() {
     }
   }
   return cachedDump;
+}
+
+function getProfileSnapshots(dump, store) {
+  const { gameDate, manager, myClub } = dump.meta;
+  if (profileHistory?.dump !== dump || profileHistory.gameDate !== gameDate || profileHistory.refCode !== cachedRefCode) {
+    profileHistory = {
+      dump, gameDate, refCode: cachedRefCode,
+      snapshots: getPriorCareerSnapshots(gameDate, manager, myClub, cachedRefCode, store)
+    };
+  }
+  return profileHistory.snapshots;
+}
+
+function getRecentTrend(player, previousRound) {
+  const previousCA = previousRound?.players?.[player.id]?.ca;
+  const deltaCA = Number.isFinite(previousCA) && previousCA > 0 && Number.isFinite(player.ca) && player.ca > 0
+    ? player.ca - previousCA
+    : 0;
+  return predictDevelopmentTrend(player, deltaCA);
 }
 
 const MIME_TYPES = {
@@ -323,7 +344,8 @@ const server = http.createServer(async (req, res) => {
         meta: cachedDump?.meta || null
       });
     }).catch(err => {
-      sendJson(res, 500, { ok: false, error: err.message });
+      console.error('Could not process scan results:', err.message);
+      sendJson(res, 500, { ok: false, error: 'ประมวลผลข้อมูลจากรอบสแกนไม่สำเร็จ กรุณาลองโหลดข้อมูลเกมอีกครั้ง' });
     });
     return;
   }
@@ -463,11 +485,12 @@ const server = http.createServer(async (req, res) => {
       }
       playerNationalities = [...nationalities.values()].sort((a, b) => a.localeCompare(b));
       let deltas;
+      let store;
       if (baselineDate && baselineDate !== dump.meta?.gameDate) {
         const snap = getSnapshot(baselineDate, dump.meta?.manager, dump.meta?.myClub, refCode);
         deltas = calculateDeltas(validPlayers, snap ? snap.players : {});
       } else {
-        const store = loadHistoryStore();
+        store = loadHistoryStore();
         deltas = calculateFirstSeenDeltas(
           validPlayers,
           store.snapshots,
@@ -477,8 +500,9 @@ const server = http.createServer(async (req, res) => {
           refCode
         );
       }
+      const previousRound = getProfileSnapshots(dump, store).at(-1);
       cachedPlayersWithDeltas = deltas.map(p => {
-        const trend = predictDevelopmentTrend(p, p.deltaCA);
+        const trend = getRecentTrend(p, previousRound);
         return {
           ...p,
           trend,
@@ -661,6 +685,14 @@ const server = http.createServer(async (req, res) => {
 
     const baseline = cachedPlayersWithDeltas?.find(p => p.id === id);
     const previousAttributes = decodeSnapshotAttributes(baseline?.previousAttributeValues);
+    const snapshots = getProfileSnapshots(dump);
+    const previous = snapshots.at(-1);
+    const firstCA = snapshots.find(round => round.players?.[id]?.ca > 0);
+    const firstAttributes = snapshots.find(round => round.players?.[id]?.attributeValues);
+    const comparison = round => {
+      const saved = round?.players?.[id];
+      return round ? { date: round.gameDate, ca: saved?.ca ?? null, attributes: decodeSnapshotAttributes(saved?.attributeValues) } : null;
+    };
     return sendJson(res, 200, {
       player,
       preferredFoot: getPreferredFoot(player.foot),
@@ -671,10 +703,11 @@ const server = http.createServer(async (req, res) => {
       transferStatuses: getTransferStatuses(player),
       refCode: cachedRefCode,
       scanId: dump.meta?.scanId,
-      trend: predictDevelopmentTrend(player, 0),
+      trend: getRecentTrend(player, previous),
       previousCA: baseline?.prevCA ?? null,
       comparisonDate: currentBaselineDate || baseline?.firstSeenDate || null,
       previousAttributes,
+      profileComparisons: { previous: comparison(previous), firstCA: comparison(firstCA), firstAttributes: comparison(firstAttributes) },
       attributeBaselineDate: previousAttributes ? (baseline.attributeBaselineDate || currentBaselineDate) : null
     });
   }

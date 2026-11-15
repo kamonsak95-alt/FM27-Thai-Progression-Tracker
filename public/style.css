@@ -1920,6 +1920,14 @@ body {
   display: none;
 }
 
+.ca-first-comparison {
+  flex: 0 0 100%;
+  padding-block-start: 6px;
+  border-block-start: 1px solid var(--border-color);
+}
+
+.attribute-comparison-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+
 .ca-progression[data-direction="up"] {
   --progress-color: #89cfaa;
   --progress-bg: rgba(16, 185, 129, 0.12);

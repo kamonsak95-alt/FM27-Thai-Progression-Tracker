@@ -574,7 +574,7 @@ function initEventListeners() {
   squadBoard.addEventListener('click', event => {
     const profile = event.target.closest('[data-squad-player]');
     if (profile) {
-      if (!el.btnScan.disabled) openPlayerModal(Number(profile.dataset.squadPlayer), undefined, undefined, undefined, squadBoard.dataset.scanId);
+      if (!el.btnScan.disabled) openPlayerModal(Number(profile.dataset.squadPlayer), undefined, squadBoard.dataset.scanId);
       return;
     }
     const button = event.target.closest('[data-squad-scout]');
@@ -1750,7 +1750,7 @@ function renderTable(players, comparisonDate, refCode) {
     const wageStr = formatWeeklyWage(p.wage, '–', '/w');
 
     return `
-      <tr data-ref="${escapeHtml(refCode || '')}" data-comparison-date="${escapeHtml(originDate)}" onclick="openPlayerModal(${p.id}, ${Number.isFinite(p.prevCA) ? p.prevCA : 'null'}, this.dataset.comparisonDate, this.dataset.ref)">
+      <tr data-ref="${escapeHtml(refCode || '')}" onclick="openPlayerModal(${p.id}, this.dataset.ref)">
         <td class="col-name sticky-col">
           <div class="shortlist-name">
             ${canSave ? `<button type="button" class="shortlist-star" data-player-id="${Number(p.id)}" data-ref="${escapeHtml(refCode)}" onclick="toggleShortlistStar(event, this)"></button>` : ''}
@@ -1779,17 +1779,13 @@ function renderTable(players, comparisonDate, refCode) {
   });
 }
 
-async function openPlayerModal(id, previousCA, comparisonDate, expectedRef, expectedScanId) {
+async function openPlayerModal(id, expectedRef, expectedScanId) {
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
-    const { player, preferredFoot, reputationLabel, contractEnd, transferStatuses = [], trend, previousAttributes, attributeBaselineDate, refCode, scanId, previousCA: scanPreviousCA, comparisonDate: scanComparisonDate } = await res.json();
+    const { player, preferredFoot, reputationLabel, contractEnd, transferStatuses = [], trend, refCode, scanId, profileComparisons } = await res.json();
     if (expectedRef && (refCode !== expectedRef || state.refCode !== expectedRef || el.btnScan.disabled)) return;
     if (expectedScanId && (scanId !== expectedScanId || el.btnScan.disabled)) return;
-    if (previousCA === undefined) {
-      previousCA = scanPreviousCA;
-      comparisonDate = scanComparisonDate;
-    }
     document.getElementById('btn-compare-player').onclick = () => openPlayerComparison(player, refCode, scanId);
     const star = document.getElementById('modal-shortlist');
     star.hidden = !refCode?.startsWith('#');
@@ -1824,21 +1820,26 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef, expe
     document.getElementById('modal-ca').textContent = player.ca;
     document.getElementById('modal-pa').textContent = player.pa;
 
+    const { previous, firstCA, firstAttributes } = profileComparisons ?? {};
     const progression = document.getElementById('modal-ca-progression');
-    const hasBaseline = Number.isFinite(previousCA) && previousCA > 0 && Number.isFinite(player.ca);
-    progression.hidden = !hasBaseline;
-    if (hasBaseline) {
-      const delta = player.ca - previousCA;
-      progression.dataset.direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
-      document.getElementById('modal-ca-range').textContent = `${previousCA} → ${player.ca}`;
-      document.getElementById('modal-ca-basis').textContent = comparisonDate
-        ? `เทียบกับรอบ ${formatGameDate(comparisonDate)}`
-        : 'เทียบกับรอบแรกที่พบ';
+    const formatDelta = round => {
+      const delta = player.ca - round.ca;
       const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
-      const percentage = ((Math.abs(delta) / previousCA) * 100).toFixed(2);
-      document.getElementById('modal-ca-change').textContent =
-        `${sign}${Math.abs(delta)} CA (${sign}${percentage}%)${delta === 0 ? ' · คงที่' : ''}`;
-    }
+      const percentage = (Math.abs(delta) / round.ca * 100).toFixed(2);
+      return `${sign}${Math.abs(delta)} CA (${sign}${percentage}%)`;
+    };
+    const hasCA = round => Number.isFinite(round?.ca) && round.ca > 0 && Number.isFinite(player.ca);
+    const recent = hasCA(previous);
+    progression.hidden = false;
+    progression.dataset.direction = recent && player.ca > previous.ca ? 'up' : recent && player.ca < previous.ca ? 'down' : 'steady';
+    document.getElementById('modal-ca-range').textContent = recent ? `${previous.ca} → ${player.ca}` : '';
+    document.getElementById('modal-ca-basis').textContent = previous
+      ? `รอบก่อนหน้า · ${formatGameDate(previous.date)}`
+      : 'รอบก่อนหน้า';
+    document.getElementById('modal-ca-change').textContent = recent ? formatDelta(previous) : 'ไม่มีข้อมูลเทียบ';
+    document.getElementById('modal-ca-first').textContent = hasCA(firstCA)
+      ? `ตั้งแต่เริ่มบันทึก · ${formatGameDate(firstCA.date)} · ${formatDelta(firstCA)}`
+      : 'ตั้งแต่เริ่มบันทึก · ไม่มีข้อมูลเทียบ';
 
     // Render Development Forecast Box
     const forecastBox = document.getElementById('modal-forecast-box');
@@ -1852,50 +1853,61 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef, expe
 
     // Render Attributes
     const attrs = player.attrs || {};
-    document.getElementById('modal-attribute-baseline').textContent = attributeBaselineDate
-      ? `เทียบค่าพลังรายช่องกับรอบ ${formatGameDate(attributeBaselineDate)}`
-      : 'ยังไม่มีค่าพลังรายช่องจากรอบก่อนหน้าให้เปรียบเทียบ';
     const attrsGrid = document.getElementById('modal-attrs-grid');
     const isGoalkeeper = (player.pos || '').split(',').some(position => position.trim() === 'GK');
-    attrsGrid.innerHTML = getProfileAttributeColumns(isGoalkeeper).map(groups => {
-      const cards = groups.map(([catName, list, collapsible]) => {
-        const rows = list.map(attr => {
-          const val = attrs[attr] != null ? attrs[attr] : '-';
-          let colorClass = 'attr-val-low';
-          if (typeof val === 'number') {
-            if (val >= 16) colorClass = 'attr-val-top';
-            else if (val >= 11) colorClass = 'attr-val-good';
-            else if (val >= 6) colorClass = 'attr-val-avg';
-          }
-          const previous = previousAttributes?.[attr];
-          let change = '';
-          if (Number.isFinite(previous) && Number.isFinite(val)) {
-            const delta = val - previous;
-            const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
-            const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-            const description = delta === 0 ? `คงที่ที่ ${val}` : `${delta > 0 ? 'เพิ่ม' : 'ลด'}จาก ${previous} เป็น ${val}`;
-            change = `<span class="attribute-change" data-direction="${direction}" role="img" aria-label="${description}" title="${description}">${arrow}</span>`;
+    const mode = document.getElementById('modal-attribute-mode');
+    const renderAttributes = () => {
+      const round = mode.value === 'first' ? firstAttributes : previous;
+      const previousAttributes = round?.attributes;
+      const goalkeepingOpen = attrsGrid.querySelector('.player-goalkeeping')?.open;
+      document.getElementById('modal-attribute-baseline').textContent = previousAttributes
+        ? `เทียบกับรอบ ${formatGameDate(round.date)}`
+        : `ไม่มีข้อมูลเทียบ${round ? ' · ' + formatGameDate(round.date) : ''}`;
+      attrsGrid.innerHTML = getProfileAttributeColumns(isGoalkeeper).map(groups => {
+        const cards = groups.map(([catName, list, collapsible]) => {
+          const rows = list.map(attr => {
+            const val = attrs[attr] != null ? attrs[attr] : '-';
+            let colorClass = 'attr-val-low';
+            if (typeof val === 'number') {
+              if (val >= 16) colorClass = 'attr-val-top';
+              else if (val >= 11) colorClass = 'attr-val-good';
+              else if (val >= 6) colorClass = 'attr-val-avg';
+            }
+            const previous = previousAttributes?.[attr];
+            let change = '';
+            if (Number.isFinite(previous) && Number.isFinite(val)) {
+              const delta = val - previous;
+              const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
+              const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+              const description = delta === 0 ? `คงที่ที่ ${val}` : `${delta > 0 ? 'เพิ่ม' : 'ลด'}จาก ${previous} เป็น ${val}`;
+              change = `<span class="attribute-change" data-direction="${direction}" role="img" aria-label="${description}" title="${description}">${arrow}</span>`;
+            }
+            return `
+              <div class="attr-row" title="${PLAYER_ATTRIBUTE_THAI[attr]}">
+                <span class="attr-name">${PROFILE_ATTRIBUTE_LABELS[attr] ?? attr}</span>
+                <span class="attribute-result"><span class="attr-val ${colorClass}">${val}</span>${change}</span>
+              </div>
+            `;
+          }).join('');
+
+          if (collapsible) {
+            return `<details class="attr-column player-goalkeeping"><summary class="attr-column-title">${catName}</summary>${rows}</details>`;
           }
           return `
-            <div class="attr-row" title="${PLAYER_ATTRIBUTE_THAI[attr]}">
-              <span class="attr-name">${PROFILE_ATTRIBUTE_LABELS[attr] ?? attr}</span>
-              <span class="attribute-result"><span class="attr-val ${colorClass}">${val}</span>${change}</span>
+            <div class="attr-column">
+              <div class="attr-column-title">${catName}</div>
+              ${rows}
             </div>
           `;
         }).join('');
-
-        if (collapsible) {
-          return `<details class="attr-column player-goalkeeping"><summary class="attr-column-title">${catName}</summary>${rows}</details>`;
-        }
-        return `
-          <div class="attr-column">
-            <div class="attr-column-title">${catName}</div>
-            ${rows}
-          </div>
-        `;
+        return `<div class="profile-attribute-column">${cards}</div>`;
       }).join('');
-      return `<div class="profile-attribute-column">${cards}</div>`;
-    }).join('');
+      if (goalkeepingOpen) attrsGrid.querySelector('.player-goalkeeping').open = true;
+    };
+    attrsGrid.replaceChildren();
+    mode.value = 'previous';
+    mode.onchange = renderAttributes;
+    renderAttributes();
 
     // Personality Stats
     const pGrid = document.getElementById('modal-personality-grid');

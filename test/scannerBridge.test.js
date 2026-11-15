@@ -1,6 +1,14 @@
 const assert = require('node:assert');
 const test = require('node:test');
 
+test('scanner messages explain access denied while FM27 is running', () => {
+  const { formatScanError } = require('../server/scannerBridge');
+  const warning = '2026-11-15 23:23:02 [5656] WARN fm.exe draait, maar is niet te openen (toegang geweigerd: FM draait waarschijnlijk als administrator).';
+  const expected = 'ตรวจพบ FM27 แต่ Windows ปฏิเสธการเข้าถึง กรุณาปิดเกมแล้วเปิดใหม่แบบปกติ (ไม่ใช้ Run as administrator) จากนั้นโหลดเซฟและลองสแกนอีกครั้ง';
+  assert.strictEqual(formatScanError(warning, ''), expected);
+  assert.strictEqual(formatScanError('', warning), expected);
+});
+
 test('scanner messages explain in Thai when FM27 is closed', () => {
   const { formatScanError } = require('../server/scannerBridge');
   const warning = '2026-11-13 00:30:06 [32640] WARN fm.exe draait niet - niets te scannen.';
@@ -8,7 +16,13 @@ test('scanner messages explain in Thai when FM27 is closed', () => {
   assert.strictEqual(formatScanError(warning, ''), expected);
   assert.strictEqual(formatScanError(warning, 'Scanner exited with an error'), expected);
   assert.strictEqual(formatScanError('', warning), expected);
-  assert.strictEqual(formatScanError('', 'Other scanner error'), 'Other scanner error');
+});
+
+test('unknown scanner messages fall back to Thai', () => {
+  const { formatScanError } = require('../server/scannerBridge');
+  const expected = 'สแกนข้อมูลเกมไม่สำเร็จ กรุณาตรวจว่าเปิด FM27 และโหลดเซฟแล้ว จากนั้นลองโหลดข้อมูลเกมอีกครั้ง';
+  assert.strictEqual(formatScanError('', 'Onbekende fout'), expected);
+  assert.strictEqual(formatScanError('', ''), expected);
 });
 
 // Test that scannerBridge exports required functions and reads dump

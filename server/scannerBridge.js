@@ -92,11 +92,15 @@ function getLatestDump() {
 }
 
 function formatScanError(stdout, stderr) {
-  if (/\bfm\.exe draait niet\b/i.test(`${stdout}\n${stderr}`)) {
+  const output = `${stdout}\n${stderr}`;
+  if (/\bfm\.exe draait, maar is niet te openen \(toegang geweigerd\b/i.test(output)) {
+    return 'ตรวจพบ FM27 แต่ Windows ปฏิเสธการเข้าถึง กรุณาปิดเกมแล้วเปิดใหม่แบบปกติ (ไม่ใช้ Run as administrator) จากนั้นโหลดเซฟและลองสแกนอีกครั้ง';
+  }
+  if (/\bfm\.exe draait niet\b/i.test(output)) {
     return 'ยังไม่ได้เปิด FM27 กรุณาเปิดเกมและโหลดเซฟ แล้วกดโหลดข้อมูลเกมอีกครั้ง';
   }
 
-  return stderr || stdout || 'การสแกนล้มเหลว (ตรวจสอบว่าเปิดเกม FM27 อยู่หรือไม่)';
+  return 'สแกนข้อมูลเกมไม่สำเร็จ กรุณาตรวจว่าเปิด FM27 และโหลดเซฟแล้ว จากนั้นลองโหลดข้อมูลเกมอีกครั้ง';
 }
 
 /**
@@ -124,15 +128,17 @@ function runScan() {
     child.stderr.on('data', (d) => { stderr += d.toString(); });
 
     child.on('error', (err) => {
+      console.error('Scanner could not start:', err.message);
       resolve({
         ok: false,
-        error: `เกิดข้อผิดพลาดในการเรียกตัวสแกน: ${err.message}`
+        error: 'เปิดตัวสแกนไม่สำเร็จ กรุณาปิดแล้วเปิด Tracker ใหม่ จากนั้นลองโหลดข้อมูลเกมอีกครั้ง'
       });
     });
 
     child.on('close', (code) => {
       const elapsed = Date.now() - start;
       if (code !== 0) {
+        console.error('Scanner failed:', code, stderr.trim(), stdout.trim());
         return resolve({
           ok: false,
           code,
@@ -149,13 +155,12 @@ function runScan() {
           elapsed,
           meta: dump?.meta || null,
           playersCount: dump?.players?.length || 0,
-          staffCount: dump?.staff?.length || 0,
-          output: stdout
+          staffCount: dump?.staff?.length || 0
         });
       } catch (err) {
         resolve({
           ok: false,
-          error: `สแกนสำเร็จแต่อ่านไฟล์ข้อมูลล้มเหลว: ${err.message}`,
+          error: 'สแกนเสร็จแล้ว แต่เปิดไฟล์ผลสแกนไม่ได้ กรุณาลองโหลดข้อมูลเกมอีกครั้ง',
           elapsed
         });
       }

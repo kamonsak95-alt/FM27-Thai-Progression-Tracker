@@ -6,6 +6,28 @@ const os = require('node:os');
 const http = require('node:http');
 const { decodeSnapshotAttributes } = require('../server/snapshotAttributes');
 
+test('profile history includes only earlier rounds from the same career', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fm27-profile-history-'));
+  process.env.FM27_HISTORY_FILE = path.join(dir, 'history.json');
+  t.after(() => {
+    delete process.env.FM27_HISTORY_FILE;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const { getPriorCareerSnapshots } = require('../server/historyEngine');
+  fs.writeFileSync(process.env.FM27_HISTORY_FILE, JSON.stringify({
+    careers: [],
+    snapshots: [
+      { gameDate: '2026-08-03', saveKey: '#FM-111111' },
+      { gameDate: '2026-08-02', saveKey: '#FM-222222' },
+      { gameDate: '2026-08-02', saveKey: '#FM-111111' },
+      { gameDate: '2026-08-01', saveKey: '#FM-111111' }
+    ]
+  }));
+  const rounds = getPriorCareerSnapshots('2026-08-03', 'Manager A', 'Club A', '#FM-111111');
+  assert.deepStrictEqual(rounds.map(round => round.gameDate), ['2026-08-01', '2026-08-02']);
+  assert.deepStrictEqual(getPriorCareerSnapshots('2026-08-03'), []);
+});
+
 test('unemployed careers use scanner IDs, keep separate history, and retain their code after joining a club', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fm27-unemployed-'));
   const file = path.join(dir, 'history.json');
