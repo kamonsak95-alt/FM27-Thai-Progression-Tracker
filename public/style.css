@@ -1681,6 +1681,13 @@ body {
   flex-wrap: wrap;
 }
 
+#modal-club-details[hidden] { display: none; }
+#modal-club-details > span { overflow-wrap: anywhere; }
+#modal-club-details > span:not([hidden]) + span:not([hidden]) {
+  border-inline-start: 1px solid var(--border-color);
+  padding-inline-start: 8px;
+}
+
 .player-personal-meta > span:not([hidden]) + span:not([hidden]),
 .player-personal-meta > [hidden] + span {
   border-inline-start: 1px solid var(--border-color);

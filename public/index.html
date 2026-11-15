@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=profile-comparison-periods">
+  <link rel="stylesheet" href="style.css?v=1.0.29">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -540,6 +540,7 @@
       <div class="player-secondary-filters">
         <div class="player-filter-actions">
           <button type="button" class="btn btn-secondary btn-sm" id="open-staff-skills" aria-haspopup="dialog">ทักษะทีมงาน</button>
+          <button type="button" id="clear-staff-extras" class="btn btn-text-action btn-sm" disabled>ล้างทั้งหมด</button>
         </div>
       <details class="player-advanced-filters staff-advanced-filters">
         <summary>ตัวกรองเพิ่มเติม</summary>
@@ -611,7 +612,6 @@
           <div id="staff-filter-summary" class="player-filter-summary text-sm" hidden>
             <span>แสดงผลจาก</span>
             <span id="staff-active-filters" class="player-filter-values" aria-live="polite"></span>
-            <button id="clear-staff-extras" class="btn-text-action" type="button">ล้างตัวกรองเพิ่มเติม</button>
           </div>
         </div>
 
@@ -700,6 +700,10 @@
               <span id="modal-pos" class="player-positions"></span>
               <span id="modal-club" class="text-muted">Club Name</span> &bull;
               <span id="modal-nat" class="text-muted">Nationality</span>
+            </div>
+            <div id="modal-club-details" class="modal-submeta text-muted" hidden>
+              <span id="modal-division" hidden></span>
+              <span id="modal-owner-club" hidden></span>
             </div>
             <div class="modal-submeta player-personal-meta">
               <span id="modal-age" class="text-muted">21 ปี</span>
@@ -959,6 +963,6 @@
 
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
-  <script src="app.js?v=1.0.28"></script>
+  <script src="app.js?v=1.0.29"></script>
 </body>
 </html>

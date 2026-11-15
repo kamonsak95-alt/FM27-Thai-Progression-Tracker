@@ -135,6 +135,14 @@ const PERSONALITY_MAP = {
   controversy: 'การสร้างความขัดแย้ง (Controversy)'
 };
 
+const PLAYER_HIDDEN_ATTRIBUTES = {
+  Consistency: 'ความสม่ำเสมอ (Consistency)',
+  ImportantMatches: 'การเล่นในเกมสำคัญ (Important Matches)',
+  InjuryProneness: 'ความเสี่ยงบาดเจ็บ (Injury Proneness)',
+  Versatility: 'การปรับเล่นหลายตำแหน่ง (Versatility)',
+  Dirtiness: 'การเล่นตุกติก (Dirtiness)'
+};
+
 // Elements
 const el = {
   infoManager: document.getElementById('info-manager'),
@@ -351,9 +359,13 @@ function getPositionGroup(position = '') {
   return '';
 }
 
-function renderPositionBadges(positions) {
+function renderPositionBadges(positions, naturalPositions = []) {
   return (positions || '').split(',').map(position => position.trim()).filter(Boolean)
-    .map(position => `<span class="badge badge-pos" data-position-group="${getPositionGroup(position)}">${escapeHtml(position)}</span>`)
+    .map(position => {
+      const natural = naturalPositions.includes(position);
+      const marker = natural ? ' <span role="img" aria-label="ตำแหน่งถนัดโดยธรรมชาติ">◆</span>' : '';
+      return `<span class="badge badge-pos" data-position-group="${getPositionGroup(position)}"${natural ? ' data-natural-position title="ตำแหน่งถนัดโดยธรรมชาติ"' : ''}>${escapeHtml(position)}${marker}</span>`;
+    })
     .join('') || '–';
 }
 
@@ -504,7 +516,6 @@ function getStaffExtraFilters() {
     params.append('skill', `${key}:${minimum}`);
     labels.push(`${skills.get(key)} ≥ ${minimum}`);
   }
-  const extraCount = labels.length;
   if (stateStaff.q.trim()) labels.unshift(`ค้นหา “${stateStaff.q.trim()}”`);
   if (stateStaff.preset !== 'all') {
     const preset = document.querySelector(`[data-staff-preset="${stateStaff.preset}"]`);
@@ -521,7 +532,8 @@ function getStaffExtraFilters() {
   ]) {
     if (min !== (label === 'อายุ' ? 15 : 1) || max !== defaultMax) labels.push(`${label} ${min}–${max}`);
   }
-  document.getElementById('clear-staff-extras').hidden = !extraCount;
+  const canReset = labels.length || stateStaff.sort !== 'ca' || stateStaff.order !== 'desc';
+  document.getElementById('clear-staff-extras').disabled = !canReset;
   const summary = document.getElementById('staff-active-filters');
   document.getElementById('staff-filter-summary').hidden = !labels.length;
   summary.replaceChildren(...labels.map(label => {
@@ -552,10 +564,19 @@ function initEventListeners() {
     });
   }
   document.getElementById('clear-staff-extras').addEventListener('click', () => {
+    clearTimeout(debounceStaffTimer);
+    stateStaff.q = '';
+    el.filterStaffSearch.value = '';
+    el.btnClearStaffSearch.style.display = 'none';
     staffWage.value = '';
     staffTraining.value = '';
     staffTrainingStars.value = '';
     staffSkills.clear();
+    document.querySelectorAll('.staff-preset-btn').forEach(button => {
+      button.classList.toggle('active', button.dataset.staffPreset === 'all');
+    });
+    applyStaffPreset('all');
+    el.filterStaffSearch.focus();
     refreshStaffFilters();
   });
   for (const field of transferFilters.values()) {
@@ -1156,10 +1177,7 @@ function initEventListeners() {
         stateStaff.order = (sortKey === 'name' || sortKey === 'club' || sortKey === 'role') ? 'asc' : 'desc';
       }
 
-      document.querySelectorAll('th[data-staff-sort]').forEach(t => {
-        t.classList.remove('active-sort', 'asc', 'desc');
-      });
-      th.classList.add('active-sort', stateStaff.order);
+      updateStaffSortHeaders();
 
       stateStaff.page = 1;
       loadStaff();
@@ -1419,6 +1437,18 @@ function applyStaffPreset(preset) {
   if (el.minStaffPA) el.minStaffPA.value = stateStaff.minPA;
   if (el.maxStaffPA) el.maxStaffPA.value = stateStaff.maxPA;
   if (el.valStaffPA) el.valStaffPA.textContent = `${stateStaff.minPA} - ${stateStaff.maxPA}`;
+  updateStaffSortHeaders();
+}
+
+function updateStaffSortHeaders() {
+  document.querySelectorAll('th[data-staff-sort]').forEach(th => {
+    const active = th.dataset.staffSort === stateStaff.sort;
+    th.classList.toggle('active-sort', active);
+    th.classList.toggle('asc', active && stateStaff.order === 'asc');
+    th.classList.toggle('desc', active && stateStaff.order === 'desc');
+    if (active) th.setAttribute('aria-sort', stateStaff.order === 'asc' ? 'ascending' : 'descending');
+    else th.removeAttribute('aria-sort');
+  });
 }
 
 async function loadStatus() {
@@ -1805,8 +1835,19 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
     const playerId = document.getElementById('modal-player-id');
     playerId.hidden = player.id == null;
     playerId.textContent = player.id == null ? '' : `ID ${player.id}`;
-    document.getElementById('modal-pos').innerHTML = renderPositionBadges(player.pos);
-    document.getElementById('modal-club').textContent = player.club?.trim() || 'ไร้สังกัด';
+    const naturalPositions = Array.isArray(player.posNat) ? player.posNat : [];
+    document.getElementById('modal-pos').innerHTML = renderPositionBadges(player.pos, naturalPositions);
+    const club = player.club?.trim();
+    document.getElementById('modal-club').textContent = club || 'ไร้สังกัด';
+    const ownerClub = typeof player.ownerClub === 'string' ? player.ownerClub.trim() : '';
+    const division = typeof player.div === 'string' ? player.div.trim() : '';
+    const ownerClubLabel = document.getElementById('modal-owner-club');
+    const divisionLabel = document.getElementById('modal-division');
+    ownerClubLabel.hidden = !ownerClub || ownerClub === club;
+    ownerClubLabel.textContent = ownerClubLabel.hidden ? '' : `ต้นสังกัด ${ownerClub}`;
+    divisionLabel.hidden = !division;
+    divisionLabel.textContent = division ? `ลีก ${division}` : '';
+    document.getElementById('modal-club-details').hidden = ownerClubLabel.hidden && divisionLabel.hidden;
     document.getElementById('modal-nat').innerHTML = renderPrimaryNationality(player.nat);
     document.getElementById('modal-age').textContent = `${player.age} ปี (เกิด ${player.birthYear || '-'})`;
     const height = document.getElementById('modal-height');
@@ -1912,8 +1953,12 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
 
     // Personality Stats
     const pGrid = document.getElementById('modal-personality-grid');
-    pGrid.innerHTML = Object.entries(PERSONALITY_MAP).map(([key, label]) => {
-      const val = player[key] != null ? player[key] : '-';
+    const personalityStats = Object.entries(PERSONALITY_MAP).map(([key, label]) => [label, player[key]]);
+    const hiddenStats = Object.entries(PLAYER_HIDDEN_ATTRIBUTES)
+      .filter(([key]) => Number.isInteger(attrs[key]) && attrs[key] >= 1 && attrs[key] <= 20)
+      .map(([key, label]) => [label, attrs[key]]);
+    pGrid.innerHTML = [...personalityStats, ...hiddenStats].map(([label, value]) => {
+      const val = Number.isFinite(value) ? value : '–';
       return `
         <div class="personality-item" title="${escapeHtml(label.split(' (')[0])}">
           <span class="text-muted">${label}</span>
