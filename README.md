@@ -10,15 +10,16 @@
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="docs/promo/v1.0.22/player-search.webp" alt="ค้นหานักเตะ" width="100%"><br><strong>ค้นหานักเตะ</strong><br>กรองตามตำแหน่ง อายุ และค่าพลัง CA / PA เพื่อหานักเตะที่ตรงกับทีม</td>
-<td width="50%" valign="top"><img src="docs/promo/v1.0.22/shortlist.webp" alt="Shortlist แยกตามเซฟ" width="100%"><br><strong>Shortlist แยกตามเซฟ</strong><br>กดดาวเก็บนักเตะที่สนใจ แล้วเปิดดูรายชื่อของเซฟนั้นได้ทันที</td>
+<td width="50%" valign="top"><img src="docs/promo/v1.0.23/player-search.webp" alt="ตัวกรอง Attributes ของนักเตะ" width="100%"><br><strong>ค้นหานักเตะ</strong><br>ติ๊ก Attributes ได้หลายข้อ แล้วกรองร่วมกับเท้าถนัด งบ ค่าเหนื่อย สถานะย้ายทีม หรือสัญญาใกล้หมด</td>
+<td width="50%" valign="top"><img src="docs/promo/v1.0.23/shortlist.webp" alt="Shortlist แยกตามเซฟ" width="100%"><br><strong>Shortlist แยกตามเซฟ</strong><br>กดดาวเก็บนักเตะที่สนใจ แล้วเปิดดูรายชื่อของเซฟนั้นได้ทันที</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/promo/v1.0.22/ca-progression.webp" alt="ติดตามพัฒนาการ CA" width="100%"><br><strong>ติดตามพัฒนาการ CA</strong><br>ดูค่าพลังปัจจุบันและส่วนต่างจากรอบแรกที่ Tracker พบนักเตะคนนั้น</td>
-<td width="50%" valign="top"><img src="docs/promo/v1.0.22/staff-scout.webp" alt="ส่องทีมงาน" width="100%"><br><strong>ส่องทีมงาน</strong><br>ค้นหาโค้ช แมวมอง และทีมแพทย์ตามตำแหน่ง ทักษะ หรือสถานะว่างงาน</td>
+<td width="50%" valign="top"><img src="docs/promo/v1.0.23/ca-progression.webp" alt="โปรไฟล์และพัฒนาการ CA" width="100%"><br><strong>ติดตามพัฒนาการ CA</strong><br>ดูส่วนต่าง CA จากรอบแรกที่พบ พร้อมส่วนสูง เท้าถนัด ชื่อเสียง และสัญญาในโปรไฟล์</td>
+<td width="50%" valign="top"><img src="docs/promo/v1.0.23/player-compare.webp" alt="เปรียบเทียบนักเตะสองคน" width="100%"><br><strong>เปรียบเทียบนักเตะ</strong><br>เลือกคู่เทียบจากโปรไฟล์ แล้วดูค่าพลังข้างกันพร้อมไฮไลต์ค่าที่สูงกว่า</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/promo/v1.0.22/player-compare.webp" alt="เปรียบเทียบนักเตะสองคน" width="100%"><br><strong>เปรียบเทียบนักเตะ</strong><br>เลือกคู่เทียบจากโปรไฟล์ แล้วดูค่าพลังข้างกันพร้อมไฮไลต์ค่าที่สูงกว่า</td>
+<td width="50%" valign="top"><img src="docs/promo/v1.0.23/staff-scout.webp" alt="ตัวกรองค้นหาทีมงาน" width="100%"><br><strong>ทีมงาน</strong><br>ค้นหาโค้ช แมวมอง และทีมแพทย์ด้วยค่าทักษะ เพดานค่าเหนื่อย และดาวฝึกซ้อมรายหมวด</td>
+<td width="50%" valign="top"><img src="docs/promo/v1.0.23/squad-analysis.webp" alt="วิเคราะห์ทีมตามตำแหน่ง" width="100%"><br><strong>วิเคราะห์ทีม</strong><br>ดูความพร้อมใน 10 กลุ่มตำแหน่งจากจำนวนผู้เล่นและช่องว่าง CA แล้วกดค้นหาผู้เล่นนอกทีมได้เลย</td>
 </tr>
 </table>
 
