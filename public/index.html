@@ -190,6 +190,7 @@
       <div class="player-secondary-filters">
       <div class="player-filter-actions">
         <button type="button" id="open-attribute-filters" class="btn btn-secondary btn-sm" aria-haspopup="dialog">Attributes</button>
+        <button type="button" id="clear-player-filters" class="btn btn-text-action btn-sm" disabled>ล้างทั้งหมด</button>
       </div>
       <details id="player-advanced-filters" class="player-advanced-filters">
         <summary>ตัวกรองเพิ่มเติม</summary>
@@ -395,11 +396,10 @@
         <div class="count-display">
           พบนักเตะทั้งหมด <span id="total-count" class="font-bold text-accent">0</span> คน 
           <span class="text-muted text-sm">(แสดงหน้า <span id="current-page">1</span> จาก <span id="total-pages">1</span>)</span>
-          <div id="player-comparison-basis" class="text-muted text-sm">เทียบ CA กับรอบแรกที่พบนักเตะ</div>
+          <div id="player-comparison-basis" class="text-muted text-sm">เทียบ CA กับรอบแรกที่พบนักเตะแต่ละคนในเซฟนี้</div>
           <div id="player-filter-summary" class="player-filter-summary text-sm" hidden>
             <span class="text-muted">แสดงผลจาก</span>
             <span id="player-filter-values" class="player-filter-values" aria-live="polite"></span>
-            <button type="button" id="clear-player-filters" class="btn-text-action">ล้างทั้งหมด</button>
           </div>
         </div>
 
@@ -436,7 +436,7 @@
               <th data-sort="ca" class="sortable text-center active-sort desc" aria-sort="descending" title="Current Ability (ค่าพลังปัจจุบัน 1-200)">CA</th>
               <th data-sort="pa" class="sortable text-center" title="Potential Ability (ศักยภาพสูงสุด 1-200)">PA</th>
               <th data-sort="trendScore" class="sortable text-center player-table-secondary" title="แนวโน้มพัฒนาการประเมินจากอายุและช่องว่าง CA/PA">แนวโน้ม</th>
-              <th data-sort="growthPercent" class="sortable text-right" aria-describedby="player-comparison-basis">พัฒนาการ CA</th>
+              <th id="player-ca-comparison-heading" data-sort="growthPercent" class="sortable text-right" aria-describedby="player-comparison-basis">CA เทียบรอบแรก</th>
               <th data-sort="value" class="sortable text-right player-table-secondary" title="มูลค่าประเมินในตลาด">มูลค่า</th>
               <th data-sort="wage" class="sortable text-right player-table-secondary" title="ค่าเหนื่อยต่อสัปดาห์">ค่าเหนื่อย</th>
             </tr>
@@ -959,6 +959,6 @@
 
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
-  <script src="app.js?v=profile-comparison-periods"></script>
+  <script src="app.js?v=1.0.28"></script>
 </body>
 </html>

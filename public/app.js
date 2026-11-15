@@ -1229,8 +1229,8 @@ function updatePlayerFilterSummary() {
   }
   const canReset = labels.length || state.natOnly || state.baseline || state.sort !== 'ca' || state.order !== 'desc';
   const summary = document.getElementById('player-filter-summary');
-  summary.hidden = !canReset;
-  summary.firstElementChild.hidden = !labels.length;
+  summary.hidden = !labels.length;
+  document.getElementById('clear-player-filters').disabled = !canReset;
   document.getElementById('player-filter-values').replaceChildren(...labels.map(label => {
     const chip = document.createElement('span');
     chip.textContent = label;
@@ -1683,9 +1683,10 @@ async function loadPlayers() {
     el.btnNextPage.disabled = state.page >= state.totalPages;
 
     const comparisonDate = data.baselineDate && data.baselineDate !== state.gameDate ? data.baselineDate : '';
+    document.getElementById('player-ca-comparison-heading').textContent = comparisonDate ? 'CA เทียบรอบที่เลือก' : 'CA เทียบรอบแรก';
     document.getElementById('player-comparison-basis').textContent = comparisonDate
       ? `เทียบ CA กับรอบ ${formatGameDate(comparisonDate)}`
-      : 'เทียบ CA กับรอบแรกที่พบนักเตะ';
+      : 'เทียบ CA กับรอบแรกที่พบนักเตะแต่ละคนในเซฟนี้';
     renderTable(data.players || [], comparisonDate, data.refCode);
   } catch (err) {
     if (request.signal.aborted) return;
@@ -1833,9 +1834,9 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
     progression.hidden = false;
     progression.dataset.direction = recent && player.ca > previous.ca ? 'up' : recent && player.ca < previous.ca ? 'down' : 'steady';
     document.getElementById('modal-ca-range').textContent = recent ? `${previous.ca} → ${player.ca}` : '';
-    document.getElementById('modal-ca-basis').textContent = previous
-      ? `รอบก่อนหน้า · ${formatGameDate(previous.date)}`
-      : 'รอบก่อนหน้า';
+    document.getElementById('modal-ca-basis').textContent = recent
+      ? `เทียบกับรอบก่อนหน้า · ${formatGameDate(previous.date)}`
+      : 'ยังไม่มี CA จากรอบก่อนหน้า';
     document.getElementById('modal-ca-change').textContent = recent ? formatDelta(previous) : 'ไม่มีข้อมูลเทียบ';
     document.getElementById('modal-ca-first').textContent = hasCA(firstCA)
       ? `ตั้งแต่เริ่มบันทึก · ${formatGameDate(firstCA.date)} · ${formatDelta(firstCA)}`
