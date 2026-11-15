@@ -18,8 +18,10 @@ test('Staff Engine and API endpoints', async t => {
     age: 35 + index,
     ca: 180 - index,
     pa: 180,
+    wage: 1000 + index * 500,
+    expires: '2028-06-30',
     worldRep: 8000 - index * 200,
-    staffAttrs: { Oordeel_vermogen: 18, Oordeel_potentie: 19, Fysiotherapie: 18 }
+    staffAttrs: { Oordeel_vermogen: 18, Oordeel_potentie: 19, Fysiotherapie: 18, Verdedigen: 20, Technisch: 20 }
   }));
   fs.mkdirSync(dumpDir);
   fs.writeFileSync(path.join(dumpDir, 'dump.json'), JSON.stringify({ staff, players: [] }));
@@ -101,6 +103,15 @@ test('Staff Engine and API endpoints', async t => {
     assert.ok(detailRes.body.staff);
     assert.ok(detailRes.body.staff.attrGroups);
     assert.ok(detailRes.body.staff.personality);
+    assert.strictEqual(detailRes.body.staff.expires, '2028-06-30');
+    assert.strictEqual(detailRes.body.staff.trainingStars.defTech, 5);
+    const options = await get('/api/staff/filter-options');
+    assert.ok(options.body.skills.scouting.some(([key]) => key === 'Oordeel_potentie'));
+    const combined = await get('/api/staff?maxWage=1500&training=defTech&minTrainingStars=5&skill=Oordeel_vermogen:18&skill=Oordeel_potentie:19&limit=1');
+    assert.strictEqual(combined.body.total, 2);
+    assert.deepStrictEqual(combined.body.staff.map(s => s.id), [1, 2]);
+    assert.strictEqual((await get('/api/staff?skill=Oordeel_potentie:20')).body.total, 0);
+    assert.strictEqual((await get('/api/staff?skill=bad:18')).status, 400);
 
     // 8. Test Age Filter (P1 fix: exact age range)
     const ageRes = await get('/api/staff?minAge=35&maxAge=35&limit=10');

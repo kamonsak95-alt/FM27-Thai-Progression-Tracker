@@ -178,6 +178,15 @@ const CATEGORIES_DEF = [
 /**
  * Calculates coaching rating and stars (1.0 to 5.0)
  */
+const TRAINING_LABELS = {
+  attacking: 'เกมรุก', defending: 'เกมรับ', possession: 'ครองบอล',
+  fitness: 'ฟิตเนส', goalkeeping: 'ผู้รักษาประตู',
+  attTac: 'เกมรุก · แท็กติก', attTech: 'เกมรุก · เทคนิค',
+  defTac: 'เกมรับ · แท็กติก', defTech: 'เกมรับ · เทคนิค',
+  posTac: 'ครองบอล · แท็กติก', posTech: 'ครองบอล · เทคนิค',
+  gkHandling: 'ผู้รักษาประตู · รับบอล', gkShotStop: 'ผู้รักษาประตู · เซฟลูกยิง'
+};
+
 function calculateCoachingRating(s) {
   const a = s.staffAttrs || {};
   const dtm = (a.Vastberadenheid || 10) + (a.Motiveren || 10) + 10;
@@ -194,25 +203,19 @@ function calculateCoachingRating(s) {
     gkShotStop: (a.KV_reflexen || 0) * 8 + (a.Tactisch || 0) * 6 + dtm
   };
 
-  const scores = Object.values(categories);
-  const maxScore = Math.max(...scores);
-  
-  // Stars conversion
-  let stars = 1.0;
-  if (maxScore >= 270) stars = 5.0;
-  else if (maxScore >= 240) stars = 4.5;
-  else if (maxScore >= 210) stars = 4.0;
-  else if (maxScore >= 180) stars = 3.5;
-  else if (maxScore >= 150) stars = 3.0;
-  else if (maxScore >= 120) stars = 2.5;
-  else if (maxScore >= 90) stars = 2.0;
-  else stars = 1.5;
-
-  return {
-    bestScore: maxScore,
-    stars,
-    starsFormatted: stars.toFixed(1)
+  const ratings = {
+    attacking: Math.max(categories.attTac, categories.attTech),
+    defending: Math.max(categories.defTac, categories.defTech),
+    possession: Math.max(categories.posTac, categories.posTech),
+    fitness: categories.fitness,
+    goalkeeping: Math.max(categories.gkHandling, categories.gkShotStop),
+    ...categories
   };
+  const bestScore = Math.max(...Object.values(ratings));
+  const toStars = score => Math.max(1.5, Math.min(5, Math.floor(score / 30) * .5 + .5));
+  const stars = toStars(bestScore);
+  const trainingStars = Object.fromEntries(Object.entries(ratings).map(([key, score]) => [key, toStars(score)]));
+  return { bestScore, stars, starsFormatted: stars.toFixed(1), trainingStars };
 }
 
 const PREF_JOB_ROLE_MAP = {
@@ -351,7 +354,7 @@ function normalizeStaff(s) {
 /**
  * Filters and paginates staff array
  */
-function filterStaff(staffList, query = {}) {
+function filterStaff(staffList, query = {}, skills = []) {
   let result = staffList;
 
   // Search by name
@@ -413,6 +416,19 @@ function filterStaff(staffList, query = {}) {
   function coachingRating(staff) {
     if (!coachingRatings.has(staff)) coachingRatings.set(staff, calculateCoachingRating(staff));
     return coachingRatings.get(staff);
+  }
+  if (skills.length) result = result.filter(s => skills.every(([key, minimum]) => (s.staffAttrs?.[key] ?? 0) >= minimum));
+  const maxWage = Number(query.maxWage);
+  if (Number.isSafeInteger(maxWage) && maxWage > 0) {
+    result = result.filter(s => Number.isFinite(s.wage) && s.wage > 0 && s.wage <= maxWage);
+  }
+  const minStars = Number(query.minTrainingStars);
+  if ((!query.training || Object.hasOwn(TRAINING_LABELS, query.training)) &&
+      minStars >= 1.5 && minStars <= 5 && minStars % .5 === 0) {
+    result = result.filter(s => {
+      const rating = coachingRating(s);
+      return (query.training ? rating.trainingStars[query.training] : rating.stars) >= minStars;
+    });
   }
   if (preset === 'five_star') {
     result = result.filter(s => coachingRating(s).stars >= 4.5);
@@ -490,6 +506,41 @@ function filterStaff(staffList, query = {}) {
 /**
  * Gets full staff details for modal
  */
+const STAFF_SKILL_GROUPS = {
+  coaching: [
+    ["Aanvallen","การฝึกสอนเกมรุก (Attacking)"],
+    ["Verdedigen","การฝึกสอนเกมรับ (Defending)"],
+    ["Fitheid","การฝึกสอนฟิตเนส (Fitness)"],
+    ["Balbezit","การครองบอล (Possession)"],
+    ["Technisch","การฝึกสอนเทคนิค (Technical)"],
+    ["Tactisch","การฝึกสอนแท็กติก (Tactical)"],
+    ["Standaardsituaties","ลูกตั้งเตะ (Set Pieces)"],
+    ["KV_distributie","การเปิดบอลโกล (GK Distribution)"],
+    ["KV_vangen","การรับบอลโกล (GK Handling)"],
+    ["KV_reflexen","การเซฟลูกยิงโกล (GK Shot Stopping)"]
+  ],
+  mental: [
+    ["Vastberadenheid","ความมุ่งมั่น (Determination)"],
+    ["Man-management","การบริหารคน (Man Management)"],
+    ["Motiveren","การจูงใจ / ปลุกใจ (Motivating)"],
+    ["Aanpassingsvermogen","การปรับตัว (Adaptability)"],
+    ["Tactische_kennis","ความรู้ด้านแท็กติก (Tactical Knowledge)"]
+  ],
+  scouting: [
+    ["Oordeel_vermogen","ประเมินความสามารถนักเตะ (JPA)"],
+    ["Oordeel_potentie","ประเมินศักยภาพนักเตะ (JPP)"],
+    ["Oordeel_staf","ประเมินทีมงาน (Judging Staff)"],
+    ["Onderhandelen","การเจรจาต่อรอง (Negotiating)"],
+    ["Jeugd","ทำงานกับเยาวชน (Youngsters)"]
+  ],
+  medical: [
+    ["Fysiotherapie","กายภาพบำบัด (Physiotherapy)"],
+    ["Sportwetenschap","วิทยาศาสตร์การกีฬา (Sports Science)"],
+    ["Data_analyse","การวิเคราะห์ข้อมูล (Data Analysis)"]
+  ]
+};
+
+
 function getStaffDetail(staffList, id) {
   const s = staffList.find(x => x.id === id);
   if (!s) return null;
@@ -497,44 +548,15 @@ function getStaffDetail(staffList, id) {
   const norm = normalizeStaff(s);
   const rawAttrs = s.staffAttrs || {};
 
-  // Group attributes into 4 FM categories
-  const attrGroups = {
-    coaching: [
-      { nameTh: 'การฝึกสอนเกมรุก (Attacking)', val: rawAttrs.Aanvallen || 0 },
-      { nameTh: 'การฝึกสอนเกมรับ (Defending)', val: rawAttrs.Verdedigen || 0 },
-      { nameTh: 'การฝึกสอนฟิตเนส (Fitness)', val: rawAttrs.Fitheid || 0 },
-      { nameTh: 'การครองบอล (Possession)', val: rawAttrs.Balbezit || 0 },
-      { nameTh: 'การฝึกสอนเทคนิค (Technical)', val: rawAttrs.Technisch || 0 },
-      { nameTh: 'การฝึกสอนแท็กติก (Tactical)', val: rawAttrs.Tactisch || 0 },
-      { nameTh: 'ลูกตั้งเตะ (Set Pieces)', val: rawAttrs.Standaardsituaties || 0 },
-      { nameTh: 'การเปิดบอลโกล (GK Distribution)', val: rawAttrs.KV_distributie || 0 },
-      { nameTh: 'การรับบอลโกล (GK Handling)', val: rawAttrs.KV_vangen || 0 },
-      { nameTh: 'การเซฟลูกยิงโกล (GK Shot Stopping)', val: rawAttrs.KV_reflexen || 0 }
-    ],
-    mental: [
-      { nameTh: 'ความมุ่งมั่น (Determination)', val: rawAttrs.Vastberadenheid || 0 },
-      { nameTh: 'การบริหารคน (Man Management)', val: rawAttrs['Man-management'] || 0 },
-      { nameTh: 'การจูงใจ / ปลุกใจ (Motivating)', val: rawAttrs.Motiveren || 0 },
-      { nameTh: 'การปรับตัว (Adaptability)', val: rawAttrs.Aanpassingsvermogen || 0 },
-      { nameTh: 'ความรู้ด้านแท็กติก (Tactical Knowledge)', val: rawAttrs.Tactische_kennis || 0 }
-    ],
-    scouting: [
-      { nameTh: 'ประเมินความสามารถนักเตะ (JPA)', val: rawAttrs.Oordeel_vermogen || 0 },
-      { nameTh: 'ประเมินศักยภาพนักเตะ (JPP)', val: rawAttrs.Oordeel_potentie || 0 },
-      { nameTh: 'ประเมินทีมงาน (Judging Staff)', val: rawAttrs.Oordeel_staf || 0 },
-      { nameTh: 'การเจรจาต่อรอง (Negotiating)', val: rawAttrs.Onderhandelen || 0 },
-      { nameTh: 'ทำงานกับเยาวชน (Youngsters)', val: rawAttrs.Jeugd || 0 }
-    ],
-    medical: [
-      { nameTh: 'กายภาพบำบัด (Physiotherapy)', val: rawAttrs.Fysiotherapie || 0 },
-      { nameTh: 'วิทยาศาสตร์การกีฬา (Sports Science)', val: rawAttrs.Sportwetenschap || 0 },
-      { nameTh: 'การวิเคราะห์ข้อมูล (Data Analysis)', val: rawAttrs.Data_analyse || 0 }
-    ]
-  };
+  const attrGroups = Object.fromEntries(Object.entries(STAFF_SKILL_GROUPS).map(([group, skills]) =>
+    [group, skills.map(([key, nameTh]) => ({ nameTh, val: rawAttrs[key] ?? 0 }))]));
 
   return {
     ...norm,
+    birthYear: Number.isInteger(s.birthYear) && s.birthYear > 0 ? s.birthYear : null,
     attrGroups,
+    trainingStars: calculateCoachingRating(s).trainingStars,
+    trainingLabels: TRAINING_LABELS,
     personality: {
       ambition: s.ambition || 10,
       loyalty: s.loyalty || 10,
@@ -548,12 +570,15 @@ function getStaffDetail(staffList, id) {
 }
 
 module.exports = {
+  STAFF_SKILL_GROUPS,
+  TRAINING_LABELS,
   ROLES_DEF,
   CATEGORIES_DEF,
   JOB_TITLE_MAP,
   STAFF_ATTR_MAP,
   normalizeStaff,
   calculateCoachingRating,
+  getReputationLabel,
   filterStaff,
   getStaffDetail
 };

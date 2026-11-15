@@ -93,6 +93,36 @@ const PLAYER_ATTRIBUTE_THAI = {
   RushingOut: 'ความถี่ในการออกมาตัดบอล', Throwing: 'การขว้างบอลเปิดเกม'
 };
 
+const SET_PIECE_ATTRIBUTES = ['Corners', 'FreeKicks', 'LongThrows', 'PenaltyTaking'];
+const PROFILE_ATTRIBUTE_LABELS = {
+  FreeKicks: 'Free Kick Taking', OffTheBall: 'Off The Ball',
+  FirstTouch: 'First Touch', LongShots: 'Long Shots', LongThrows: 'Long Throws',
+  PenaltyTaking: 'Penalty Taking', WorkRate: 'Work Rate',
+  AerialReach: 'Aerial Reach', CommandOfArea: 'Command Of Area', OneOnOnes: 'One On Ones',
+  Punching: 'Punching (Tendency)', RushingOut: 'Rushing Out (Tendency)',
+  JumpingReach: 'Jumping Reach', NaturalFitness: 'Natural Fitness'
+};
+
+function getProfileAttributeColumns(isGoalkeeper) {
+  const { Technical, Mental, Physical, Goalkeeping } = ATTR_GROUPS;
+  if (isGoalkeeper) {
+    return [
+      [['การรักษาประตู', [
+        ...Goalkeeping.slice(0, 4), 'FirstTouch', ...Goalkeeping.slice(4, 7),
+        'Passing', ...Goalkeeping.slice(7)
+      ]]],
+      [['จิตใจ', Mental]],
+      [['ความฟิต', Physical], ['เทคนิค', ['FreeKicks', 'PenaltyTaking', 'Technique']]]
+    ];
+  }
+  return [
+    [['เทคนิค', Technical.filter(key => !SET_PIECE_ATTRIBUTES.includes(key))],
+      ['ลูกตั้งเตะ', SET_PIECE_ATTRIBUTES]],
+    [['จิตใจ', Mental]],
+    [['ความฟิต', Physical], ['การรักษาประตู', Goalkeeping, true]]
+  ];
+}
+
 // Personality labels (Thai label with English term)
 const PERSONALITY_MAP = {
   ambition: 'ความทะเยอทะยาน (Ambition)',
@@ -330,13 +360,232 @@ function renderPositionBadges(positions) {
 const nationalityInput = document.getElementById('filter-nationality');
 const nationalityOptions = document.getElementById('nationality-options');
 const clearNationality = document.getElementById('clear-nationality');
+const footFilter = document.getElementById('filter-foot');
+const footLabels = new Map(Array.from(footFilter.options, option => [option.value, option.textContent]));
 let selectedNationality = '';
+let attributeFilters = new Map();
+const transferFilters = new Map([
+  ['maxValue', document.getElementById('filter-max-value')],
+  ['maxWage', document.getElementById('filter-max-wage')],
+  ['transferStatus', document.getElementById('filter-transfer-status')],
+  ['contractMonths', document.getElementById('filter-contract-months')]
+]);
+const transferLabels = new Map(Array.from(transferFilters.get('transferStatus').options, option => [option.value, option.textContent]));
+
+function getTransferFilterValue(field) {
+  return field.validity.valid ? field.value : '';
+}
+
+function initSkillChecklist({ dialogId, prefix, groupsByName, getFilters, onApply }) {
+  const dialog = document.getElementById(dialogId);
+  const form = document.getElementById(prefix + "-form");
+  const search = document.getElementById(prefix + "-search");
+  const groups = document.getElementById(prefix + "-rows");
+  const empty = document.getElementById(prefix + "-empty");
+  const entries = [];
+
+  for (const [group, keys] of Object.entries(groupsByName)) {
+    const section = document.createElement('section');
+    const heading = document.createElement('h3');
+    heading.textContent = group;
+    section.append(heading);
+    const items = keys.map(([key, name]) => {
+      const row = document.createElement('div');
+      row.className = 'attribute-filter-row';
+      const minimum = document.createElement('input');
+      Object.assign(minimum, { type: 'number', className: 'form-input', min: '1', max: '20', step: '1', required: true });
+      minimum.setAttribute('aria-label', `ค่าขั้นต่ำ ${name}`);
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.addEventListener('change', () => { minimum.disabled = !checkbox.checked; });
+      const label = document.createElement('label');
+      label.append(checkbox, name);
+      row.append(label, minimum);
+      section.append(row);
+      return { key, name: name.toLowerCase(), row, checkbox, minimum };
+    });
+    entries.push({ section, items });
+    groups.append(section);
+  }
+
+  function filterList() {
+    const query = search.value.trim().toLowerCase();
+    for (const { section, items } of entries) {
+      for (const { row, name } of items) row.hidden = !name.includes(query);
+      section.hidden = items.every(({ row }) => row.hidden);
+    }
+    empty.hidden = entries.some(({ section }) => !section.hidden);
+  }
+
+  function restore(filters) {
+    for (const { items } of entries) {
+      for (const { key, checkbox, minimum } of items) {
+        checkbox.checked = filters.has(key);
+        minimum.disabled = !checkbox.checked;
+        minimum.value = filters.get(key) ?? 15;
+      }
+    }
+    search.value = '';
+    filterList();
+    groups.scrollTop = 0;
+  }
+
+
+  document.getElementById('cancel-' + dialogId).addEventListener('click', () => dialog.close());
+  document.getElementById('clear-' + dialogId).addEventListener('click', () => {
+    restore(new Map());
+    search.focus();
+  });
+  search.addEventListener('input', filterList);
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const selected = entries.flatMap(({ items }) => items.filter(({ checkbox }) => checkbox.checked));
+    const invalid = selected.find(({ minimum }) => !minimum.validity.valid);
+    if (invalid) {
+      search.value = '';
+      filterList();
+      invalid.minimum.reportValidity();
+      return;
+    }
+    dialog.close();
+    onApply(new Map(selected.map(({ key, minimum }) => [key, minimum.valueAsNumber])));
+  });
+  return () => {
+    restore(getFilters());
+    dialog.showModal();
+    search.focus();
+  };
+}
+
+const staffWage = document.getElementById('staff-max-wage');
+const staffTraining = document.getElementById('staff-training');
+const staffTrainingStars = document.getElementById('staff-training-stars');
+const staffGroupLabels = { coaching: 'การฝึกสอน (Coaching)', mental: 'จิตวิทยา (Mental)', scouting: 'การสรรหา (Scouting)', medical: 'การแพทย์และวิทยาศาสตร์กีฬา (Medical)' };
+let staffSkills = new Map();
+let staffOptions;
+let showStaffSkills;
+
+async function loadStaffOptions() {
+  if (staffOptions) return;
+  const response = await fetch('/api/staff/filter-options');
+  if (!response.ok) throw new Error('โหลดรายการทักษะไม่สำเร็จ');
+  const data = await response.json();
+  if (staffOptions) return;
+  staffOptions = data;
+  for (const [key, label] of Object.entries(data.training)) staffTraining.add(new Option(label, key));
+  showStaffSkills = initSkillChecklist({
+    dialogId: 'staff-skills', prefix: 'staff-skill',
+    groupsByName: Object.fromEntries(Object.entries(data.skills).map(([group, keys]) => [staffGroupLabels[group], keys])),
+    getFilters: () => staffSkills,
+    onApply: filters => { staffSkills = filters; refreshStaffFilters(); }
+  });
+}
+
+function refreshStaffFilters() {
+  stateStaff.page = 1;
+  loadStaff();
+}
+
+function getStaffExtraFilters() {
+  const params = new URLSearchParams();
+  const labels = [];
+  const wage = staffWage.valueAsNumber;
+  if (staffWage.validity.valid && Number.isSafeInteger(wage)) {
+    params.set('maxWage', wage);
+    labels.push(`ค่าเหนื่อย ≤ £${wage.toLocaleString()}/สัปดาห์`);
+  }
+  if (staffTrainingStars.value) {
+    params.set('training', staffTraining.value);
+    params.set('minTrainingStars', staffTrainingStars.value);
+    labels.push(`${staffTraining.selectedOptions[0].textContent} ≥ ${staffTrainingStars.value} ดาว`);
+  }
+  const skills = new Map(Object.values(staffOptions?.skills ?? {}).flat());
+  for (const [key, minimum] of staffSkills) {
+    params.append('skill', `${key}:${minimum}`);
+    labels.push(`${skills.get(key)} ≥ ${minimum}`);
+  }
+  const extraCount = labels.length;
+  if (stateStaff.q.trim()) labels.unshift(`ค้นหา “${stateStaff.q.trim()}”`);
+  if (stateStaff.preset !== 'all') {
+    const preset = document.querySelector(`[data-staff-preset="${stateStaff.preset}"]`);
+    if (preset) labels.push(preset.textContent.trim());
+  }
+  for (const id of ['filter-staff-role', 'filter-staff-status', 'filter-staff-rep']) {
+    const select = document.getElementById(id);
+    if (select.selectedIndex > 0) labels.push(select.selectedOptions[0].textContent.trim());
+  }
+  for (const [label, min, max, defaultMax] of [
+    ['อายุ', stateStaff.minAge, stateStaff.maxAge, 80],
+    ['CA', stateStaff.minCA, stateStaff.maxCA, 200],
+    ['PA', stateStaff.minPA, stateStaff.maxPA, 200]
+  ]) {
+    if (min !== (label === 'อายุ' ? 15 : 1) || max !== defaultMax) labels.push(`${label} ${min}–${max}`);
+  }
+  document.getElementById('clear-staff-extras').hidden = !extraCount;
+  const summary = document.getElementById('staff-active-filters');
+  document.getElementById('staff-filter-summary').hidden = !labels.length;
+  summary.replaceChildren(...labels.map(label => {
+    const chip = document.createElement('span');
+    chip.textContent = label;
+    return chip;
+  }));
+  return params;
+}
 
 function initEventListeners() {
-  document.getElementById('clear-player-filters').addEventListener('click', () => {
+  const showPlayerSkills = initSkillChecklist({
+    dialogId: 'attribute-filters', prefix: 'attribute-filter',
+    groupsByName: Object.fromEntries(Object.entries(ATTR_GROUPS).map(([group, keys]) =>
+      [group, keys.map(key => [key, `${PLAYER_ATTRIBUTE_THAI[key]} (${key})`])])),
+    getFilters: () => attributeFilters,
+    onApply: filters => { attributeFilters = filters; state.page = 1; loadPlayers(); }
+  });
+  document.getElementById('open-attribute-filters').addEventListener('click', showPlayerSkills);
+  document.getElementById('open-staff-skills').addEventListener('click', async () => {
+    try { await loadStaffOptions(); showStaffSkills(); }
+    catch { showToast('โหลดรายการทักษะทีมงานไม่สำเร็จ', true); }
+  });
+  for (const field of [staffTraining, staffTrainingStars, staffWage]) {
+    field.addEventListener('change', () => {
+      if (!field.reportValidity()) return;
+      refreshStaffFilters();
+    });
+  }
+  document.getElementById('clear-staff-extras').addEventListener('click', () => {
+    staffWage.value = '';
+    staffTraining.value = '';
+    staffTrainingStars.value = '';
+    staffSkills.clear();
+    refreshStaffFilters();
+  });
+  for (const field of transferFilters.values()) {
+    field.addEventListener('change', () => {
+      if (!field.reportValidity()) return;
+      state.page = 1;
+      loadPlayers();
+    });
+  }
+  footFilter.addEventListener('change', () => {
+    state.page = 1;
+    loadPlayers();
+  });
+  document.getElementById('clear-player-filters').addEventListener('click', () => resetPlayerFilters());
+  document.getElementById('tab-btn-squad').addEventListener('click', () => switchTab('squad'));
+  squadBoard.addEventListener('click', event => {
+    const button = event.target.closest('[data-squad-scout]');
+    if (!button) return;
+    switchTab('players');
+    resetPlayerFilters(button.dataset.squadScout);
+  });
+  function resetPlayerFilters(scoutPositions = '') {
     clearTimeout(debounceTimer);
     Object.assign(state, { q: '', pos: 'ALL', natOnly: false, baseline: '', sort: 'ca', order: 'desc', page: 1 });
-    state.selectedPitchPositions.clear();
+    state.excludeMyClub = Boolean(scoutPositions);
+    state.pos = scoutPositions || 'ALL';
+    state.selectedPitchPositions = new Set(scoutPositions ? scoutPositions.split(',') : []);
+    attributeFilters.clear();
+    footFilter.value = '';
+    for (const field of transferFilters.values()) field.value = '';
     selectedNationality = '';
     nationalityInput.value = '';
     clearNationality.disabled = true;
@@ -352,7 +601,7 @@ function initEventListeners() {
     updatePitchUI();
     el.filterSearch.focus();
     loadPlayers();
-  });
+  }
   const careerDetails = document.getElementById('btn-career-details');
   careerDetails.addEventListener('click', () => {
     const expanded = careerDetails.getAttribute('aria-expanded') === 'true';
@@ -950,6 +1199,17 @@ function updatePlayerFilterSummary() {
     labels.push(`ตำแหน่ง ${positions.join(', ')}`);
     if (state.natOnly) labels.push('ตำแหน่งถนัดเท่านั้น');
   }
+  if (footFilter.value) labels.push('เท้าถนัด '+footLabels.get(footFilter.value));
+  for (const [key, minimum] of attributeFilters) labels.push(key+' ≥ '+minimum);
+  for (const [key, field] of transferFilters) {
+    const value = getTransferFilterValue(field);
+    if (!value) continue;
+    if (key === 'maxValue') labels.push(`มูลค่า ≤ £${Number(value).toLocaleString()}`);
+    if (key === 'maxWage') labels.push(`ค่าเหนื่อย ≤ £${Number(value).toLocaleString()}/สัปดาห์`);
+    if (key === 'transferStatus') labels.push(transferLabels.get(value));
+    if (key === 'contractMonths') labels.push(`สัญญาหมดภายใน ${value} เดือน`);
+  }
+  if (state.excludeMyClub) labels.push('นักเตะนอกทีม');
   if (selectedNationality) labels.push(`สัญชาติ ${selectedNationality}`);
   if (state.preset !== 'all') {
     const preset = document.querySelector(`[data-preset="${state.preset}"]`);
@@ -975,6 +1235,7 @@ function updatePlayerFilterSummary() {
 
 function applyPreset(preset) {
   const leavingWonderkids = state.preset === 'wonderkids' && preset !== 'wonderkids';
+  if (preset === 'myclub') state.excludeMyClub = false;
   state.preset = preset;
   state.trend = '';
   if (preset === 'all' || leavingWonderkids) {
@@ -1005,22 +1266,65 @@ function applyPreset(preset) {
   el.valPA.textContent = `${state.minPA} - ${state.maxPA}`;
 }
 
-function switchTab(tab) {
-  if (tab === 'players') {
-    if (el.tabBtnPlayers) el.tabBtnPlayers.classList.add('active');
-    if (el.tabBtnStaff) el.tabBtnStaff.classList.remove('active');
-    if (el.sectionPlayers) el.sectionPlayers.style.display = 'block';
-    if (el.sectionStaff) el.sectionStaff.style.display = 'none';
-  } else if (tab === 'staff') {
-    if (el.tabBtnPlayers) el.tabBtnPlayers.classList.remove('active');
-    if (el.tabBtnStaff) el.tabBtnStaff.classList.add('active');
-    if (el.sectionPlayers) el.sectionPlayers.style.display = 'none';
-    if (el.sectionStaff) el.sectionStaff.style.display = 'block';
+const squadSection = document.getElementById('section-squad');
+const squadBoard = document.getElementById('squad-board');
+const squadStatus = document.getElementById('squad-status');
+let squadRequest;
 
-    // Lazy load staff when switched to staff tab for first time
-    if (stateStaff.total === 0) {
-      loadStaff();
+function switchTab(tab) {
+  for (const [key, button, section] of [
+    ['players', el.tabBtnPlayers, el.sectionPlayers],
+    ['staff', el.tabBtnStaff, el.sectionStaff],
+    ['squad', document.getElementById('tab-btn-squad'), squadSection]
+  ]) {
+    button.classList.toggle('active', key === tab);
+    section.style.display = key === 'squad' ? '' : key === tab ? 'block' : 'none';
+  }
+  squadSection.hidden = tab !== 'squad';
+  if (tab === 'staff') {
+    loadStaffOptions().catch(() => showToast('โหลดรายการตัวกรองทีมงานไม่สำเร็จ', true));
+    if (stateStaff.total === 0) loadStaff();
+  }
+  if (tab === 'squad') loadSquadAnalysis();
+}
+
+async function loadSquadAnalysis() {
+  squadRequest?.abort();
+  const request = new AbortController();
+  squadRequest = request;
+  squadBoard.replaceChildren();
+  squadStatus.textContent = 'กำลังวิเคราะห์ทีม…';
+  try {
+    const response = await fetch('/api/squad-analysis', { signal: request.signal });
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    if (request.signal.aborted) return;
+    if (data.status !== 'ok') {
+      squadStatus.textContent = {
+        'no-club': 'ยังระบุสโมสรที่คุณคุมไม่ได้',
+        'no-scan': 'กดโหลดข้อมูลเกมเพื่อเริ่มวิเคราะห์ทีม',
+        empty: 'ยังไม่พบนักเตะของสโมสรนี้ในผลสแกน'
+      }[data.status];
+      return;
     }
+    squadStatus.textContent = `${data.club} · ${data.hasSquadTypes ? 'ชุดใหญ่' : 'นักเตะทั้งหมดที่สแกนได้'} ${data.squadSize} คน · นับตามตำแหน่งหลัก`;
+    const statuses = { empty: 'ขาดผู้เล่น', reinforce: 'ควรเสริม', strong: 'ตัวเลือกเพียงพอ' };
+    const priorities = data.slots.filter(slot => slot.status !== 'strong');
+    const priority = priorities.find(slot => slot.status === 'empty') ??
+      priorities.filter(slot => slot.status === 'reinforce').sort((a, b) => (b.target - b.count) - (a.target - a.count) || b.gap - a.gap)[0] ??
+      priorities[0];
+    squadBoard.innerHTML = `<div class="squad-priority"><strong>${priority ? 'เริ่มดูที่ ' + priority.label : 'มีตัวเลือกเพียงพอทุกตำแหน่ง'}</strong>
+      <span>${priority ? statuses[priority.status] : ''}</span></div>
+      <div class="squad-positions">${data.slots.map(slot => `
+        <article class="squad-position" data-status="${slot.status}">
+          <header><h3>${slot.label} <small>${slot.id}</small></h3><span>${statuses[slot.status]}</span></header>
+          <p class="text-muted">${slot.count} คน · เป้าหมาย ${slot.target}${slot.gap !== null ? ' · ตัวหลักกับสำรองห่าง ' + slot.gap + ' CA' : ''}</p>
+          <ol>${slot.players.map((player, index) => `<li><span>${index === 0 ? 'CA สูงสุด' : 'ตัวเลือก ' + (index + 1)}</span><strong>${escapeHtml(player.name)}</strong><b>${Number.isFinite(player.ca) ? player.ca : '–'}</b></li>`).join('') || '<li>ไม่พบผู้เล่นตำแหน่งหลักนี้</li>'}</ol>
+          <button type="button" class="btn btn-secondary btn-sm" data-squad-scout="${slot.positions.join(',')}">ค้นหาผู้เล่นนอกทีม</button>
+        </article>`).join('')}</div>
+      <details class="squad-method"><summary>เกณฑ์การวิเคราะห์</summary><p>ขึ้น “ควรเสริม” เมื่อจำนวนผู้เล่นตามตำแหน่งหลักต่ำกว่าเป้า หรือ CA ของสองอันดับแรกห่างกันตั้งแต่ 20 แต้ม เป้าหมายจำนวนผู้เล่นใช้เกณฑ์ทั่วไป</p></details>`;
+  } catch (error) {
+    if (!request.signal.aborted) squadStatus.textContent = 'โหลดผลวิเคราะห์ทีมไม่สำเร็จ';
   }
 }
 
@@ -1276,6 +1580,13 @@ async function loadPlayers() {
   if (state.baseline) params.set('baseline', state.baseline);
 
   if (state.q) params.set('q', state.q);
+  if (footFilter.value) params.set('foot', footFilter.value);
+  for (const [key, minimum] of attributeFilters) params.append('attribute', key+':'+minimum);
+  for (const [key, field] of transferFilters) {
+    const value = getTransferFilterValue(field);
+    if (value) params.set(key, value);
+  }
+  if (state.excludeMyClub) params.set('excludeMyClub', '1');
   if (selectedNationality) params.set('nationality', selectedNationality);
   if (state.trend) params.set('trend', state.trend);
   if (state.natOnly) params.set('natOnly', '1');
@@ -1400,7 +1711,7 @@ function renderTable(players, comparisonDate, refCode) {
     }
 
     const valueStr = formatCurrency(p.value);
-    const wageStr = formatCurrency(p.wage);
+    const wageStr = formatWeeklyWage(p.wage, '–', '/w');
 
     return `
       <tr data-ref="${escapeHtml(refCode || '')}" data-comparison-date="${escapeHtml(originDate)}" onclick="openPlayerModal(${p.id}, ${Number.isFinite(p.prevCA) ? p.prevCA : 'null'}, this.dataset.comparisonDate, this.dataset.ref)">
@@ -1421,7 +1732,7 @@ function renderTable(players, comparisonDate, refCode) {
         <td class="text-center player-table-secondary">${renderPlayerTrend(p.trend)}</td>
         <td class="text-right">${growthBadge}</td>
         <td class="text-right text-secondary font-mono player-table-secondary">${valueStr}</td>
-        <td class="text-right text-muted font-mono player-table-secondary">${wageStr}</td>
+        <td class="text-right text-muted font-mono player-table-secondary weekly-wage-cell">${wageStr}</td>
       </tr>
     `;
   });
@@ -1436,7 +1747,7 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
-    const { player, trend, previousAttributes, attributeBaselineDate, refCode, scanId } = await res.json();
+    const { player, preferredFoot, reputationLabel, contractEnd, transferStatuses = [], trend, previousAttributes, attributeBaselineDate, refCode, scanId } = await res.json();
     if (expectedRef && (refCode !== expectedRef || state.refCode !== expectedRef || el.btnScan.disabled)) return;
     document.getElementById('btn-compare-player').onclick = () => openPlayerComparison(player, refCode, scanId);
     const star = document.getElementById('modal-shortlist');
@@ -1457,11 +1768,18 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
     playerId.hidden = player.id == null;
     playerId.textContent = player.id == null ? '' : `ID ${player.id}`;
     document.getElementById('modal-pos').innerHTML = renderPositionBadges(player.pos);
-    document.getElementById('modal-club').textContent = player.club || '-';
+    document.getElementById('modal-club').textContent = player.club?.trim() || 'ไร้สังกัด';
     document.getElementById('modal-nat').innerHTML = renderPrimaryNationality(player.nat);
     document.getElementById('modal-age').textContent = `${player.age} ปี (เกิด ${player.birthYear || '-'})`;
+    const height = document.getElementById('modal-height');
+    height.hidden = !Number.isInteger(player.height) || player.height <= 0;
+    height.textContent = height.hidden ? '' : `${player.height} ซม.`;
+    document.getElementById('modal-reputation').textContent = reputationLabel ?? 'ไม่ระบุ';
     document.getElementById('modal-value').textContent = formatCurrency(player.value);
-    document.getElementById('modal-wage').textContent = formatCurrency(player.wage);
+    document.getElementById('modal-foot').textContent = footLabels.get(preferredFoot) ?? 'ไม่ระบุ';
+    document.getElementById('modal-wage').textContent = formatWeeklyWage(player.wage, 'ไม่ระบุ');
+    document.getElementById('modal-contract-end').textContent = formatGameDate(contractEnd) || 'ไม่ระบุ';
+    document.getElementById('modal-transfer-status').textContent = transferStatuses.map(status => transferLabels.get(status)).filter(Boolean).join(' · ') || '–';
     document.getElementById('modal-ca').textContent = player.ca;
     document.getElementById('modal-pa').textContent = player.pa;
 
@@ -1497,38 +1815,45 @@ async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
       ? `เทียบค่าพลังรายช่องกับรอบ ${formatGameDate(attributeBaselineDate)}`
       : 'ยังไม่มีค่าพลังรายช่องจากรอบก่อนหน้าให้เปรียบเทียบ';
     const attrsGrid = document.getElementById('modal-attrs-grid');
-    attrsGrid.innerHTML = Object.entries(ATTR_GROUPS).map(([catName, list]) => {
-      const rows = list.map(attr => {
-        const val = attrs[attr] != null ? attrs[attr] : '-';
-        let colorClass = 'attr-val-low';
-        if (typeof val === 'number') {
-          if (val >= 16) colorClass = 'attr-val-top';
-          else if (val >= 11) colorClass = 'attr-val-good';
-          else if (val >= 6) colorClass = 'attr-val-avg';
-        }
-        const previous = previousAttributes?.[attr];
-        let change = '';
-        if (Number.isFinite(previous) && Number.isFinite(val)) {
-          const delta = val - previous;
-          const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
-          const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-          const description = delta === 0 ? `คงที่ที่ ${val}` : `${delta > 0 ? 'เพิ่ม' : 'ลด'}จาก ${previous} เป็น ${val}`;
-          change = `<span class="attribute-change" data-direction="${direction}" role="img" aria-label="${description}" title="${description}">${arrow}</span>`;
+    const isGoalkeeper = (player.pos || '').split(',').some(position => position.trim() === 'GK');
+    attrsGrid.innerHTML = getProfileAttributeColumns(isGoalkeeper).map(groups => {
+      const cards = groups.map(([catName, list, collapsible]) => {
+        const rows = list.map(attr => {
+          const val = attrs[attr] != null ? attrs[attr] : '-';
+          let colorClass = 'attr-val-low';
+          if (typeof val === 'number') {
+            if (val >= 16) colorClass = 'attr-val-top';
+            else if (val >= 11) colorClass = 'attr-val-good';
+            else if (val >= 6) colorClass = 'attr-val-avg';
+          }
+          const previous = previousAttributes?.[attr];
+          let change = '';
+          if (Number.isFinite(previous) && Number.isFinite(val)) {
+            const delta = val - previous;
+            const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
+            const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+            const description = delta === 0 ? `คงที่ที่ ${val}` : `${delta > 0 ? 'เพิ่ม' : 'ลด'}จาก ${previous} เป็น ${val}`;
+            change = `<span class="attribute-change" data-direction="${direction}" role="img" aria-label="${description}" title="${description}">${arrow}</span>`;
+          }
+          return `
+            <div class="attr-row" title="${PLAYER_ATTRIBUTE_THAI[attr]}">
+              <span class="attr-name">${PROFILE_ATTRIBUTE_LABELS[attr] ?? attr}</span>
+              <span class="attribute-result"><span class="attr-val ${colorClass}">${val}</span>${change}</span>
+            </div>
+          `;
+        }).join('');
+
+        if (collapsible) {
+          return `<details class="attr-column player-goalkeeping"><summary class="attr-column-title">${catName}</summary>${rows}</details>`;
         }
         return `
-          <div class="attr-row" title="${PLAYER_ATTRIBUTE_THAI[attr]}">
-            <span class="attr-name">${attr}</span>
-            <span class="attribute-result"><span class="attr-val ${colorClass}">${val}</span>${change}</span>
+          <div class="attr-column">
+            <div class="attr-column-title">${catName}</div>
+            ${rows}
           </div>
         `;
       }).join('');
-
-      return `
-        <div class="attr-column">
-          <div class="attr-column-title">${catName}</div>
-          ${rows}
-        </div>
-      `;
+      return `<div class="profile-attribute-column">${cards}</div>`;
     }).join('');
 
     // Personality Stats
@@ -1662,7 +1987,7 @@ function renderPlayerComparison(left, right) {
     row('CA', left.ca, right.ca, true),
     row('PA', left.pa, right.pa, true),
     row('มูลค่า', left.value, right.value, false, formatCurrency),
-    row('ค่าเหนื่อยต่อสัปดาห์', left.wage, right.wage, false, formatCurrency),
+    row('ค่าเหนื่อยต่อสัปดาห์', left.wage, right.wage, false, formatWeeklyWage),
     ...Object.entries(ATTR_GROUPS).flatMap(([title, attrs]) => [
       group(title),
       ...attrs.map(attr => row(attr, left.attrs?.[attr], right.attrs?.[attr], true))
@@ -1690,6 +2015,7 @@ async function triggerScan() {
       showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
       await loadStatus();
       await loadPlayers();
+      if (!squadSection.hidden) await loadSquadAnalysis();
       if (el.sectionStaff && el.sectionStaff.style.display !== 'none') {
         await loadStaff();
       }
@@ -1755,6 +2081,10 @@ function fallbackCopy(text, callback) {
 function formatSaveRefCode(refCode) {
   if (refCode === 'UNIDENTIFIED') return 'ยังระบุเซฟไม่ได้';
   return refCode?.replace(/^#[^-]+-([0-9a-f]{6})$/i, '#FM-$1') || '-';
+}
+
+function formatWeeklyWage(value, fallback = '–', suffix = '') {
+  return Number.isFinite(value) && value > 0 ? `£${value.toLocaleString()}${suffix}` : fallback;
 }
 
 function formatCurrency(val) {
@@ -2042,6 +2372,7 @@ async function loadStaff() {
     if (stateStaff.rep && stateStaff.rep !== 'any') params.set('rep', stateStaff.rep);
     if (stateStaff.preset && stateStaff.preset !== 'all') params.set('preset', stateStaff.preset);
 
+    for (const [key, value] of getStaffExtraFilters()) params.append(key, value);
     const res = await fetch(`/api/staff?${params.toString()}`, { signal: request.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -2092,18 +2423,15 @@ function renderStaffTable(staffList) {
   el.staffTableBody.innerHTML = staffList.map(s => {
     // Role Badge & Category Class
     let catClass = 'badge-role-coaching';
-    let catIcon = '👔';
     if (s.roleCategory === 'recruitment') {
       catClass = 'badge-role-recruitment';
-      catIcon = '🔍';
     } else if (s.roleCategory === 'medical') {
       catClass = 'badge-role-medical';
-      catIcon = '🩺';
     }
 
     // Club or Free Agent
     const clubHtml = s.isFreeAgent
-      ? `<span class="badge-free">🆓 ว่างงาน</span>`
+      ? `<span class="badge-free">ว่างงาน</span>`
       : `<span class="text-club font-medium">${escapeHtml(s.club)}</span>`;
 
     // Skills & Stars column - tailored to role/category
@@ -2136,48 +2464,46 @@ function renderStaffTable(staffList) {
     } else if (s.roleCategory === 'coaching' || s.coachStars >= 2.5) {
       skillHtml = `
         <div class="staff-stars" title="คะแนนฝึกสอนคำนวณตามสูตร FM: ${s.coachStarsFormatted} ดาว">
-          <span class="stars-gold">${'⭐'.repeat(Math.round(s.coachStars))}</span>
+          <span class="stars-gold" aria-hidden="true">★</span>
           <span class="stars-val">${s.coachStarsFormatted}</span>
         </div>
       `;
     } else {
       skillHtml = `
         <div class="staff-stars">
-          <span class="stars-gold">⭐</span>
+          <span class="stars-gold">★</span>
           <span class="stars-val">${s.coachStarsFormatted}</span>
         </div>
       `;
     }
 
     // Wage
-    const wageStr = s.wage > 0 ? `£${s.wage.toLocaleString()}/w` : '-';
+    const wageStr = formatWeeklyWage(s.wage, '–', '/w');
 
     return `
       <tr class="clickable-row staff-row" data-id="${s.id}">
         <td class="col-name sticky-col">
           <div class="player-name-cell">
             <span class="player-name font-semibold text-white">${escapeHtml(s.name)}</span>
-            <span class="nat-badge text-muted text-xs">${(s.nat || []).join(', ')}</span>
+            <span class="nat-badge text-muted text-xs">${renderPrimaryNationality(s.nat)}</span>
           </div>
         </td>
-        <td>
+        <td class="text-center font-medium">${s.age || '-'}</td>
+        <td class="text-center">
           <span class="badge-role ${catClass}" title="${escapeHtml(s.roleEn)}">
-            <span>${catIcon}</span>
             <span>${escapeHtml(s.roleTh)}</span>
           </span>
         </td>
         <td>${clubHtml}</td>
-        <td class="text-center font-medium">${s.age || '-'}</td>
-        <td class="text-center font-bold ${s.ca >= 150 ? 'text-accent' : ''}">${s.ca || '-'}</td>
-        <td class="text-center font-bold ${s.pa >= 160 ? 'text-green' : ''}">${s.pa || '-'}</td>
+        <td class="text-center font-bold">${s.ca || '-'}</td>
+        <td class="text-center text-secondary">${s.pa || '-'}</td>
         <td class="text-center">${skillHtml}</td>
-        <td class="text-right text-sm text-muted font-mono">${wageStr}</td>
         <td>
           <div class="rep-cell" title="ชื่อเสียง: ${escapeHtml(s.repLabel)}">
-            <span class="stars-gold text-xs">${s.repStars}</span>
-            <span class="text-xs text-muted" style="margin-left: 4px;">${escapeHtml((s.repLabel || '').split(' ')[0])}</span>
+            <span class="text-xs text-muted">${escapeHtml((s.repLabel || '').split(' (')[0] || 'ไม่ระบุ')}</span>
           </div>
         </td>
+        <td class="text-right text-sm text-muted font-mono weekly-wage-cell">${wageStr}</td>
       </tr>
     `;
   }).join('');
@@ -2195,8 +2521,13 @@ async function openStaffModal(id) {
   if (!el.staffModal) return;
 
   el.staffModalName.textContent = 'กำลังโหลดข้อมูล...';
+  const staffId = document.getElementById('staff-modal-id');
+  staffId.hidden = true;
+  staffId.textContent = '';
   el.staffModalAttrsContainer.innerHTML = '<div class="text-muted py-8 text-center" style="grid-column: 1/-1;">กำลังโหลดค่าพลังทีมงาน...</div>';
   el.staffModalPersonalityGrid.innerHTML = '';
+  document.getElementById('staff-contract-section').hidden = true;
+  document.getElementById('staff-training-section').hidden = true;
   el.staffModal.style.display = 'flex';
 
   try {
@@ -2206,127 +2537,67 @@ async function openStaffModal(id) {
     const s = data.staff || data;
 
     el.staffModalName.textContent = s.name;
+    staffId.hidden = s.id == null;
+    staffId.textContent = staffId.hidden ? '' : `ID ${s.id}`;
     currentStaffName = s.name;
     if (el.btnCopyStaffName) {
       el.btnCopyStaffName.classList.remove('copied');
       el.btnCopyStaffName.innerHTML = `<span class="copy-icon">📋</span> <span class="copy-label">คัดลอกชื่อ</span>`;
     }
-    el.staffModalNat.textContent = (s.nat || []).join(', ') || '-';
-    el.staffModalAge.textContent = s.age ? `${s.age} ปี` : '-';
+    el.staffModalNat.innerHTML = renderPrimaryNationality(s.nat);
+    el.staffModalAge.textContent = [s.age ? `${s.age} ปี` : '', s.birthYear ? `(เกิด ${s.birthYear})` : ''].filter(Boolean).join(' ') || '–';
     if (el.staffModalCA) el.staffModalCA.textContent = s.ca || '-';
     if (el.staffModalPA) el.staffModalPA.textContent = s.pa || '-';
 
     // Role badge
     let catClass = 'badge-role-coaching';
-    let catIcon = '👔';
     if (s.roleCategory === 'recruitment') {
       catClass = 'badge-role-recruitment';
-      catIcon = '🔍';
     } else if (s.roleCategory === 'medical') {
       catClass = 'badge-role-medical';
-      catIcon = '🩺';
     }
     el.staffModalRole.className = `badge ${catClass}`;
-    el.staffModalRole.textContent = `${catIcon} ${s.roleTh} (${s.roleEn})`;
+    el.staffModalRole.textContent = `${s.roleTh} (${s.roleEn})`;
 
-    // Club or Free agent
-    if (s.isFreeAgent) {
-      el.staffModalClub.innerHTML = '<span class="badge-free">🆓 ว่างงาน (Free Agent)</span>';
-    } else {
-      el.staffModalClub.textContent = s.club || 'ไม่ระบุสโมสร';
-    }
+    el.staffModalClub.hidden = !s.club;
+    el.staffModalClub.textContent = s.club || '';
 
-    // Dynamic Role-tailored Top Stats in Modal Header
-    if (el.staffModalHeaderStats) {
-      const isMed = s.roleCategory === 'medical' || s.roleId === 'physio' || s.roleId === 'sports_scientist';
-      const isScout = s.roleCategory === 'recruitment' || s.roleId === 'scout';
-      const isHoyd = s.roleId === 'hoyd';
+    const skills = s.keySkills ?? {};
+    const specialties = {
+      medical: [['กายภาพ', skills.physiotherapy], ['วิทย์กีฬา', skills.sportsScience]],
+      recruitment: [['JPA', skills.jpa], ['JPP', skills.jpp]]
+    };
+    const leadStats = s.roleId === 'hoyd'
+      ? [['ปั้นเยาวชน', skills.youngsters], ['JPP', skills.jpp]]
+      : specialties[s.roleCategory] ?? [['ดาวโค้ช', `★ ${s.coachStarsFormatted}`]];
+    const stats = [...leadStats, ['CA (ปัจจุบัน)', s.ca], ['PA (ศักยภาพ)', s.pa]];
+    el.staffModalHeaderStats.innerHTML = stats.map(([label, value]) =>
+      `<div class="ability-block"><div class="ability-label">${label}</div><div class="ability-number${label.startsWith('PA') ? ' text-secondary' : ''}">${escapeHtml(String(value || '–'))}</div></div>`).join('');
 
-      let statsHtml = '';
-      if (isMed) {
-        statsHtml = `
-          <div class="ability-block" title="ทักษะกายภาพบำบัด">
-            <div class="ability-label">กายภาพ (Physio)</div>
-            <div class="ability-number text-green">${s.keySkills?.physiotherapy || 0}</div>
-          </div>
-          <div class="ability-block" title="ทักษะวิทยาศาสตร์การกีฬา">
-            <div class="ability-label">วิทย์กีฬา (Sports Sci)</div>
-            <div class="ability-number text-green">${s.keySkills?.sportsScience || 0}</div>
-          </div>
-          <div class="ability-block" title="Current Ability">
-            <div class="ability-label">CA</div>
-            <div class="ability-number text-accent">${s.ca || '-'}</div>
-          </div>
-          <div class="ability-block" title="Potential Ability">
-            <div class="ability-label">PA</div>
-            <div class="ability-number text-green">${s.pa || '-'}</div>
-          </div>
-        `;
-      } else if (isScout) {
-        statsHtml = `
-          <div class="ability-block" title="Judging Player Ability (ประเมินความสามารถ)">
-            <div class="ability-label">JPA (ประเมินพลัง)</div>
-            <div class="ability-number text-green">${s.keySkills?.jpa || 0}</div>
-          </div>
-          <div class="ability-block" title="Judging Player Potential (ประเมินศักยภาพ)">
-            <div class="ability-label">JPP (ประเมินศักยภาพ)</div>
-            <div class="ability-number text-green">${s.keySkills?.jpp || 0}</div>
-          </div>
-          <div class="ability-block" title="Current Ability">
-            <div class="ability-label">CA</div>
-            <div class="ability-number text-accent">${s.ca || '-'}</div>
-          </div>
-          <div class="ability-block" title="Potential Ability">
-            <div class="ability-label">PA</div>
-            <div class="ability-number text-green">${s.pa || '-'}</div>
-          </div>
-        `;
-      } else if (isHoyd) {
-        statsHtml = `
-          <div class="ability-block" title="Working with Youngsters (พัฒนาเยาวชน)">
-            <div class="ability-label">ปั้นเยาวชน</div>
-            <div class="ability-number text-green">${s.keySkills?.youngsters || 0}</div>
-          </div>
-          <div class="ability-block" title="Judging Player Potential (ประเมินศักยภาพ)">
-            <div class="ability-label">JPP</div>
-            <div class="ability-number text-green">${s.keySkills?.jpp || 0}</div>
-          </div>
-          <div class="ability-block" title="Current Ability">
-            <div class="ability-label">CA</div>
-            <div class="ability-number text-accent">${s.ca || '-'}</div>
-          </div>
-          <div class="ability-block" title="Potential Ability">
-            <div class="ability-label">PA</div>
-            <div class="ability-number text-green">${s.pa || '-'}</div>
-          </div>
-        `;
-      } else {
-        statsHtml = `
-          <div class="ability-block" title="คะแนนฝึกสอนคำนวณตามสูตร FM">
-            <div class="ability-label">ดาวโค้ช</div>
-            <div class="ability-number text-orange">⭐ ${s.coachStarsFormatted}</div>
-          </div>
-          <div class="ability-block" title="Current Ability">
-            <div class="ability-label">CA</div>
-            <div class="ability-number text-accent">${s.ca || '-'}</div>
-          </div>
-          <div class="ability-block" title="Potential Ability">
-            <div class="ability-label">PA</div>
-            <div class="ability-number text-green">${s.pa || '-'}</div>
-          </div>
-        `;
-      }
-      el.staffModalHeaderStats.innerHTML = statsHtml;
-    }
-
-    // 4 Attribute Grids
-    const ag = s.attrGroups || {};
-    let attrsHtml = '';
-    attrsHtml += renderAttrColumn('ทักษะการฝึกสอน (Coaching)', '⚽', ag.coaching);
-    attrsHtml += renderAttrColumn('ทักษะจิตวิทยา & คุมทีม (Mental)', '🧠', ag.mental);
-    attrsHtml += renderAttrColumn('ทักษะส่อง & วิเคราะห์ (Scouting)', '🔍', ag.scouting);
-    attrsHtml += renderAttrColumn('ทักษะการแพทย์ & วิทย์กีฬา (Medical)', '🩺', ag.medical);
-    el.staffModalAttrsContainer.innerHTML = attrsHtml;
+    const contract = [
+      ['ค่าเหนื่อยต่อสัปดาห์', formatWeeklyWage(s.wage, 'ไม่ระบุ')],
+      ['สถานะการจ้างงาน', s.isFreeAgent ? 'ว่างงาน' : 'มีสังกัด'],
+      ['สัญญาหมด', formatGameDate(s.expires) || 'ไม่ระบุ'],
+      ['ชื่อเสียง', s.worldRep > 0 || s.curRep > 0 ? s.repLabel.split(' (')[0] : 'ไม่ระบุ']
+    ];
+    document.getElementById('staff-contract-details').innerHTML = contract.map(([label, value]) =>
+      `<div><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`).join('');
+    const training = s.roleCategory === 'coaching'
+      ? Object.entries(s.trainingStars ?? {}).filter(([key]) => !['attacking', 'defending', 'possession', 'goalkeeping'].includes(key))
+      : [];
+    const best = Math.max(...training.map(([, stars]) => stars));
+    const trainingLabels = s.trainingLabels ?? staffOptions?.training ?? {};
+    const bestNames = training.filter(([, stars]) => stars === best).map(([key]) => trainingLabels[key] ?? key);
+    document.getElementById('staff-training-best').textContent =
+      bestNames.length ? `เด่นสุด · ${bestNames.join(' / ')} (★ ${best.toFixed(1)})` : '';
+    document.getElementById('staff-training-ratings').innerHTML = training.map(([key, stars]) =>
+      `<div class="${stars === best ? 'staff-training-best' : ''}"><dt>${escapeHtml(trainingLabels[key] ?? key)}</dt><dd>★ ${stars.toFixed(1)}</dd></div>`).join('');
+    document.getElementById('staff-contract-section').hidden = false;
+    document.getElementById('staff-training-section').hidden = !training.length;
+    const groups = ['coaching', 'mental', 'scouting', 'medical'];
+    const lead = { recruitment: 'scouting', medical: 'medical' }[s.roleCategory] ?? 'coaching';
+    el.staffModalAttrsContainer.innerHTML = [lead, ...groups.filter(group => group !== lead)]
+      .map(group => renderAttrColumn(staffGroupLabels[group], s.attrGroups?.[group])).join('');
 
     // Personality
     if (s.personality) {
@@ -2341,12 +2612,11 @@ async function openStaffModal(id) {
   }
 }
 
-function renderAttrColumn(title, icon, attrs) {
+function renderAttrColumn(title, attrs) {
   if (!attrs || attrs.length === 0) return '';
   return `
     <div class="attr-column">
       <div class="attr-column-title">
-        <span>${icon}</span>
         <span>${title}</span>
       </div>
       <div class="attr-list">
@@ -2356,9 +2626,11 @@ function renderAttrColumn(title, icon, attrs) {
           if (val >= 16) valClass = 'attr-val-top';
           else if (val >= 11) valClass = 'attr-val-good';
           else if (val >= 6) valClass = 'attr-val-avg';
+          const name = a.nameTh || a.name || '';
+          const match = /^(.*) \(([^()]*)\)$/.exec(name);
           return `
             <div class="attr-row">
-              <span class="attr-name">${escapeHtml(a.nameTh || a.name || '')}</span>
+              <span class="attr-name">${escapeHtml(match?.[1] ?? name)}${match ? `<span class="staff-attr-label-en">${escapeHtml(match[2])}</span>` : ''}</span>
               <span class="attr-val ${valClass}">${val > 0 ? val : '-'}</span>
             </div>
           `;

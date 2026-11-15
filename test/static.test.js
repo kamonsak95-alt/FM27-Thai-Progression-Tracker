@@ -4,8 +4,9 @@ const test = require('node:test');
 const http = require('node:http');
 const server = require('../server/index');
 
-test('Server correctly serves frontend static files (index.html, style.css, app.js)', async () => {
+test('Server correctly serves frontend static files (index.html, style.css, app.js)', async t => {
   await new Promise(resolve => server.listen(0, resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
   const port = server.address().port;
 
   const get = (path) => new Promise((resolve, reject) => {
@@ -20,7 +21,7 @@ test('Server correctly serves frontend static files (index.html, style.css, app.
   const htmlRes = await get('/');
   assert.strictEqual(htmlRes.status, 200);
   assert.ok(htmlRes.headers['content-type'].includes('text/html'));
-  assert.ok(htmlRes.body.includes('FM27 Thai Progression Tracker'));
+  assert.ok(htmlRes.body.includes('FM27 Scout &amp; Tracker'));
   assert.ok(htmlRes.body.includes('tab-btn-staff'));
   assert.ok(htmlRes.body.includes('section-staff'));
   assert.ok(htmlRes.body.includes('filter-staff-role'));
@@ -45,5 +46,4 @@ test('Server correctly serves frontend static files (index.html, style.css, app.
   assert.strictEqual(iconRes.status, 200);
   assert.ok(iconRes.headers['content-type'].includes('svg'));
 
-  await new Promise(resolve => server.close(resolve));
 });

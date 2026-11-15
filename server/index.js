@@ -25,8 +25,9 @@ const runningBuild = getLocalCommit().then(commit => ({
   commit: commit === 'local' ? null : commit.slice(0, 7)
 }));
 const { stageUpdate, stageSetup, removeStage, startUpdateWorker } = require('./zipInstaller');
-const { filterStaff, getStaffDetail } = require('./staffEngine');
-const { decodeSnapshotAttributes } = require('./snapshotAttributes');
+const { filterStaff, getStaffDetail, getReputationLabel, STAFF_SKILL_GROUPS, TRAINING_LABELS } = require('./staffEngine');
+const { analyzeSquad } = require('./squadAnalysis');
+const { ATTRIBUTE_KEYS, decodeSnapshotAttributes } = require('./snapshotAttributes');
 const { shortlist, validRef } = require('./shortlistStore');
 
 const PORT = process.env.PORT || 3000;
@@ -44,6 +45,43 @@ let cachedPlayersWithDeltas = null;
 let currentBaselineDate = null;
 let currentSaveKey = null;
 let playerNationalities = [];
+
+const PREFERRED_FEET = new Map([
+  ['links', 'left'], ['left', 'left'],
+  ['rechts', 'right'], ['right', 'right'],
+  ['beide', 'both'], ['both', 'both']
+]);
+
+function getPreferredFoot(foot) {
+  return typeof foot === 'string' ? PREFERRED_FEET.get(foot.trim().toLowerCase()) ?? null : null;
+}
+
+function getContractEnd(player) {
+  const value = player.expires;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(value + 'T00:00:00Z');
+  return Number.isFinite(+parsed) && parsed.toISOString().slice(0, 10) === value ? value : null;
+}
+
+function addContractMonths(date, months) {
+  const start = new Date(date + 'T00:00:00Z');
+  if (!Number.isFinite(+start)) return null;
+  const day = start.getUTCDate();
+  start.setUTCDate(1);
+  start.setUTCMonth(start.getUTCMonth() + months);
+  const last = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
+  start.setUTCDate(Math.min(day, last));
+  return start.toISOString().slice(0, 10);
+}
+
+function getTransferStatuses(player) {
+  const statuses = [];
+  if (!player.club && Object.hasOwn(player, 'club')) statuses.push('free');
+  if (player.listed === true) statuses.push('listed');
+  if (player.loanListed === true) statuses.push('loan');
+  if (player.setForRelease === true) statuses.push('release');
+  return statuses;
+}
 
 function getNationalities(player) {
   return (Array.isArray(player.nat) ? player.nat : [player.nat])
@@ -384,7 +422,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/squad-analysis') {
+    return sendJson(res, 200, analyzeSquad(getOrLoadDump()));
+  }
+
   if (pathname === '/api/players') {
+    const attributeFilters = new Map();
+    for (const term of parsedUrl.searchParams.getAll('attribute')) {
+      const match = /^([A-Za-z]+):([1-9]|1\d|20)$/.exec(term);
+      if (!match || !ATTRIBUTE_KEYS.includes(match[1])) {
+        return sendJson(res, 400, { error: 'ตัวกรอง Attributes ต้องเป็นค่าพลังที่รองรับและมีค่าขั้นต่ำ 1–20' });
+      }
+      const [, key, minimum] = match;
+      attributeFilters.set(key, Math.max(Number(minimum), attributeFilters.get(key) ?? 0));
+    }
     const dump = getOrLoadDump();
     if (!dump || !dump.players) {
       return sendJson(res, 200, {
@@ -440,12 +491,42 @@ const server = http.createServer(async (req, res) => {
     if (nationality) {
       result = result.filter(player => getNationalities(player).some(name => name.toLowerCase() === nationality));
     }
+    if (query.foot === 'left' || query.foot === 'right' || query.foot === 'both') {
+      result = result.filter(player => getPreferredFoot(player.foot) === query.foot);
+    }
 
     if (query.shortlistRef !== undefined) {
       const ids = new Set((query.shortlistIds || '').split(',').filter(id => /^[1-9]\d*$/.test(id)).map(Number));
       result = refCode.startsWith('#') && query.shortlistRef === refCode
         ? result.filter(player => ids.has(Number(player.id)))
         : [];
+    }
+
+    if (attributeFilters.size) {
+      const terms = [...attributeFilters];
+      result = result.filter(player => {
+        const attributes = player.attrs;
+        return attributes && terms.every(([key, minimum]) => {
+          const value = attributes[key];
+          return Number.isInteger(value) && value >= minimum && value <= 20;
+        });
+      });
+    }
+
+    if (query.transferStatus) result = result.filter(player => getTransferStatuses(player).includes(query.transferStatus));
+    for (const [param, field] of [['maxValue', 'value'], ['maxWage', 'wage']]) {
+      if (/^[1-9]\d*$/.test(query[param] ?? '') && Number.isSafeInteger(Number(query[param]))) {
+        const limit = Number(query[param]);
+        result = result.filter(player => Number.isFinite(player[field]) && player[field] > 0 && player[field] <= limit);
+      }
+    }
+    if (query.contractMonths === '6' || query.contractMonths === '12') {
+      const today = getContractEnd({ expires: dump.meta?.gameDate });
+      const cutoff = today && addContractMonths(today, Number(query.contractMonths));
+      result = cutoff ? result.filter(player => {
+        const expires = getContractEnd(player);
+        return expires && expires >= today && expires <= cutoff;
+      }) : [];
     }
 
     // Filter by name
@@ -505,6 +586,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     // My Club only
+    if (query.excludeMyClub === '1' && dump.meta?.myClub) {
+      result = result.filter(player => player.club !== dump.meta.myClub);
+    }
     if (query.myClub === '1' && dump.meta?.myClub) {
       result = result.filter(p => p.club === dump.meta.myClub);
     }
@@ -578,6 +662,12 @@ const server = http.createServer(async (req, res) => {
     const previousAttributes = decodeSnapshotAttributes(baseline?.previousAttributeValues);
     return sendJson(res, 200, {
       player,
+      preferredFoot: getPreferredFoot(player.foot),
+      reputationLabel: Number.isInteger(player.worldRep) && player.worldRep >= 0 && player.worldRep <= 10000
+        ? (player.worldRep < 1000 ? 'ไม่เป็นที่รู้จัก' : getReputationLabel(player.worldRep).label.split(' (')[0])
+        : null,
+      contractEnd: getContractEnd(player),
+      transferStatuses: getTransferStatuses(player),
       refCode: cachedRefCode,
       scanId: dump.meta?.scanId,
       trend: predictDevelopmentTrend(player, 0),
@@ -587,6 +677,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Staff List Endpoint
+  if (pathname === '/api/staff/filter-options') {
+    return sendJson(res, 200, { skills: STAFF_SKILL_GROUPS, training: TRAINING_LABELS });
+  }
   if (pathname === '/api/staff') {
     const dump = getOrLoadDump();
     if (!dump || !dump.staff) {
@@ -604,7 +697,16 @@ const server = http.createServer(async (req, res) => {
       ...query,
       myClub: dump.meta?.myClub || ''
     };
-    const result = filterStaff(dump.staff, filterParams);
+    const keys = new Set(Object.values(STAFF_SKILL_GROUPS).flat().map(([key]) => key));
+    const skills = [];
+    for (const term of parsedUrl.searchParams.getAll('skill')) {
+      const [key, value, extra] = term.split(':');
+      if (!keys.has(key) || extra !== undefined || !/^(?:[1-9]|1[0-9]|20)$/.test(value)) {
+        return sendJson(res, 400, { error: 'ตัวกรองทักษะทีมงานไม่ถูกต้อง' });
+      }
+      skills.push([key, Number(value)]);
+    }
+    const result = filterStaff(dump.staff, filterParams, skills);
     return sendJson(res, 200, {
       meta: dump.meta,
       ...result

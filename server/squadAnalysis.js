@@ -1,0 +1,40 @@
+const ROLES = [
+  ['GK', 'ผู้รักษาประตู', ['GK'], 2],
+  ['DR', 'แบ็กขวา', ['DR', 'WBR'], 2],
+  ['DC', 'เซ็นเตอร์แบ็ก', ['DC', 'SW'], 4],
+  ['DL', 'แบ็กซ้าย', ['DL', 'WBL'], 2],
+  ['DM', 'กลางรับ', ['DM'], 2],
+  ['MC', 'กองกลาง', ['MC'], 3],
+  ['AMR', 'ริมเส้นขวา', ['AMR', 'MR'], 2],
+  ['AMC', 'กลางรุก', ['AMC'], 2],
+  ['AML', 'ริมเส้นซ้าย', ['AML', 'ML'], 2],
+  ['ST', 'กองหน้า', ['ST', 'FC'], 2]
+];
+
+function analyzeSquad(dump) {
+  const club = dump?.meta?.myClub?.trim();
+  if (!club) return { status: dump ? 'no-club' : 'no-scan' };
+  const roster = (dump.players ?? []).filter(player => player.club === club);
+  if (!roster.length) return { status: 'empty', club };
+  const hasSquadTypes = roster.some(player => player.teamType === 0);
+  const squad = hasSquadTypes ? roster.filter(player => player.teamType === 0) : roster;
+  const slots = ROLES.map(([id, label, positions, target]) => {
+    const matches = player => {
+      const primary = player.posNat?.[0] || player.posArr?.[0] || player.pos?.split(',')[0];
+      return positions.includes(primary?.trim().toUpperCase());
+    };
+    const players = squad.filter(matches).sort((a, b) => (b.ca || 0) - (a.ca || 0));
+    const [starter, backup] = players;
+    const gap = Number.isFinite(starter?.ca) && Number.isFinite(backup?.ca) ? starter.ca - backup.ca : null;
+    const thin = players.length < target;
+    const wideGap = gap >= 20;
+    const status = !starter ? 'empty' : thin || wideGap ? 'reinforce' : 'strong';
+    return {
+      id, label, positions, target, status, gap, thin, wideGap, count: players.length,
+      players: players.map(({ id, name, ca }) => ({ id, name, ca }))
+    };
+  });
+  return { status: 'ok', club, squadSize: squad.length, hasSquadTypes, slots };
+}
+
+module.exports = { analyzeSquad };

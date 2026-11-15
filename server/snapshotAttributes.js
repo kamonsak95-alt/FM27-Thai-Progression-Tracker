@@ -30,4 +30,4 @@ function decodeSnapshotAttributes(values) {
   return attrs;
 }
 
-module.exports = { encodeSnapshotAttributes, decodeSnapshotAttributes };
+module.exports = { ATTRIBUTE_KEYS, encodeSnapshotAttributes, decodeSnapshotAttributes };
