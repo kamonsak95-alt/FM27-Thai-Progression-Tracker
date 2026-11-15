@@ -18,6 +18,9 @@ function analyzeSquad(dump) {
   if (!roster.length) return { status: 'empty', club };
   const hasSquadTypes = roster.some(player => player.teamType === 0);
   const squad = hasSquadTypes ? roster.filter(player => player.teamType === 0) : roster;
+  const youth = roster.filter(({ age, teamType }) =>
+    Number.isInteger(teamType) && teamType > 0 && Number.isInteger(age) && age > 0 && age <= 21);
+  const prospects = [];
   const slots = ROLES.map(([id, label, positions, target]) => {
     const matches = player => {
       const primary = player.posNat?.[0] || player.posArr?.[0] || player.pos?.split(',')[0];
@@ -25,6 +28,17 @@ function analyzeSquad(dump) {
     };
     const players = squad.filter(matches).sort((a, b) => (b.ca || 0) - (a.ca || 0));
     const [starter, backup] = players;
+    if (hasSquadTypes && starter?.ca > 0) {
+      for (const prospect of youth.filter(matches)) {
+        const nearBackup = backup?.ca > 0 && prospect.ca > 0 && prospect.ca >= backup.ca - 10;
+        const starterPotential = prospect.pa > 0 && prospect.pa >= starter.ca;
+        if (!nearBackup && !starterPotential) continue;
+        const { id: playerId, name, age, ca, pa } = prospect;
+        prospects.push({ id: playerId, name, age, ca, pa, position: id, label,
+          nearBackup, starterPotential,
+          starterCA: starter.ca, starterName: starter.name, reserveCA: backup?.ca ?? null, reserveName: backup?.name ?? null });
+      }
+    }
     const gap = Number.isFinite(starter?.ca) && Number.isFinite(backup?.ca) ? starter.ca - backup.ca : null;
     const thin = players.length < target;
     const wideGap = gap >= 20;
@@ -34,7 +48,9 @@ function analyzeSquad(dump) {
       players: players.map(({ id, name, ca }) => ({ id, name, ca }))
     };
   });
-  return { status: 'ok', club, squadSize: squad.length, hasSquadTypes, slots };
+  prospects.sort((a, b) => Number(b.starterPotential) - Number(a.starterPotential) ||
+    (b.pa || 0) - (a.pa || 0) || (b.ca || 0) - (a.ca || 0));
+  return { status: 'ok', club, squadSize: squad.length, hasSquadTypes, slots, prospects };
 }
 
 module.exports = { analyzeSquad };

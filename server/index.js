@@ -423,7 +423,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === '/api/squad-analysis') {
-    return sendJson(res, 200, analyzeSquad(getOrLoadDump()));
+    const dump = getOrLoadDump();
+    return sendJson(res, 200, { ...analyzeSquad(dump), scanId: dump?.meta?.scanId });
   }
 
   if (pathname === '/api/players') {
@@ -671,6 +672,8 @@ const server = http.createServer(async (req, res) => {
       refCode: cachedRefCode,
       scanId: dump.meta?.scanId,
       trend: predictDevelopmentTrend(player, 0),
+      previousCA: baseline?.prevCA ?? null,
+      comparisonDate: currentBaselineDate || baseline?.firstSeenDate || null,
       previousAttributes,
       attributeBaselineDate: previousAttributes ? (baseline.attributeBaselineDate || currentBaselineDate) : null
     });

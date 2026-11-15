@@ -572,6 +572,11 @@ function initEventListeners() {
   document.getElementById('clear-player-filters').addEventListener('click', () => resetPlayerFilters());
   document.getElementById('tab-btn-squad').addEventListener('click', () => switchTab('squad'));
   squadBoard.addEventListener('click', event => {
+    const profile = event.target.closest('[data-squad-player]');
+    if (profile) {
+      if (!el.btnScan.disabled) openPlayerModal(Number(profile.dataset.squadPlayer), undefined, undefined, undefined, squadBoard.dataset.scanId);
+      return;
+    }
     const button = event.target.closest('[data-squad-scout]');
     if (!button) return;
     switchTab('players');
@@ -1307,6 +1312,7 @@ async function loadSquadAnalysis() {
       }[data.status];
       return;
     }
+    squadBoard.dataset.scanId = data.scanId ?? '';
     squadStatus.textContent = `${data.club} · ${data.hasSquadTypes ? 'ชุดใหญ่' : 'นักเตะทั้งหมดที่สแกนได้'} ${data.squadSize} คน · นับตามตำแหน่งหลัก`;
     const statuses = { empty: 'ขาดผู้เล่น', reinforce: 'ควรเสริม', strong: 'ตัวเลือกเพียงพอ' };
     const priorities = data.slots.filter(slot => slot.status !== 'strong');
@@ -1319,13 +1325,43 @@ async function loadSquadAnalysis() {
         <article class="squad-position" data-status="${slot.status}">
           <header><h3>${slot.label} <small>${slot.id}</small></h3><span>${statuses[slot.status]}</span></header>
           <p class="text-muted">${slot.count} คน · เป้าหมาย ${slot.target}${slot.gap !== null ? ' · ตัวหลักกับสำรองห่าง ' + slot.gap + ' CA' : ''}</p>
-          <ol>${slot.players.map((player, index) => `<li><span>${index === 0 ? 'CA สูงสุด' : 'ตัวเลือก ' + (index + 1)}</span><strong>${escapeHtml(player.name)}</strong><b>${Number.isFinite(player.ca) ? player.ca : '–'}</b></li>`).join('') || '<li>ไม่พบผู้เล่นตำแหน่งหลักนี้</li>'}</ol>
+          <ol>${slot.players.map((player, index) => `<li><span>${index === 0 ? 'CA สูงสุด' : 'ตัวเลือก ' + (index + 1)}</span>${renderSquadPlayerName(player)}<b>${Number.isFinite(player.ca) ? player.ca : '–'}</b></li>`).join('') || '<li>ไม่พบผู้เล่นตำแหน่งหลักนี้</li>'}</ol>
           <button type="button" class="btn btn-secondary btn-sm" data-squad-scout="${slot.positions.join(',')}">ค้นหาผู้เล่นนอกทีม</button>
         </article>`).join('')}</div>
-      <details class="squad-method"><summary>เกณฑ์การวิเคราะห์</summary><p>ขึ้น “ควรเสริม” เมื่อจำนวนผู้เล่นตามตำแหน่งหลักต่ำกว่าเป้า หรือ CA ของสองอันดับแรกห่างกันตั้งแต่ 20 แต้ม เป้าหมายจำนวนผู้เล่นใช้เกณฑ์ทั่วไป</p></details>`;
+      <details class="squad-method"><summary>เกณฑ์การวิเคราะห์</summary><p>ขึ้น “ควรเสริม” เมื่อจำนวนผู้เล่นตามตำแหน่งหลักต่ำกว่าเป้า หรือ CA ของสองอันดับแรกห่างกันตั้งแต่ 20 แต้ม เป้าหมายจำนวนผู้เล่นใช้เกณฑ์ทั่วไป</p></details>
+      ${renderSquadProspects(data.prospects ?? [], data.hasSquadTypes)}`;
   } catch (error) {
     if (!request.signal.aborted) squadStatus.textContent = 'โหลดผลวิเคราะห์ทีมไม่สำเร็จ';
   }
+}
+
+function renderSquadPlayerName(player) {
+  const name = escapeHtml(player.name);
+  return Number.isSafeInteger(player.id) && player.id > 0
+    ? `<button type="button" class="player-name player-name-button" data-squad-player="${player.id}">${name}</button>`
+    : `<strong>${name}</strong>`;
+}
+
+function renderSquadProspects(prospects, hasSquadTypes) {
+  const content = prospects.length ? `
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th scope="col">นักเตะ</th><th scope="col">อายุ</th><th scope="col">ตำแหน่งหลัก</th><th scope="col">CA</th><th scope="col">PA</th><th scope="col">เทียบกับชุดใหญ่</th></tr></thead>
+        <tbody>${prospects.map(prospect => {
+          const notes = [];
+          if (prospect.nearBackup) notes.push(`${prospect.ca >= prospect.reserveCA ? 'CA ถึงระดับ' : 'CA ใกล้ระดับ'} ${escapeHtml(prospect.reserveName)} (CA ${prospect.reserveCA})`);
+          if (prospect.starterPotential) notes.push(`PA ถึง CA ของ ${escapeHtml(prospect.starterName)} (CA ${prospect.starterCA})`);
+          return `<tr><td>${renderSquadPlayerName(prospect)}</td><td>${prospect.age}</td>
+            <td>${prospect.label}</td><td>${Number(prospect.ca) || '–'}</td><td>${Number(prospect.pa) || '–'}</td>
+            <td>${notes.join(' · ')}</td></tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>` : `<p>${hasSquadTypes ? 'ยังไม่พบดาวรุ่งที่เข้าเกณฑ์เทียบกับชุดใหญ่' : 'ยังแยกผู้เล่นชุดใหญ่จากข้อมูลสแกนรอบนี้ไม่ได้'}</p>`;
+  return `<section class="squad-prospects" aria-labelledby="squad-prospects-title">
+    <h3 id="squad-prospects-title">ดาวรุ่งที่มีพรสวรรค์</h3>
+    <p class="text-muted">เฉพาะผู้เล่นนอกชุดใหญ่อายุไม่เกิน 21 ปี เทียบกับ CA อันดับ 1 และ 2 ของชุดใหญ่ในกลุ่มตำแหน่งเดียวกัน</p>
+    ${content}
+  </section>`;
 }
 
 function applyStaffPreset(preset) {
@@ -1743,12 +1779,17 @@ function renderTable(players, comparisonDate, refCode) {
   });
 }
 
-async function openPlayerModal(id, previousCA, comparisonDate, expectedRef) {
+async function openPlayerModal(id, previousCA, comparisonDate, expectedRef, expectedScanId) {
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
-    const { player, preferredFoot, reputationLabel, contractEnd, transferStatuses = [], trend, previousAttributes, attributeBaselineDate, refCode, scanId } = await res.json();
+    const { player, preferredFoot, reputationLabel, contractEnd, transferStatuses = [], trend, previousAttributes, attributeBaselineDate, refCode, scanId, previousCA: scanPreviousCA, comparisonDate: scanComparisonDate } = await res.json();
     if (expectedRef && (refCode !== expectedRef || state.refCode !== expectedRef || el.btnScan.disabled)) return;
+    if (expectedScanId && (scanId !== expectedScanId || el.btnScan.disabled)) return;
+    if (previousCA === undefined) {
+      previousCA = scanPreviousCA;
+      comparisonDate = scanComparisonDate;
+    }
     document.getElementById('btn-compare-player').onclick = () => openPlayerComparison(player, refCode, scanId);
     const star = document.getElementById('modal-shortlist');
     star.hidden = !refCode?.startsWith('#');
