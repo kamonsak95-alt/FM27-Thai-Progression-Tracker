@@ -2101,7 +2101,7 @@ function renderPlayerComparison(left, right) {
 async function triggerScan() {
   if (compareDialog.open) compareDialog.close();
   el.btnScan.disabled = true;
-  el.btnScanText.textContent = 'กำลังตรวจจับเซฟและโหลดข้อมูลจาก FM27 (~9 วินาที)...';
+  el.btnScanText.textContent = 'กำลังตรวจจับเซฟและโหลดข้อมูลจาก FM27 (เวลาโหลดขึ้นอยู่กับขนาดฐานข้อมูล)';
   showToast('🚀 กำลังเชื่อมต่อ FM27 และตรวจจับเซฟเกม กรุณารอสักครู่...');
 
   try {
