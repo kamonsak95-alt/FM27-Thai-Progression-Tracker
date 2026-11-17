@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.32">
+  <link rel="stylesheet" href="style.css?v=1.0.33">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -79,6 +79,7 @@
           <button id="btn-check-update" class="btn btn-secondary btn-sm" title="ตรวจเช็กเวอร์ชันล่าสุดจาก GitHub">
             <span>เช็กอัปเดต</span>
           </button>
+          <button id="btn-feedback" class="btn btn-secondary btn-sm">แจ้งปัญหา / ข้อเสนอแนะ</button>
           <span id="header-build" class="header-build" title="เวอร์ชันและคอมมิตที่กำลังใช้งาน" hidden></span>
         </div>
       </div>
@@ -961,8 +962,26 @@
   <!-- Scan Notification Toast -->
   <div id="toast" class="toast" style="display:none;"></div>
 
+  <dialog id="feedback-dialog" class="feedback-dialog" aria-labelledby="feedback-heading">
+    <form id="feedback-form">
+      <div class="feedback-heading">
+        <h2 id="feedback-heading">แจ้งปัญหา / ข้อเสนอแนะ</h2>
+        <button type="button" id="feedback-close" class="player-modal-close" aria-label="ปิดหน้าต่างแจ้งปัญหาและข้อเสนอแนะ" title="ปิด">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <p class="feedback-note">ข้อความจะส่งถึงผู้พัฒนาทาง Discord พร้อมเวอร์ชันแอป กรุณาไม่ใส่รหัสผ่านหรือข้อมูลส่วนตัวที่ไม่จำเป็น</p>
+      <label>ประเภท<select name="type" class="form-select"><option value="bug">แจ้งปัญหา</option><option value="suggestion">ข้อเสนอแนะ</option></select></label>
+      <label>หัวข้อ<input name="title" required maxlength="100" placeholder="สรุปเรื่องที่ต้องการแจ้ง"></label>
+      <label>รายละเอียด<textarea name="details" required maxlength="2000" rows="6" placeholder="เกิดอะไรขึ้น ทำขั้นตอนไหน หรืออยากให้ปรับอะไร"></textarea></label>
+      <label>ช่องทางติดต่อกลับ (ไม่บังคับ)<input name="contact" maxlength="200" placeholder="เช่น ชื่อ Discord"></label>
+      <div class="feedback-footer"><span id="feedback-version" class="feedback-note"></span><button id="feedback-submit" type="submit" class="btn btn-primary">ส่งข้อความ</button></div>
+      <p id="feedback-status" role="status" aria-live="polite"></p>
+    </form>
+  </dialog>
+  <script src="feedback.js?v=1.0.33"></script>
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
-  <script src="app.js?v=1.0.32"></script>
+  <script src="app.js?v=1.0.33"></script>
 </body>
 </html>

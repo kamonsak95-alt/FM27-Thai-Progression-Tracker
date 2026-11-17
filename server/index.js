@@ -30,6 +30,9 @@ const { filterStaff, getStaffDetail, getReputationLabel, STAFF_SKILL_GROUPS, TRA
 const { analyzeSquad } = require('./squadAnalysis');
 const { ATTRIBUTE_KEYS, decodeSnapshotAttributes } = require('./snapshotAttributes');
 const { shortlist, validRef } = require('./shortlistStore');
+const { validateFeedback, sendFeedback } = require('./feedback');
+let feedbackBusy = false;
+let feedbackLastSent = 0;
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -216,6 +219,39 @@ const server = http.createServer(async (req, res) => {
       updateId: process.env.FM27_UPDATE_ID || null,
       rolledBack: process.env.FM27_UPDATE_ROLLBACK === '1'
     });
+  }
+
+  if (pathname === '/api/feedback') {
+    res.setHeader('Cache-Control', 'no-store');
+    const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+    if (!loopback || !['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname) ||
+        (req.headers.origin && req.headers.origin !== parsedUrl.origin) ||
+        (req.method === 'POST' && req.headers['x-fm27-feedback'] !== '1')) {
+      return sendJson(res, 403, { error: 'เปิด Tracker บนเครื่องนี้เพื่อส่งข้อความ' });
+    }
+    if (req.method === 'GET') return sendJson(res, 200, { ...(await runningBuild), available: true });
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'ไม่รองรับคำขอนี้' });
+    if (feedbackBusy || Date.now() - feedbackLastSent < 30000) return sendJson(res, 429, { error: 'กรุณารอ 30 วินาทีก่อนส่งข้อความถัดไป' });
+    feedbackBusy = true;
+    try {
+      if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) {
+        return sendJson(res, 415, { error: 'รูปแบบข้อความไม่ถูกต้อง' });
+      }
+      const chunks = [];
+      let bytes = 0;
+      for await (const chunk of req) {
+        bytes += chunk.length;
+        if (bytes > 16384) return sendJson(res, 413, { error: 'ข้อความมีขนาดใหญ่เกินไป' });
+        chunks.push(chunk);
+      }
+      const input = validateFeedback(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      const result = await sendFeedback(input, await runningBuild);
+      feedbackLastSent = Date.now();
+      return sendJson(res, 200, result);
+    } catch (error) {
+      const invalid = error instanceof TypeError || error instanceof SyntaxError;
+      return sendJson(res, invalid ? 400 : 502, { error: error instanceof SyntaxError ? 'รูปแบบข้อความไม่ถูกต้อง' : error.message });
+    } finally { feedbackBusy = false; }
   }
 
   if (pathname === '/api/shortlist' && ['GET', 'POST'].includes(req.method)) {
