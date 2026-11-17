@@ -1920,8 +1920,10 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
               else if (val >= 6) colorClass = 'attr-val-avg';
             }
             const previous = previousAttributes?.[attr];
+            let baseline = '';
             let change = '';
             if (Number.isFinite(previous) && Number.isFinite(val)) {
+              baseline = `<span class="attribute-previous" title="ค่าจากรอบที่เลือก">${previous}</span><span class="text-muted" aria-hidden="true">→</span>`;
               const delta = val - previous;
               const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'steady';
               const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
@@ -1931,7 +1933,7 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
             return `
               <div class="attr-row" title="${PLAYER_ATTRIBUTE_THAI[attr]}">
                 <span class="attr-name">${PROFILE_ATTRIBUTE_LABELS[attr] ?? attr}</span>
-                <span class="attribute-result"><span class="attr-val ${colorClass}">${val}</span>${change}</span>
+                <span class="attribute-result">${baseline}<span class="attr-val ${colorClass}">${val}</span>${change}</span>
               </div>
             `;
           }).join('');
