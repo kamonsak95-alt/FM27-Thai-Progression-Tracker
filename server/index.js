@@ -142,6 +142,19 @@ function getRecentTrend(player, previousRound) {
   return predictDevelopmentTrend(player, deltaCA);
 }
 
+const TRANSFER_INTEREST_RANK = { low: 1, medium: 2, high: 3 };
+
+function estimateTransferInterest(player, meta) {
+  if (!meta?.myClub || player.club === meta.myClub) return null;
+  const target = meta.myClubRep;
+  const reference = player.club ? player.clubRep : player.worldRep;
+  if (![target, reference].every(value => Number.isFinite(value) && value > 0)) return null;
+  const gap = target - reference;
+  if (gap >= 750) return 'high';
+  if (gap <= -750) return 'low';
+  return 'medium';
+}
+
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -506,7 +519,8 @@ const server = http.createServer(async (req, res) => {
         return {
           ...p,
           trend,
-          trendScore: trend.score
+          trendScore: trend.score,
+          transferInterest: estimateTransferInterest(p, dump.meta)
         };
       });
     }
@@ -623,6 +637,11 @@ const server = http.createServer(async (req, res) => {
     const order = query.order === 'asc' ? 1 : -1;
 
     result.sort((a, b) => {
+      if (sortBy === 'transferInterest') {
+        const rankA = TRANSFER_INTEREST_RANK[a.transferInterest] ?? 0;
+        const rankB = TRANSFER_INTEREST_RANK[b.transferInterest] ?? 0;
+        return Number(!rankA) - Number(!rankB) || order * (rankA - rankB);
+      }
       let va = a[sortBy];
       let vb = b[sortBy];
       if (va == null) va = -9999;
@@ -657,6 +676,7 @@ const server = http.createServer(async (req, res) => {
       firstSeenDate: p.firstSeenDate || null,
       trend: p.trend,
       trendScore: p.trendScore,
+      transferInterest: p.transferInterest,
       value: p.value,
       wage: p.wage
     }));

@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.29">
+  <link rel="stylesheet" href="style.css?v=1.0.30">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -424,6 +424,7 @@
             <col class="player-col-ability" span="2">
             <col class="player-col-trend">
             <col class="player-col-growth">
+            <col class="player-col-interest">
             <col class="player-col-money">
             <col class="player-col-money player-col-wage">
           </colgroup>
@@ -437,13 +438,14 @@
               <th data-sort="pa" class="sortable text-center" title="Potential Ability (ศักยภาพสูงสุด 1-200)">PA</th>
               <th data-sort="trendScore" class="sortable text-center player-table-secondary" title="แนวโน้มพัฒนาการประเมินจากอายุและช่องว่าง CA/PA">แนวโน้ม</th>
               <th id="player-ca-comparison-heading" data-sort="growthPercent" class="sortable text-right" aria-describedby="player-comparison-basis">CA เทียบรอบแรก</th>
+              <th scope="col" data-sort="transferInterest" class="sortable text-center player-table-secondary" title="ประเมินความสนใจย้ายมาทีมเราจากส่วนต่างชื่อเสียง ผลจริงขึ้นอยู่กับการเจรจาในเกม">สนใจย้ายทีม</th>
               <th data-sort="value" class="sortable text-right player-table-secondary" title="มูลค่าประเมินในตลาด">มูลค่า</th>
               <th data-sort="wage" class="sortable text-right player-table-secondary" title="ค่าเหนื่อยต่อสัปดาห์">ค่าเหนื่อย</th>
             </tr>
           </thead>
           <tbody id="table-body">
             <tr>
-              <td colspan="10" class="text-center py-8 text-muted">กำลังโหลดข้อมูลนักเตะ...</td>
+              <td colspan="11" class="text-center py-8 text-muted">กำลังโหลดข้อมูลนักเตะ...</td>
             </tr>
           </tbody>
         </table>
@@ -690,7 +692,6 @@
     <div class="modal-card player-modal-card">
       <div class="player-modal-overview">
         <div class="modal-header player-modal-header">
-          <div class="player-avatar" aria-hidden="true">🏃</div>
           <div class="player-headline">
             <div class="modal-name-row">
               <h2 id="modal-name" class="modal-player-name">Player Name</h2>
@@ -859,7 +860,6 @@
     <div class="modal-card modal-card-lg player-modal-card">
       <div class="player-modal-overview">
       <div class="modal-header player-modal-header">
-        <div class="player-avatar" id="staff-modal-avatar">👔</div>
         <div class="player-headline">
           <div class="modal-name-row">
             <h2 id="staff-modal-name" class="modal-player-name">Staff Name</h2>
@@ -963,6 +963,6 @@
 
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
-  <script src="app.js?v=1.0.29"></script>
+  <script src="app.js?v=1.0.30"></script>
 </body>
 </html>

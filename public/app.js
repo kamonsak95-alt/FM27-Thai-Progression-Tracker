@@ -244,7 +244,6 @@ const el = {
   // Staff Detail Modal
   staffModal: document.getElementById('staff-modal'),
   staffModalClose: document.getElementById('staff-modal-close-btn'),
-  staffModalAvatar: document.getElementById('staff-modal-avatar'),
   staffModalName: document.getElementById('staff-modal-name'),
   staffModalRole: document.getElementById('staff-modal-role'),
   staffModalClub: document.getElementById('staff-modal-club'),
@@ -1721,7 +1720,7 @@ async function loadPlayers() {
   } catch (err) {
     if (request.signal.aborted) return;
     console.error('Failed to load players:', err);
-    el.tableBody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-red">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>`;
+    el.tableBody.innerHTML = `<tr><td colspan="11" class="text-center py-8 text-red">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>`;
   } finally {
     if (playerListRequest === request) {
       playerListRequest = null;
@@ -1744,12 +1743,16 @@ function renderPlayerTrend(trend) {
   return `<span class="player-trend" data-trend="${code}"><span class="player-trend-arrow" aria-hidden="true">${trendIndicators[code]}</span>${escapeHtml(trend?.label || 'คงที่')}</span>`;
 }
 
+const transferInterestLabels = new Map([
+  ['high', 'สูง'], ['medium', 'ปานกลาง'], ['low', 'ต่ำ']
+]);
+
 function renderTable(players, comparisonDate, refCode) {
   if (players.length === 0) {
     const message = state.preset === 'shortlist' && !readShortlist(refCode).length
       ? 'ยังไม่มีนักเตะใน Shortlist ของเซฟนี้ กดดาวข้างชื่อนักเตะเพื่อเพิ่ม'
       : 'ไม่พบข้อมูลนักเตะที่ตรงกับเงื่อนไข';
-    el.tableBody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-muted">${message}</td></tr>`;
+    el.tableBody.innerHTML = `<tr><td colspan="11" class="text-center py-8 text-muted">${message}</td></tr>`;
     return;
   }
 
@@ -1798,6 +1801,7 @@ function renderTable(players, comparisonDate, refCode) {
         <td class="text-center text-secondary">${p.pa}</td>
         <td class="text-center player-table-secondary">${renderPlayerTrend(p.trend)}</td>
         <td class="text-right">${growthBadge}</td>
+        <td class="text-center text-secondary player-table-secondary">${transferInterestLabels.get(p.transferInterest) ?? '–'}</td>
         <td class="text-right text-secondary font-mono player-table-secondary">${valueStr}</td>
         <td class="text-right text-muted font-mono player-table-secondary weekly-wage-cell">${wageStr}</td>
       </tr>
