@@ -801,6 +801,7 @@ const server = http.createServer(async (req, res) => {
     const result = filterStaff(dump.staff, filterParams, skills);
     return sendJson(res, 200, {
       meta: dump.meta,
+      refCode: cachedRefCode,
       ...result
     });
   }
@@ -813,7 +814,7 @@ const server = http.createServer(async (req, res) => {
     if (!detail) {
       return sendJson(res, 404, { error: 'ไม่พบข้อมูลทีมงาน' });
     }
-    return sendJson(res, 200, { staff: detail });
+    return sendJson(res, 200, { staff: detail, refCode: cachedRefCode, scanId: dump.meta?.scanId });
   }
 
   // Fallback to static files

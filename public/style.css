@@ -2511,3 +2511,11 @@ body {
 .staff-training-ratings dd { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .staff-training-ratings .staff-training-best dd { color: var(--accent-primary); }
 .staff-attr-label-en { display: block; color: var(--text-muted); font-size: .75rem; font-weight: 400; }
+
+#compare-club-filter:not([hidden]) { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+#compare-legend { margin-top: 12px; font-size: .8rem; }
+.compare-difference { display: block; font-size: .75rem; opacity: .85; }
+
+#changelog-modal-close { position: absolute; top: 1rem; right: 1.25rem; }
+#changelog-modal .modal-header { padding-inline-end: 42px; }
+#btn-changelog-close[hidden] { display: none; }

@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.33">
+  <link rel="stylesheet" href="style.css?v=1.0.34">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -74,7 +74,7 @@
           </div>
           <div class="info-pill" id="baseline-badge" title="เทียบ CA กับรอบแรกที่พบนักเตะแต่ละคนในเซฟนี้">
             <span class="pill-label">เปรียบเทียบ:</span>
-            <span class="pill-value text-accent" id="info-baseline">จุดเริ่มอาชีพ</span>
+            <span class="pill-value text-accent" id="info-baseline">กำลังโหลด...</span>
           </div>
           <button id="btn-check-update" class="btn btn-secondary btn-sm" title="ตรวจเช็กเวอร์ชันล่าสุดจาก GitHub">
             <span>เช็กอัปเดต</span>
@@ -681,6 +681,7 @@
     <!-- App Footer / Credits -->
     <footer class="app-footer text-center text-muted text-sm" style="padding: 1.5rem 0 0.5rem; opacity: 0.85;">
       <p>FM27 Scout &amp; Tracker &bull; พัฒนาเพื่อคอมมูนิตี้คนเล่นเกม Football Manager</p>
+      <p style="margin-top: 0.35rem;"><a href="https://fm27-scout-tracker.pages.dev/" target="_blank" rel="noopener noreferrer" class="text-accent" style="text-decoration: underline;">รู้จัก FM27 Tracker</a></p>
       <p class="text-xs" style="margin-top: 0.35rem; opacity: 0.75;">
         ขับเคลื่อนด้วย Scanner Engine จาก <a href="https://github.com/mavarobli/FMSuperScout" target="_blank" class="text-accent" style="text-decoration: underline;">FMSuperScout</a> โดย @mavarobli (MIT License)
       </p>
@@ -800,7 +801,7 @@
   <dialog id="attribute-filters" class="compare-dialog attribute-filter-dialog" aria-labelledby="attribute-filter-title">
     <header class="compare-header">
       <h2 id="attribute-filter-title">Attributes</h2>
-      <button type="button" id="cancel-attribute-filters" class="btn btn-secondary btn-sm">ปิด</button>
+      <button type="button" id="cancel-attribute-filters" class="player-modal-close" aria-label="ปิดตัวกรองค่าพลังนักเตะ" title="ปิด"><span aria-hidden="true">&times;</span></button>
     </header>
     <p class="text-muted">ค้นหานักเตะที่มีค่าพลังถึงขั้นต่ำทุกข้อ</p>
     <form id="attribute-filter-form" novalidate>
@@ -818,7 +819,7 @@
   <dialog id="staff-skills" class="compare-dialog attribute-filter-dialog" aria-labelledby="staff-skill-title">
     <header class="compare-header">
       <h2 id="staff-skill-title">ทักษะทีมงาน</h2>
-      <button type="button" id="cancel-staff-skills" class="btn btn-secondary btn-sm">ปิด</button>
+      <button type="button" id="cancel-staff-skills" class="player-modal-close" aria-label="ปิดตัวกรองทักษะทีมงาน" title="ปิด"><span aria-hidden="true">&times;</span></button>
     </header>
     <p class="text-muted">ค้นหาทีมงานที่มีทักษะถึงขั้นต่ำทุกข้อ</p>
     <form id="staff-skill-form" novalidate>
@@ -836,17 +837,19 @@
   <dialog id="player-compare" class="compare-dialog" aria-labelledby="compare-title">
     <header class="compare-header">
       <h2 id="compare-title">เปรียบเทียบนักเตะ</h2>
-      <button type="button" id="compare-close" class="btn btn-secondary btn-sm">ปิด</button>
+      <button type="button" id="compare-close" class="player-modal-close" aria-label="ปิดหน้าต่างเปรียบเทียบ" title="ปิด"><span aria-hidden="true">&times;</span></button>
     </header>
     <p id="compare-first" class="text-muted"></p>
     <section id="compare-picker">
       <label for="compare-search">ค้นหาคู่เทียบ</label>
+      <label id="compare-club-filter" hidden><input id="compare-my-club" type="checkbox"> เฉพาะทีมงานในสโมสรเรา</label>
       <input id="compare-search" class="form-input" type="search" autocomplete="off" placeholder="พิมพ์ชื่อนักเตะ">
       <p id="compare-status" class="text-muted" role="status"></p>
       <ul id="compare-options" class="compare-options"></ul>
     </section>
     <section id="compare-results" hidden>
       <button type="button" id="compare-change" class="btn btn-secondary btn-sm">เปลี่ยนคู่เทียบ</button>
+      <p id="compare-legend" class="text-muted" hidden>สีเขียว = ค่าสูงกว่า · + คือส่วนต่างของคนที่ค่าสูงกว่า · — คือไม่มีข้อมูล</p>
       <div class="compare-table-scroll" tabindex="0" role="region" aria-label="ตารางเทียบค่าพลัง">
       <table class="compare-table">
         <thead><tr><th scope="col" id="compare-left"></th><th scope="col">ข้อมูล</th><th scope="col" id="compare-right"></th></tr></thead>
@@ -879,6 +882,7 @@
               <span class="copy-icon">📋</span>
               <span class="copy-label">คัดลอกชื่อ</span>
             </button>
+            <button type="button" id="btn-compare-staff" class="btn-copy-name" disabled>เปรียบเทียบ</button>
             <span id="staff-modal-id" class="modal-player-id" hidden></span>
           </div>
         </div>
@@ -923,7 +927,7 @@
   <!-- Changelog / Update Details Modal -->
   <div id="changelog-modal" class="modal-overlay" style="display:none;">
     <div class="modal-card" style="max-width: 620px;">
-      <button class="modal-close" id="changelog-modal-close">&times;</button>
+      <button type="button" class="player-modal-close" id="changelog-modal-close" aria-label="ปิดรายการอัปเดต" title="ปิด"><span aria-hidden="true">&times;</span></button>
       
       <div class="modal-header">
         <div class="player-avatar" style="font-size: 1.5rem;">📦</div>
@@ -951,7 +955,7 @@
       </div>
 
       <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-        <button id="btn-changelog-close" class="btn btn-secondary">ปิด</button>
+        <button type="button" id="btn-changelog-close" class="btn btn-secondary" hidden>🚀 ยอดเยี่ยม / เข้าใช้งาน</button>
         <button id="btn-changelog-reload" class="btn btn-primary" title="รีโหลดหน้าจอเพื่อแสดงผลการเปลี่ยนแปลงล่าสุด">🔄 รีโหลดหน้าจอ (Reload UI)</button>
         <button id="btn-changelog-apply" class="btn btn-primary" style="display:none;">🚀 อัปเดตทันที</button>
         <a id="btn-changelog-download" class="btn btn-primary" target="_blank" rel="noopener noreferrer" style="display:none;">ดาวน์โหลดเวอร์ชันใหม่</a>
@@ -982,6 +986,7 @@
   <script src="feedback.js?v=1.0.33"></script>
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
-  <script src="app.js?v=1.0.33"></script>
+  <script src="staff-comparison.js?v=1.0.34"></script>
+  <script src="app.js?v=1.0.34"></script>
 </body>
 </html>

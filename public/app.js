@@ -1497,7 +1497,7 @@ async function loadStatus() {
       } else if (data.snapshots && data.snapshots.length === 1) {
         el.infoBaseline.textContent = `รอบแรก (${formatGameDate(data.snapshots[0].gameDate)})`;
       } else {
-        el.infoBaseline.textContent = 'จุดเริ่มอาชีพ';
+        el.infoBaseline.textContent = 'ยังไม่มีประวัติเปรียบเทียบ';
       }
     }
 
@@ -1992,12 +1992,16 @@ let comparisonRequest;
 let comparisonTimer;
 
 function showComparisonPicker() {
+  clearTimeout(comparisonTimer);
+  comparisonRequest?.abort();
   compareResults.hidden = true;
   comparePicker.hidden = false;
   compareSearch.value = '';
   compareOptions.replaceChildren();
   compareStatus.textContent = '';
+  document.getElementById('compare-my-club').checked = false;
   compareSearch.focus();
+  if (comparisonSource.kind === 'staff') searchComparisonPlayers('');
 }
 
 function openPlayerComparison(player, refCode, scanId) {
@@ -2005,11 +2009,33 @@ function openPlayerComparison(player, refCode, scanId) {
     showToast('กรุณาเปิดโปรไฟล์นักเตะอีกครั้งหลังโหลดข้อมูล', true);
     return;
   }
-  comparisonSource = { player, refCode, scanId };
+  comparisonSource = { player, refCode, scanId, kind: 'player' };
+  document.getElementById('compare-title').textContent = 'เปรียบเทียบนักเตะ';
+  compareSearch.placeholder = 'พิมพ์ชื่อนักเตะ';
+  document.getElementById('compare-club-filter').hidden = true;
+  document.getElementById('compare-legend').hidden = true;
   document.getElementById('compare-first').textContent = `เทียบกับ ${player.name}`;
   compareDialog.showModal();
   showComparisonPicker();
 }
+
+function openStaffComparison(staff, refCode, scanId) {
+  if (el.btnScan.disabled || state.scanId !== scanId || state.refCode !== refCode) {
+    showToast('กรุณาเปิดโปรไฟล์ทีมงานอีกครั้งหลังโหลดข้อมูล', true);
+    return;
+  }
+  comparisonSource = { player: staff, refCode, scanId, kind: 'staff' };
+  document.getElementById('compare-title').textContent = 'เปรียบเทียบทีมงาน';
+  document.getElementById('compare-first').textContent = `เทียบกับ ${staff.name}`;
+  document.getElementById('compare-club-filter').hidden = false;
+  document.getElementById('compare-my-club').disabled = !state.myClub || state.myClub === 'ไม่ระบุ';
+  document.getElementById('compare-legend').hidden = false;
+  compareSearch.placeholder = 'พิมพ์ชื่อทีมงาน';
+  compareDialog.showModal();
+  showComparisonPicker();
+}
+
+document.getElementById('compare-my-club').onchange = () => compareSearch.dispatchEvent(new Event('input'));
 
 document.getElementById('compare-close').onclick = () => compareDialog.close();
 document.getElementById('compare-change').onclick = showComparisonPicker;
@@ -2024,28 +2050,30 @@ compareSearch.addEventListener('input', () => {
   compareOptions.replaceChildren();
   const q = compareSearch.value.trim();
   compareStatus.textContent = q ? 'กำลังค้นหา…' : '';
-  if (q) comparisonTimer = setTimeout(() => searchComparisonPlayers(q), 180);
+  if (q || comparisonSource.kind === 'staff') comparisonTimer = setTimeout(() => searchComparisonPlayers(q), 180);
 });
 
 async function searchComparisonPlayers(q) {
   const request = comparisonRequest = new AbortController();
   try {
     const params = new URLSearchParams({ q, sort: 'name', order: 'asc', limit: '10' });
-    const response = await fetch(`/api/players?${params}`, { signal: request.signal });
-    if (!response.ok) throw new Error('ค้นหานักเตะไม่สำเร็จ');
+    const isStaff = comparisonSource.kind === 'staff';
+    if (isStaff && document.getElementById('compare-my-club').checked) params.set('preset', 'myclub');
+    const response = await fetch(`/api/${isStaff ? 'staff' : 'players'}?${params}`, { signal: request.signal });
+    if (!response.ok) throw new Error('ค้นหาคู่เทียบไม่สำเร็จ');
     const result = await response.json();
     if (request.signal.aborted || !compareDialog.open) return;
     if (result.refCode !== comparisonSource.refCode || result.meta?.scanId !== comparisonSource.scanId) {
       throw new Error('ข้อมูลเซฟเปลี่ยนแล้ว กรุณาเปิดโปรไฟล์ใหม่');
     }
-    const matches = result.players.filter(player => player.id !== comparisonSource.player.id);
+    const matches = (result.staff ?? result.players).filter(player => player.id !== comparisonSource.player.id);
     compareStatus.textContent = matches.length ? '' : 'ไม่พบคู่เทียบ ลองระบุชื่อให้เจาะจงขึ้น';
     compareOptions.replaceChildren(...matches.map(player => {
       const item = document.createElement('li');
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'btn btn-secondary';
-      button.textContent = [player.name, player.club, player.pos].filter(Boolean).join(' · ');
+      button.textContent = [player.name, player.club, player.roleTh ?? player.pos].filter(Boolean).join(' · ');
       button.onclick = () => selectComparisonPlayer(player.id);
       item.append(button);
       return item;
@@ -2060,14 +2088,16 @@ async function selectComparisonPlayer(id) {
   const request = comparisonRequest = new AbortController();
   compareStatus.textContent = 'กำลังโหลดค่าพลัง…';
   try {
-    const response = await fetch(`/api/player/${id}`, { signal: request.signal });
+    const isStaff = comparisonSource.kind === 'staff';
+    const response = await fetch(`/api/${isStaff ? 'staff' : 'player'}/${id}`, { signal: request.signal });
     if (!response.ok) throw new Error('โหลดข้อมูลคู่เทียบไม่สำเร็จ');
-    const { player, refCode, scanId } = await response.json();
+    const { player, staff, refCode, scanId } = await response.json();
     if (request.signal.aborted || !compareDialog.open) return;
     if (refCode !== comparisonSource.refCode || scanId !== comparisonSource.scanId) {
       throw new Error('ข้อมูลเซฟเปลี่ยนแล้ว กรุณาเปิดโปรไฟล์ใหม่');
     }
-    renderPlayerComparison(comparisonSource.player, player);
+    if (isStaff) renderStaffComparison(comparisonSource.player, staff);
+    else renderPlayerComparison(comparisonSource.player, player);
     comparePicker.hidden = true;
     compareResults.hidden = false;
     document.getElementById('compare-change').focus();
@@ -2098,6 +2128,23 @@ function renderPlayerComparison(left, right) {
       ...attrs.map(attr => row(attr, left.attrs?.[attr], right.attrs?.[attr], true))
     ])
   ].join('');
+}
+
+function renderStaffComparison(left, right) {
+  document.getElementById('compare-left').textContent = left.name;
+  document.getElementById('compare-right').textContent = right.name;
+  document.getElementById('compare-rows').innerHTML = buildStaffComparisonRows(left, right).map(row => {
+    if (row.group) return `<tr class="compare-group"><th colspan="3">${escapeHtml(row.group)}</th></tr>`;
+    const comparable = row.highlight && Number.isFinite(row.a) && Number.isFinite(row.b);
+    const difference = comparable ? Math.abs(row.a - row.b) : 0;
+    const format = value => row.stars ? `★ ${value.toFixed(1)}` : row.wage ? formatWeeklyWage(value) : String(value);
+    const cell = (value, other) => {
+      const higher = comparable && value > other;
+      const delta = higher ? `<small class="compare-difference">+${row.stars ? difference.toFixed(1) : difference}</small>` : '';
+      return `<td${higher ? ' class="compare-higher"' : ''}>${value == null || value === '' ? '—' : escapeHtml(format(value))}${delta}</td>`;
+    };
+    return `<tr>${cell(row.a, row.b)}<th scope="row">${escapeHtml(row.label)}</th>${cell(row.b, row.a)}</tr>`;
+  }).join('');
 }
 
 async function triggerScan() {
@@ -2367,7 +2414,7 @@ function openChangelogModal(data, isCelebration = false) {
   }
 
   if (el.btnChangelogClose) {
-    el.btnChangelogClose.textContent = isCelebration ? '🚀 ยอดเยี่ยม / เข้าใช้งาน' : 'ปิด';
+    el.btnChangelogClose.hidden = !isCelebration;
   }
 
   showUpdateInstall(el.btnChangelogApply, data);
@@ -2625,6 +2672,7 @@ function renderStaffTable(staffList) {
 async function openStaffModal(id) {
   if (!el.staffModal) return;
 
+  document.getElementById('btn-compare-staff').disabled = true;
   el.staffModalName.textContent = 'กำลังโหลดข้อมูล...';
   const staffId = document.getElementById('staff-modal-id');
   staffId.hidden = true;
@@ -2640,6 +2688,9 @@ async function openStaffModal(id) {
     if (!res.ok) throw new Error('ไม่พบข้อมูลทีมงาน');
     const data = await res.json();
     const s = data.staff || data;
+    const compareButton = document.getElementById('btn-compare-staff');
+    compareButton.onclick = () => openStaffComparison(s, data.refCode, data.scanId);
+    compareButton.disabled = false;
 
     el.staffModalName.textContent = s.name;
     staffId.hidden = s.id == null;
