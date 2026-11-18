@@ -3,6 +3,26 @@ const assert = require('node:assert/strict');
 const { normalizeStaff, filterStaff, getStaffDetail } = require('../server/staffEngine');
 const strong = { Fysiotherapie: 20, Sportwetenschap: 20, Standaardsituaties: 20, Aanvallen: 20, Tactisch: 20, Technisch: 20, Vastberadenheid: 20, Motiveren: 20 };
 
+test('employed job 22 is a set-piece coach regardless of scanner title or preferred role', () => {
+  // Both IDs and current club roles were checked in the game, including Neil's analyst preferences.
+  const jover = { id: 48030808, name: 'Nicolas Jover', club: 'Arsenal', jobId: 22, job: 'Media-analist', prefJob: [7], staffAttrs: { Standaardsituaties: 20 } };
+  const neil = { id: 29107294, name: 'Matt Neil', club: 'MK Dons', jobId: 22, job: 'Media-analist', prefJob: [4, 12], staffAttrs: { Standaardsituaties: 10 } };
+  const analyst = { id: 3, name: 'Performance Analyst', club: 'Test Club', jobId: 60, job: 'Prestatie analist', prefJob: [7], staffAttrs: strong };
+  const headAnalyst = { ...analyst, id: 4, job: 'Hoofd performance analyse' };
+  const free = { id: 5, name: 'Free analyst', club: null, jobId: 22, job: 'Staflid', prefJob: [12] };
+  const pool = [jover, neil, analyst, headAnalyst, free];
+  for (const person of [jover, neil]) {
+    assert.equal(normalizeStaff(person).roleId, 'set_piece_coach');
+    assert.equal(getStaffDetail(pool, person.id).roleId, 'set_piece_coach');
+  }
+  assert.equal(normalizeStaff(analyst).roleId, 'perf_analyst');
+  assert.equal(normalizeStaff(headAnalyst).roleId, 'head_perf_analyst');
+  assert.equal(normalizeStaff(free).roleId, 'perf_analyst');
+  assert.deepEqual(new Set(filterStaff(pool, { role: 'set_piece_coach', status: 'employed' }).staff.map(p => p.id)), new Set([jover.id, neil.id]));
+  assert.equal(filterStaff(pool, { role: 'set_piece_coach', limit: '10' }).total, 2);
+  assert.deepEqual(filterStaff(pool, { role: 'perf_analyst', status: 'employed' }).staff.map(p => p.id), [analyst.id]);
+});
+
 test('club administrators are never inferred as coaches or medical staff from attributes or preferences', () => {
   for (const job of ['Algemeen directeur', 'Directeur', 'Voorzitter', 'Eigenaar', 'President', 'Algemeen manager']) {
     const person = { id: 83262130, name: 'Francisco Salgado Zenha', job, club: 'Sporting CP', ca: 175, staffAttrs: strong };

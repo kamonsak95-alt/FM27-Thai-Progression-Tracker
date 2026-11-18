@@ -245,6 +245,10 @@ function resolveStaffRole(s) {
   if (ADMIN_JOBS.has(s.job)) {
     return { roleId: 'administration', category: 'administration', nameTh: 'ฝ่ายบริหารสโมสร', nameEn: 'Club Administration' };
   }
+  // FM27 job 22 is Set Piece Coach; the scanner currently labels it Media-analist.
+  if (s.club && s.jobId === 22) {
+    return { roleId: 'set_piece_coach', category: 'coaching', nameTh: 'โค้ชลูกตั้งเตะ', nameEn: 'Set Piece Coach' };
+  }
   // 1. If staff has a specific job title in club, map directly
   if (s.job && JOB_TITLE_MAP[s.job]) {
     return JOB_TITLE_MAP[s.job];
