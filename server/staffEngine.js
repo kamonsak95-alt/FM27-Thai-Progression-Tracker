@@ -1,3 +1,5 @@
+const { foldSearchText } = require('./searchText');
+
 const STAFF_ATTR_MAP = {
   Aanvallen: { key: 'attacking', nameTh: 'การฝึกสอนเกมรุก', nameEn: 'Attacking' },
   Verdedigen: { key: 'defending', nameTh: 'การฝึกสอนเกมรับ', nameEn: 'Defending' },
@@ -358,9 +360,9 @@ function filterStaff(staffList, query = {}, skills = []) {
   let result = staffList;
 
   // Search by name
-  const q = (query.q || '').trim().toLowerCase();
+  const q = foldSearchText(query.q);
   if (q) {
-    result = result.filter(s => s.name && s.name.toLowerCase().includes(q));
+    result = result.filter(s => s.name && foldSearchText(s.name).includes(q));
   }
 
   // Category filter (coaching, recruitment, medical)

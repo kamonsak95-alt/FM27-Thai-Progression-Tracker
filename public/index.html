@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.34">
+  <link rel="stylesheet" href="style.css?v=1.0.35">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -191,7 +191,7 @@
       <div class="player-secondary-filters">
       <div class="player-filter-actions">
         <button type="button" id="open-attribute-filters" class="btn btn-secondary btn-sm" aria-haspopup="dialog">Attributes</button>
-        <button type="button" id="clear-player-filters" class="btn btn-text-action btn-sm" disabled>ล้างทั้งหมด</button>
+        <button type="button" id="clear-player-filters" class="btn btn-clear-filters btn-sm" disabled>ล้างทั้งหมด</button>
       </div>
       <details id="player-advanced-filters" class="player-advanced-filters">
         <summary>ตัวกรองเพิ่มเติม</summary>
@@ -543,7 +543,7 @@
       <div class="player-secondary-filters">
         <div class="player-filter-actions">
           <button type="button" class="btn btn-secondary btn-sm" id="open-staff-skills" aria-haspopup="dialog">ทักษะทีมงาน</button>
-          <button type="button" id="clear-staff-extras" class="btn btn-text-action btn-sm" disabled>ล้างทั้งหมด</button>
+          <button type="button" id="clear-staff-extras" class="btn btn-clear-filters btn-sm" disabled>ล้างทั้งหมด</button>
         </div>
       <details class="player-advanced-filters staff-advanced-filters">
         <summary>ตัวกรองเพิ่มเติม</summary>
@@ -716,6 +716,7 @@
             </div>
             <div class="player-profile-actions">
               <button type="button" id="btn-compare-player" class="btn-copy-name">เปรียบเทียบ</button>
+              <button type="button" id="btn-player-replacement" class="btn-copy-name">หาตัวตายตัวแทน</button>
               <button type="button" id="btn-copy-player-name" class="btn-copy-name" title="คัดลอกชื่อนักเตะเพื่อนำไปค้นหาในเกม FM27">
                 <span class="copy-icon">📋</span>
                 <span class="copy-label">คัดลอกชื่อ</span>
@@ -762,7 +763,8 @@
       </div>
 
       <div class="modal-body player-modal-details" tabindex="0" role="region" aria-label="ค่าพลังและสถิติแฝงนักเตะ">
-        <section class="modal-section player-contract-section">
+        <div class="modal-section player-profile-context">
+        <section class="player-contract-section">
           <h3 class="section-title">สัญญาและการย้ายทีม</h3>
           <dl class="player-contract-details">
           <div><dt>มูลค่า</dt><dd id="modal-value"></dd></div>
@@ -771,6 +773,11 @@
           <div><dt>สถานะย้ายทีม</dt><dd id="modal-transfer-status"></dd></div>
           </dl>
         </section>
+        <details class="profile-positions" id="modal-positions" open>
+          <summary>ตำแหน่งที่เล่นได้</summary>
+          <div id="modal-position-pitch"></div>
+        </details>
+        </div>
         <!-- Attributes Grid -->
         <div class="modal-section">
           <h3 class="section-title">ค่าพลังนักเตะ (Attributes)</h3>
@@ -788,12 +795,13 @@
         </div>
 
         <!-- Hidden & Personality Stats -->
-        <div class="modal-section">
-          <h3 class="section-title">ลักษณะนิสัยและสถิติแฝง (Personality & Hidden)</h3>
+        <details class="modal-section hidden-stats" id="modal-hidden-stats">
+          <summary class="hidden-stats-summary">ลักษณะนิสัยและสถิติแฝง (Personality &amp; Hidden)<span class="hidden-stats-notice">มีข้อมูลที่อาจเปิดเผยความสามารถแฝง กดเพื่อแสดงหรือซ่อน</span></summary>
+          <p class="hidden-stats-legend text-muted text-sm">เขียว = เป็นผลดี · สีปกติ = ค่ากลางหรือมีข้อแลกเปลี่ยน · ส้ม = ควรระวัง</p>
           <div class="personality-grid" id="modal-personality-grid">
             <!-- Ambition, Professionalism, etc. -->
           </div>
-        </div>
+        </details>
       </div>
     </div>
   </div>
@@ -914,12 +922,13 @@
 
         </section>
         <!-- Hidden & Personality Stats -->
-        <div class="modal-section">
-          <h3 class="section-title">ลักษณะนิสัยและสถิติแฝง (Personality & Hidden)</h3>
+        <details class="modal-section hidden-stats" id="staff-modal-hidden-stats">
+          <summary class="hidden-stats-summary">ลักษณะนิสัยและสถิติแฝง (Personality &amp; Hidden)<span class="hidden-stats-notice">มีข้อมูลที่อาจเปิดเผยความสามารถแฝง กดเพื่อแสดงหรือซ่อน</span></summary>
+          <p class="hidden-stats-legend text-muted text-sm">เขียว = เป็นผลดี · สีปกติ = ค่ากลางหรือมีข้อแลกเปลี่ยน · ส้ม = ควรระวัง</p>
           <div class="personality-grid" id="staff-modal-personality-grid">
             <!-- Ambition, Loyalty, etc. -->
           </div>
-        </div>
+        </details>
       </div>
     </div>
   </div>
@@ -983,10 +992,32 @@
       <p id="feedback-status" role="status" aria-live="polite"></p>
     </form>
   </dialog>
+  <dialog id="player-replacement" class="compare-dialog replacement-dialog" aria-labelledby="replacement-title">
+    <div class="replacement-controls">
+    <header class="compare-header"><div><h2 id="replacement-title">หาตัวตายตัวแทน</h2><p id="replacement-source" class="text-muted text-sm"></p></div><button type="button" id="replacement-close" class="player-modal-close" aria-label="ปิดการหาตัวตายตัวแทน" title="ปิด"><span aria-hidden="true">&times;</span></button></header>
+    <p class="text-muted text-sm">ค้นหานักเตะที่ตำแหน่งและค่าพลังคล้ายกัน ตามเงื่อนไขที่เลือก</p>
+    <form id="replacement-form" class="replacement-filters">
+      <label>ต้องการตัวแทนแบบไหน<select id="replacement-mode" class="form-select"><option value="ready">พร้อมแทนตอนนี้</option><option value="future">ปั้นไว้แทน</option></select></label>
+      <label>ตำแหน่งที่ต้องการแทน<select id="replacement-position" class="form-select"></select></label>
+      <label>อายุไม่เกิน<input id="replacement-age" class="form-input" type="number" min="15" max="99" value="25" required></label>
+      <label>CA ขั้นต่ำ<input id="replacement-ca" class="form-input" type="number" min="1" max="200" placeholder="ไม่จำกัด"></label>
+      <label>PA ขั้นต่ำ<input id="replacement-pa" class="form-input" type="number" min="1" max="200" placeholder="ไม่จำกัด"></label>
+      <label>มูลค่าไม่เกิน (£)<input id="replacement-value" class="form-input" type="number" min="0" step="any" placeholder="ไม่จำกัด"></label>
+      <button type="submit" class="btn btn-primary">ค้นหาตัวแทน</button>
+    </form>
+    </div>
+    <div id="replacement-body" class="replacement-body" tabindex="0" role="region" aria-label="คำอธิบายและผลค้นหาตัวตายตัวแทน">
+    <p id="replacement-mode-note" class="text-muted text-sm"></p>
+    <details class="replacement-method text-muted text-sm"><summary>หาคนที่คล้ายกันยังไง?</summary><p>ค้นหาคนที่เล่นตำแหน่งเดียวกันและผ่านเงื่อนไข CA/PA ก่อน แล้วเทียบรูปแบบค่าพลังของตำแหน่งนั้น โดยเน้น 5 จุดเด่นของต้นแบบเป็นพิเศษ</p><p>พร้อมแทนตอนนี้เริ่มที่ CA ต่ำกว่าต้นแบบไม่เกิน 20 แต้ม ส่วนปั้นไว้แทนเริ่มที่ PA ไม่ต่ำกว่า CA ปัจจุบันของต้นแบบเกิน 10 แต้ม ปรับค่าขั้นต่ำเองได้</p><p id="replacement-signature"></p><p>คะแนนยิ่งสูง รูปแบบค่าพลังยิ่งคล้าย ไม่ใช่คะแนนฝีเท้าหรือโอกาสพัฒนาสำเร็จ CA/PA ใช้คัดคน ไม่ได้เพิ่มคะแนนสไตล์ และ PA ไม่ได้รับประกันว่าจะพัฒนาไปถึง การเล่นจริงยังขึ้นกับแผนและบทบาทในทีม</p><p>ในรายละเอียดการเทียบ ตัวเลขอย่าง “Passing 14 → ต้นแบบ 18” หมายถึงผู้เล่นคนนี้มี Passing 14 ส่วนต้นแบบมี 18 ค่าพลังโดยรวมสรุปเฉพาะชุดที่ใช้เทียบ โดยเน้นจุดเด่นมากกว่าค่าอื่น ไม่ใช่ส่วนต่าง CA</p><p>คนที่ข้อมูลค่าพลังไม่ครบจะไม่อยู่ในผลลัพธ์ และถ้ากำหนดงบ จะไม่รวมคนที่ไม่มีข้อมูลมูลค่า</p></details>
+    <p id="replacement-status" role="status" aria-live="polite"></p>
+    <div id="replacement-results" class="replacement-results"></div>
+    </div>
+  </dialog>
   <script src="feedback.js?v=1.0.33"></script>
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
   <script src="staff-comparison.js?v=1.0.34"></script>
-  <script src="app.js?v=1.0.34"></script>
+  <script src="app.js?v=1.0.35"></script>
+  <script src="replacement.js?v=1.0.35"></script>
 </body>
 </html>

@@ -368,6 +368,28 @@ function renderPositionBadges(positions, naturalPositions = []) {
     .join('') || '–';
 }
 
+function renderProfilePitch(positions, naturalPositions = []) {
+  const available = new Set([...(positions || '').split(',').map(code => code.trim()).filter(Boolean), ...naturalPositions]);
+  const rows = [
+    [['ST', 'กองหน้า']],
+    [['AML', 'ตัวรุกฝั่งซ้าย'], ['AMC', 'กองกลางตัวรุก'], ['AMR', 'ตัวรุกฝั่งขวา']],
+    [['ML', 'กองกลางฝั่งซ้าย'], ['MC', 'กองกลางตัวกลาง'], ['MR', 'กองกลางฝั่งขวา']],
+    [['WBL', 'วิงแบ็กซ้าย'], ['DM', 'กองกลางตัวรับ'], ['WBR', 'วิงแบ็กขวา']],
+    [['DL', 'แบ็กซ้าย'], ['DC', 'เซ็นเตอร์แบ็ก'], ['DR', 'แบ็กขวา']],
+    [['GK', 'ผู้รักษาประตู']]
+  ];
+  const dots = rows.map((row, index) => row.map(([code, label], column) => {
+    const level = available.has(code) ? 'available' : 'none';
+    const status = level === 'available' ? 'ตำแหน่งที่เล่นได้' : 'ไม่พบข้อมูลตำแหน่งนี้';
+    return `<span class="profile-position" data-position="${code}" data-level="${level}" style="left:${row.length === 1 ? 50 : 18 + column * 32}%;top:${12 + index * 15}%" title="${label} · ${status}"><i aria-hidden="true"></i>${code}</span>`;
+  }).join('')).join('');
+  const description = rows.flat().filter(([code]) => available.has(code))
+    .map(([, label]) => label).join(' · ') || 'ไม่มีข้อมูลตำแหน่ง';
+  return `<div class="profile-position-pitch" role="img" aria-label="${description}">
+    <svg viewBox="0 0 160 210" aria-hidden="true"><rect x="7" y="7" width="146" height="196" rx="2"/><path d="M7 105h146M45 7v31h70V7M45 203v-31h70v31M64 7v13h32V7M64 203v-13h32v13"/><circle cx="80" cy="105" r="22"/></svg>
+    ${dots}</div>`;
+}
+
 const nationalityInput = document.getElementById('filter-nationality');
 const nationalityOptions = document.getElementById('nationality-options');
 const clearNationality = document.getElementById('clear-nationality');
@@ -992,13 +1014,11 @@ function initEventListeners() {
   }
 
   // Modal Close
-  el.modalClose.addEventListener('click', () => {
-    el.modal.style.display = 'none';
-  });
+  el.modalClose.addEventListener('click', closePlayerModal);
 
   el.modal.addEventListener('click', (e) => {
     if (e.target === el.modal) {
-      el.modal.style.display = 'none';
+      closePlayerModal();
     }
   });
 
@@ -1015,7 +1035,7 @@ function initEventListeners() {
 
   // Global Escape key to close modals and popovers
   document.addEventListener('keydown', (e) => {
-    if (compareDialog.open) return;
+    if (document.querySelector('dialog[open]')) return;
     if (e.key === 'Escape') {
       if (el.tacticalPitchSection && !el.tacticalPitchSection.classList.contains('collapsed')) {
         el.tacticalPitchSection.classList.add('collapsed');
@@ -1026,7 +1046,7 @@ function initEventListeners() {
         el.staffModal.style.display = 'none';
       }
       if (el.modal && el.modal.style.display !== 'none') {
-        el.modal.style.display = 'none';
+        closePlayerModal();
       }
       if (el.changelogModal && el.changelogModal.style.display !== 'none') {
         el.changelogModal.style.display = 'none';
@@ -1814,7 +1834,17 @@ function renderTable(players, comparisonDate, refCode) {
   });
 }
 
+let playerProfileReturn = null;
+
+function closePlayerModal() {
+  const restore = playerProfileReturn;
+  playerProfileReturn = null;
+  el.modal.style.display = 'none';
+  if (restore) void restore();
+}
+
 async function openPlayerModal(id, expectedRef, expectedScanId) {
+  document.getElementById('modal-hidden-stats').open = false;
   try {
     const res = await fetch(`/api/player/${id}`);
     if (!res.ok) throw new Error('Player not found');
@@ -1822,6 +1852,7 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
     if (expectedRef && (refCode !== expectedRef || state.refCode !== expectedRef || el.btnScan.disabled)) return;
     if (expectedScanId && (scanId !== expectedScanId || el.btnScan.disabled)) return;
     document.getElementById('btn-compare-player').onclick = () => openPlayerComparison(player, refCode, scanId);
+    document.getElementById('btn-player-replacement').onclick = () => openPlayerReplacement(player, refCode, scanId);
     const star = document.getElementById('modal-shortlist');
     star.hidden = !refCode?.startsWith('#');
     star.dataset.ref = refCode || '';
@@ -1841,6 +1872,8 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
     playerId.textContent = player.id == null ? '' : `ID ${player.id}`;
     const naturalPositions = Array.isArray(player.posNat) ? player.posNat : [];
     document.getElementById('modal-pos').innerHTML = renderPositionBadges(player.pos, naturalPositions);
+    document.getElementById('modal-position-pitch').innerHTML = renderProfilePitch(player.pos, naturalPositions);
+    document.getElementById('modal-positions').open = !window.matchMedia('(max-width: 600px)').matches;
     const club = player.club?.trim();
     document.getElementById('modal-club').textContent = club || 'ไร้สังกัด';
     const ownerClub = typeof player.ownerClub === 'string' ? player.ownerClub.trim() : '';
@@ -1959,23 +1992,16 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
 
     // Personality Stats
     const pGrid = document.getElementById('modal-personality-grid');
-    const personalityStats = Object.entries(PERSONALITY_MAP).map(([key, label]) => [label, player[key]]);
-    const hiddenStats = Object.entries(PLAYER_HIDDEN_ATTRIBUTES)
-      .filter(([key]) => Number.isInteger(attrs[key]) && attrs[key] >= 1 && attrs[key] <= 20)
-      .map(([key, label]) => [label, attrs[key]]);
-    pGrid.innerHTML = [...personalityStats, ...hiddenStats].map(([label, value]) => {
-      const val = Number.isFinite(value) ? value : '–';
-      return `
-        <div class="personality-item" title="${escapeHtml(label.split(' (')[0])}">
-          <span class="text-muted">${label}</span>
-          <span class="font-bold text-accent">${val}</span>
-        </div>
-      `;
-    }).join('');
+    const personalityStats = Object.fromEntries(Object.keys(PERSONALITY_MAP).map(key => [key, player[key]]));
+    const hiddenStats = Object.fromEntries(Object.keys(PLAYER_HIDDEN_ATTRIBUTES)
+      .filter(key => Number.isInteger(attrs[key]) && attrs[key] >= 1 && attrs[key] <= 20)
+      .map(key => [key, attrs[key]]));
+    pGrid.innerHTML = renderPersonalityGrid({ ...personalityStats, ...hiddenStats });
 
     el.modal.style.display = 'flex';
     el.modal.querySelector('.player-modal-details').scrollTop = 0;
     el.modal.querySelector('.player-modal-overview').scrollTop = 0;
+    return true;
   } catch (err) {
     showToast(`เกิดข้อผิดพลาดในการเปิดข้อมูลนักเตะ: ${err.message}`, true);
   }
@@ -2671,6 +2697,7 @@ function renderStaffTable(staffList) {
 
 async function openStaffModal(id) {
   if (!el.staffModal) return;
+  document.getElementById('staff-modal-hidden-stats').open = false;
 
   document.getElementById('btn-compare-staff').disabled = true;
   el.staffModalName.textContent = 'กำลังโหลดข้อมูล...';
@@ -2798,17 +2825,27 @@ function renderAttrColumn(title, attrs) {
 
 function renderPersonalityGrid(pers) {
   if (!pers || typeof pers !== 'object') return '';
-  const keys = Object.keys(pers);
-  return keys.map(k => {
-    const val = pers[k] || 0;
-    const label = PERSONALITY_MAP[k] || k;
+  return Object.entries(pers).map(([key, value]) => {
+    const label = PERSONALITY_MAP[key] || PLAYER_HIDDEN_ATTRIBUTES[key] || key;
+    const valid = Number.isInteger(value) && value >= 1 && value <= 20;
+    const lowerIsBetter = ['controversy', 'InjuryProneness', 'Dirtiness'].includes(key);
+    const higherIsBetter = (key in PERSONALITY_MAP || key in PLAYER_HIDDEN_ATTRIBUTES) && key !== 'ambition' && !lowerIsBetter;
+    let description = 'ไม่มีข้อมูล';
     let colorClass = 'text-muted';
-    if (val >= 15) colorClass = 'text-green font-bold';
-    else if (val >= 10) colorClass = 'text-accent font-semibold';
+    if (valid) {
+      description = key === 'ambition'
+        ? 'ความทะเยอทะยานสูงอาจช่วยผลักดันความก้าวหน้า แต่ก็อาจอยากย้ายไปสโมสรที่ใหญ่กว่า'
+        : lowerIsBetter ? 'ค่าต่ำเป็นผลดี' : higherIsBetter ? 'ค่าสูงเป็นผลดี' : 'ไม่มีเกณฑ์ประเมินสี';
+      if (higherIsBetter || lowerIsBetter) {
+        const benefit = lowerIsBetter ? 21 - value : value;
+        colorClass = benefit >= 15 ? 'text-green' : benefit <= 6 ? 'text-orange' : '';
+        description += benefit >= 15 ? ' · เป็นผลดี' : benefit <= 6 ? ' · ควรระวัง' : ' · ค่ากลาง';
+      }
+    }
     return `
-      <div class="personality-item">
+      <div class="personality-item" title="${escapeHtml(description)}">
         <span class="personality-name">${escapeHtml(label)}</span>
-        <span class="personality-val ${colorClass}">${val > 0 ? val : '-'}</span>
+        <span class="personality-val font-bold ${colorClass}" aria-label="${escapeHtml(label)}: ${valid ? value : 'ไม่มีข้อมูล'} · ${escapeHtml(description)}">${valid ? value : '–'}</span>
       </div>
     `;
   }).join('');

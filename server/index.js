@@ -28,6 +28,8 @@ const runningBuild = getLocalCommit().then(commit => ({
 const { stageUpdate, stageSetup, removeStage, startUpdateWorker } = require('./zipInstaller');
 const { filterStaff, getStaffDetail, getReputationLabel, STAFF_SKILL_GROUPS, TRAINING_LABELS } = require('./staffEngine');
 const { analyzeSquad } = require('./squadAnalysis');
+const { findReplacements } = require('./replacementEngine');
+const { foldSearchText } = require('./searchText');
 const { ATTRIBUTE_KEYS, decodeSnapshotAttributes } = require('./snapshotAttributes');
 const { shortlist, validRef } = require('./shortlistStore');
 const { validateFeedback, sendFeedback } = require('./feedback');
@@ -605,9 +607,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Filter by name
-    const q = (query.q || '').trim().toLowerCase();
+    const q = foldSearchText(query.q);
     if (q) {
-      result = result.filter(p => p.name && p.name.toLowerCase().includes(q));
+      result = result.filter(p => p.name && foldSearchText(p.name).includes(q));
     }
 
     // Filter by Age
@@ -728,6 +730,34 @@ const server = http.createServer(async (req, res) => {
       nationalities: playerNationalities,
       players: paginated
     });
+  }
+
+  if (pathname === '/api/replacements') {
+    const dump = getOrLoadDump();
+    if (!dump) return sendJson(res, 404, { error: 'ยังไม่มีข้อมูลสแกน' });
+    if (query.refCode !== cachedRefCode || query.scanId !== String(dump.meta?.scanId ?? '')) {
+      return sendJson(res, 409, { error: 'รอบสแกนเปลี่ยนแล้ว กรุณาเปิดโปรไฟล์ใหม่' });
+    }
+    const id = Number(query.id);
+    const maxAge = query.maxAge === undefined ? 25 : Number(query.maxAge);
+    const minCA = query.minCA === undefined ? undefined : Number(query.minCA);
+    const minPA = query.minPA === undefined ? undefined : Number(query.minPA);
+    const mode = query.mode ?? 'ready';
+    const maxValue = query.maxValue === undefined ? null : Number(query.maxValue);
+    if (!Number.isSafeInteger(id) || id <= 0 || !Number.isInteger(maxAge) || maxAge < 15 || maxAge > 99 ||
+        (minCA !== undefined && (!Number.isInteger(minCA) || minCA < 1 || minCA > 200)) ||
+        (minPA !== undefined && (!Number.isInteger(minPA) || minPA < 1 || minPA > 200)) ||
+        !['ready', 'future'].includes(mode) || (maxValue !== null && (!Number.isFinite(maxValue) || maxValue < 0))) {
+      return sendJson(res, 400, { error: 'ตรวจโหมด ช่วงอายุ CA/PA และมูลค่าอีกครั้ง' });
+    }
+    const source = dump.players.find(player => player.id === id);
+    if (!source) return sendJson(res, 404, { error: 'ไม่พบต้นแบบในรอบสแกนนี้' });
+    try {
+      const result = findReplacements(dump.players, source, { position: query.position, mode, maxAge, minCA, minPA, maxValue });
+      return sendJson(res, 200, { ...result, refCode: cachedRefCode, scanId: dump.meta?.scanId });
+    } catch (error) {
+      return sendJson(res, 400, { error: error.message });
+    }
   }
 
   // Player Detail Endpoint
