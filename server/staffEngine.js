@@ -237,7 +237,12 @@ const PREF_JOB_ROLE_MAP = {
 /**
  * Determines the best matching primary role for a staff member
  */
+const ADMIN_JOBS = new Set(['Voorzitter', 'Eigenaar', 'Directeur', 'Algemeen directeur', 'President', 'Algemeen manager']);
+
 function resolveStaffRole(s) {
+  if (ADMIN_JOBS.has(s.job)) {
+    return { roleId: 'administration', category: 'administration', nameTh: 'ฝ่ายบริหารสโมสร', nameEn: 'Club Administration' };
+  }
   // 1. If staff has a specific job title in club, map directly
   if (s.job && JOB_TITLE_MAP[s.job]) {
     return JOB_TITLE_MAP[s.job];
@@ -284,10 +289,10 @@ function resolveStaffRole(s) {
   }
 
   return {
-    roleId: 'coach',
-    category: 'coaching',
-    nameTh: 'เจ้าหน้าที่ทีมงาน',
-    nameEn: 'Staff Member'
+    roleId: 'unknown',
+    category: 'unknown',
+    nameTh: 'ไม่ระบุบทบาท',
+    nameEn: 'Unknown Role'
   };
 }
 
@@ -308,7 +313,7 @@ function getReputationLabel(rep) {
  */
 function normalizeStaff(s) {
   const role = resolveStaffRole(s);
-  const coachRating = calculateCoachingRating(s);
+  const coachRating = role.category === 'coaching' ? calculateCoachingRating(s) : null;
   const rep = getReputationLabel(s.worldRep || s.curRep);
   const a = s.staffAttrs || {};
 
@@ -332,8 +337,8 @@ function normalizeStaff(s) {
     roleCategory: role.category,
     roleTh: role.nameTh,
     roleEn: role.nameEn,
-    coachStars: coachRating.stars,
-    coachStarsFormatted: coachRating.starsFormatted,
+    coachStars: coachRating?.stars ?? null,
+    coachStarsFormatted: coachRating?.starsFormatted ?? null,
     // Key attributes summary
     keySkills: {
       attacking: a.Aanvallen || 0,
@@ -357,7 +362,7 @@ function normalizeStaff(s) {
  * Filters and paginates staff array
  */
 function filterStaff(staffList, query = {}, skills = []) {
-  let result = staffList;
+  let result = staffList.filter(s => !['administration', 'unknown'].includes(resolveStaffRole(s).category));
 
   // Search by name
   const q = foldSearchText(query.q);
@@ -416,7 +421,8 @@ function filterStaff(staffList, query = {}, skills = []) {
   const preset = (query.preset || '').trim().toLowerCase();
   const coachingRatings = new Map();
   function coachingRating(staff) {
-    if (!coachingRatings.has(staff)) coachingRatings.set(staff, calculateCoachingRating(staff));
+    if (!coachingRatings.has(staff)) coachingRatings.set(staff, resolveStaffRole(staff).category === 'coaching'
+      ? calculateCoachingRating(staff) : { bestScore: -1, stars: 0, trainingStars: {} });
     return coachingRatings.get(staff);
   }
   if (skills.length) result = result.filter(s => skills.every(([key, minimum]) => (s.staffAttrs?.[key] ?? 0) >= minimum));
@@ -557,7 +563,7 @@ function getStaffDetail(staffList, id) {
     ...norm,
     birthYear: Number.isInteger(s.birthYear) && s.birthYear > 0 ? s.birthYear : null,
     attrGroups,
-    trainingStars: calculateCoachingRating(s).trainingStars,
+    trainingStars: norm.roleCategory === 'coaching' ? calculateCoachingRating(s).trainingStars : {},
     trainingLabels: TRAINING_LABELS,
     personality: {
       ambition: s.ambition || 10,

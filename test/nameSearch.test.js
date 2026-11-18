@@ -26,7 +26,7 @@ test('player and staff APIs search plain names before pagination and keep origin
   fs.writeFileSync(path.join(dir, 'FMSuperScout/dump.json'), JSON.stringify({
     meta: { game: 'FM27', manager: 'Search Test', myClub: 'Test Club', gameDate: '2027-08-31' },
     players: [{ id: 1, name: 'Benjamin Šeško', pos: 'ST', ca: 150, pa: 170, age: 23 }, { id: 2, name: 'Šeško Youth', pos: 'ST', ca: 50, pa: 100, age: 18 }, { id: 3, name: 'Other', pos: 'MC', ca: 160, pa: 170, age: 25 }],
-    staff: [{ id: 10, name: 'René Meulensteen', age: 60, ca: 150, pa: 160 }, { id: 11, name: 'Other Coach', age: 40, ca: 160, pa: 170 }]
+    staff: [{ id: 10, name: 'René Meulensteen', job: 'Trainer', age: 60, ca: 150, pa: 160 }, { id: 11, name: 'Other Coach', job: 'Trainer', age: 40, ca: 160, pa: 170 }]
   }));
   process.env.LOCALAPPDATA = dir;
   process.env.FM27_HISTORY_FILE = path.join(dir, 'history.json');

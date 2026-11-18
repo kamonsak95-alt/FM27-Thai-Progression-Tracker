@@ -2639,7 +2639,7 @@ function renderStaffTable(staffList) {
           <span class="skill-pill" title="JPP (ประเมินศักยภาพ)">JPP: <strong>${s.keySkills?.jpp || 0}</strong></span>
         </div>
       `;
-    } else if (s.roleCategory === 'coaching' || s.coachStars >= 2.5) {
+    } else if (s.roleCategory === 'coaching') {
       skillHtml = `
         <div class="staff-stars" title="คะแนนฝึกสอนคำนวณตามสูตร FM: ${s.coachStarsFormatted} ดาว">
           <span class="stars-gold" aria-hidden="true">★</span>
@@ -2647,12 +2647,7 @@ function renderStaffTable(staffList) {
         </div>
       `;
     } else {
-      skillHtml = `
-        <div class="staff-stars">
-          <span class="stars-gold">★</span>
-          <span class="stars-val">${s.coachStarsFormatted}</span>
-        </div>
-      `;
+      skillHtml = '<span class="text-muted">–</span>';
     }
 
     // Wage
@@ -2752,7 +2747,7 @@ async function openStaffModal(id) {
     };
     const leadStats = s.roleId === 'hoyd'
       ? [['ปั้นเยาวชน', skills.youngsters], ['JPP', skills.jpp]]
-      : specialties[s.roleCategory] ?? [['ดาวโค้ช', `★ ${s.coachStarsFormatted}`]];
+      : specialties[s.roleCategory] ?? (s.roleCategory === 'coaching' ? [['ดาวโค้ช', `★ ${s.coachStarsFormatted}`]] : []);
     const stats = [...leadStats, ['CA (ปัจจุบัน)', s.ca], ['PA (ศักยภาพ)', s.pa]];
     el.staffModalHeaderStats.innerHTML = stats.map(([label, value]) =>
       `<div class="ability-block"><div class="ability-label">${label}</div><div class="ability-number${label.startsWith('PA') ? ' text-secondary' : ''}">${escapeHtml(String(value || '–'))}</div></div>`).join('');
