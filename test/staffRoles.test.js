@@ -29,3 +29,26 @@ test('unknown roles stay unknown and are excluded with administration before pag
   assert.deepEqual(new Set(filterStaff(pool, { preset: 'five_star' }).staff.map(p => p.id)), new Set([3, 4]));
   assert.deepEqual(new Set(filterStaff(pool, { minTrainingStars: '4.5' }).staff.map(p => p.id)), new Set([3, 4]));
 });
+
+test('unemployed Jonny Evans is a set-piece coach and remains searchable alongside his namesake', () => {
+  const jonny = { id: 5005078, name: 'Jonny Evans', job: 'Staflid', club: null, prefJob: [7], ca: 105, pa: 124,
+    staffAttrs: { Standaardsituaties: 11, Fysiotherapie: 2, Sportwetenschap: 3 } };
+  const namesake = { id: 89014094, name: 'Jonny Evans', job: 'Fysiotherapeut', club: 'Gloucester City AFC', ca: 67 };
+  assert.equal(normalizeStaff(jonny).roleId, 'set_piece_coach');
+  assert.equal(normalizeStaff(jonny).roleCategory, 'coaching');
+  assert.deepEqual(new Set(filterStaff([jonny, namesake], { q: 'jonny evans' }).staff.map(p => p.id)), new Set([5005078, 89014094]));
+  assert.deepEqual(filterStaff([jonny, namesake], { role: 'set_piece_coach', status: 'unemployed' }).staff.map(p => p.id), [5005078]);
+});
+
+test('free staff with unresolved preferences remain in search without fabricated coaching ratings', () => {
+  const free = { id: 20, name: 'Free unknown', job: 'Staflid', club: null, prefJob: [99], ca: 100 };
+  const employed = { ...free, id: 21, club: 'Test Club' };
+  const administrator = { ...free, id: 22, job: 'Algemeen directeur' };
+  const pool = [free, employed, administrator];
+  assert.deepEqual(filterStaff(pool, { status: 'unemployed' }).staff.map(p => p.id), [20]);
+  assert.deepEqual(filterStaff(pool, { q: 'free unknown' }).staff.map(p => p.id), [20]);
+  assert.equal(normalizeStaff(free).roleCategory, 'unknown');
+  assert.equal(normalizeStaff(free).coachStars, null);
+  const physio = { ...free, id: 23, prefJob: [3] };
+  assert.equal(normalizeStaff(physio).roleId, 'physio');
+});

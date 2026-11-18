@@ -1396,15 +1396,6 @@ body {
   background: #19293e;
 }
 
-:is(#players-table, #staff-table) thead {
-  position: relative;
-  z-index: 3;
-}
-
-:is(#players-table, #staff-table) thead th {
-  background-color: #19293e;
-}
-
 .data-table th {
   padding: 0.65rem 0.75rem;
   color: var(--text-muted);

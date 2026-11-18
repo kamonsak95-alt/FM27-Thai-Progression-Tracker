@@ -224,9 +224,11 @@ const PREF_JOB_ROLE_MAP = {
   0: 'manager',
   1: 'assistant_manager',
   2: 'coach',
+  3: 'physio',
   4: 'scout',
   5: 'gk_coach',
   6: 'fitness_coach',
+  7: 'set_piece_coach',
   9: 'hoyd',
   10: 'dof',
   11: 'loan_manager',
@@ -362,7 +364,11 @@ function normalizeStaff(s) {
  * Filters and paginates staff array
  */
 function filterStaff(staffList, query = {}, skills = []) {
-  let result = staffList.filter(s => !['administration', 'unknown'].includes(resolveStaffRole(s).category));
+  let result = staffList.filter(s => {
+    const { category } = resolveStaffRole(s);
+    // Unknown free agents may still be hireable; missing role data is not evidence otherwise.
+    return category !== 'administration' && (category !== 'unknown' || !s.club);
+  });
 
   // Search by name
   const q = foldSearchText(query.q);
