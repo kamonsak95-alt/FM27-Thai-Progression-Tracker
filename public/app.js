@@ -397,6 +397,50 @@ const footFilter = document.getElementById('filter-foot');
 const footLabels = new Map(Array.from(footFilter.options, option => [option.value, option.textContent]));
 let selectedNationality = '';
 let attributeFilters = new Map();
+const hiddenFilterLabels = { ...PERSONALITY_MAP, ...PLAYER_HIDDEN_ATTRIBUTES };
+const hiddenFilterGroup = 'ลักษณะนิสัยและค่าพลังแฝง';
+const selectedDivisions = new Set();
+const maxSelectedDivisions = 12;
+const divisionSelectionStatus = document.getElementById('division-selection-status');
+const myDivisionFilter = document.getElementById('filter-my-division');
+const manualDivisionFilters = document.getElementById('manual-division-filters');
+const myDivisionStatus = document.getElementById('my-division-status');
+let myDivision = null;
+const divisionSearch = document.getElementById('filter-division-search');
+const divisionOptions = document.getElementById('division-options');
+let availableDivisions = [];
+
+function updateDivisionSelection() {
+  const count = selectedDivisions.size;
+  divisionSelectionStatus.textContent = count === maxSelectedDivisions
+    ? `เลือกครบ ${maxSelectedDivisions} ลีกแล้ว`
+    : count ? `เลือกแล้ว ${count} จาก ${maxSelectedDivisions} ลีก` : `เลือกได้สูงสุด ${maxSelectedDivisions} ลีก`;
+  for (const input of divisionOptions.querySelectorAll('input')) {
+    input.disabled = !input.checked && count >= maxSelectedDivisions;
+  }
+}
+
+function renderDivisionOptions() {
+  const query = divisionSearch.value.trim().toLowerCase();
+  const matches = availableDivisions.filter(name => name.toLowerCase().includes(query));
+  divisionOptions.replaceChildren(...matches.map(name => {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = selectedDivisions.has(name);
+    input.addEventListener('change', () => {
+      if (input.checked) selectedDivisions.add(name);
+      else selectedDivisions.delete(name);
+      updateDivisionSelection();
+      state.page = 1;
+      loadPlayers();
+    });
+    label.append(input, name);
+    return label;
+  }));
+  if (!matches.length) divisionOptions.textContent = 'ไม่พบลีก / ดิวิชัน';
+  updateDivisionSelection();
+}
 const transferFilters = new Map([
   ['maxValue', document.getElementById('filter-max-value')],
   ['maxWage', document.getElementById('filter-max-wage')],
@@ -418,8 +462,9 @@ function initSkillChecklist({ dialogId, prefix, groupsByName, getFilters, onAppl
   const entries = [];
 
   for (const [group, keys] of Object.entries(groupsByName)) {
-    const section = document.createElement('section');
-    const heading = document.createElement('h3');
+    const hiddenGroup = dialogId === 'attribute-filters' && group === hiddenFilterGroup;
+    const section = document.createElement(hiddenGroup ? 'details' : 'section');
+    const heading = document.createElement(hiddenGroup ? 'summary' : 'h3');
     heading.textContent = group;
     section.append(heading);
     const items = keys.map(([key, name]) => {
@@ -433,29 +478,53 @@ function initSkillChecklist({ dialogId, prefix, groupsByName, getFilters, onAppl
       checkbox.addEventListener('change', () => { minimum.disabled = !checkbox.checked; });
       const label = document.createElement('label');
       label.append(checkbox, name);
-      row.append(label, minimum);
+      const canLimitMaximum = hiddenGroup && ['InjuryProneness', 'Dirtiness', 'controversy'].includes(key);
+      const bound = canLimitMaximum ? document.createElement('select') : null;
+      if (bound) {
+        bound.className = 'form-select';
+        bound.setAttribute('aria-label', `เกณฑ์ ${name}`);
+        bound.add(new Option('ขั้นสูงสุด', 'max'));
+        bound.add(new Option('ขั้นต่ำ', 'min'));
+        bound.addEventListener('change', () => {
+          minimum.setAttribute('aria-label', `ค่า${bound.selectedOptions[0].textContent} ${name}`);
+        });
+        checkbox.addEventListener('change', () => { bound.disabled = !checkbox.checked; });
+        row.classList.add('hidden-filter-limit-row');
+      }
+      row.append(label);
+      if (bound) row.append(bound);
+      row.append(minimum);
       section.append(row);
-      return { key, name: name.toLowerCase(), row, checkbox, minimum };
+      return { key, name: name.toLowerCase(), row, checkbox, minimum, bound };
     });
-    entries.push({ section, items });
+    entries.push({ section, items, hiddenGroup });
     groups.append(section);
   }
 
   function filterList() {
     const query = search.value.trim().toLowerCase();
-    for (const { section, items } of entries) {
+    for (const { section, items, hiddenGroup } of entries) {
       for (const { row, name } of items) row.hidden = !name.includes(query);
       section.hidden = items.every(({ row }) => row.hidden);
+      if (hiddenGroup && query && !section.hidden) section.open = true;
     }
     empty.hidden = entries.some(({ section }) => !section.hidden);
   }
 
   function restore(filters) {
-    for (const { items } of entries) {
-      for (const { key, checkbox, minimum } of items) {
-        checkbox.checked = filters.has(key);
+    for (const { items, section, hiddenGroup } of entries) {
+      if (hiddenGroup) section.open = items.some(({ key }) => filters.has(key + ':min') || filters.has(key + ':max'));
+      for (const { key, checkbox, minimum, bound } of items) {
+        const maximum = hiddenGroup && filters.has(key + ':max');
+        const filterKey = hiddenGroup ? key + (maximum ? ':max' : ':min') : key;
+        checkbox.checked = filters.has(filterKey);
         minimum.disabled = !checkbox.checked;
-        minimum.value = filters.get(key) ?? 15;
+        minimum.value = filters.get(filterKey) ?? (bound ? 8 : 15);
+        if (bound) {
+          bound.value = checkbox.checked && !maximum ? 'min' : 'max';
+          bound.disabled = !checkbox.checked;
+          bound.dispatchEvent(new Event('change'));
+        }
       }
     }
     search.value = '';
@@ -472,16 +541,20 @@ function initSkillChecklist({ dialogId, prefix, groupsByName, getFilters, onAppl
   search.addEventListener('input', filterList);
   form.addEventListener('submit', event => {
     event.preventDefault();
-    const selected = entries.flatMap(({ items }) => items.filter(({ checkbox }) => checkbox.checked));
-    const invalid = selected.find(({ minimum }) => !minimum.validity.valid);
+    const selected = entries.flatMap(({ items, hiddenGroup }) => items.filter(({ checkbox }) => checkbox.checked)
+      .map(({ key, minimum, bound }) => [hiddenGroup ? key + ':' + (bound?.value ?? 'min') : key, minimum]));
+    const invalid = selected.find(([, input]) => !input.validity.valid);
     if (invalid) {
       search.value = '';
       filterList();
-      invalid.minimum.reportValidity();
+      const input = invalid[1];
+      const section = input.closest('details');
+      if (section) section.open = true;
+      input.reportValidity();
       return;
     }
     dialog.close();
-    onApply(new Map(selected.map(({ key, minimum }) => [key, minimum.valueAsNumber])));
+    onApply(new Map(selected.map(([key, input]) => [key, input.valueAsNumber])));
   });
   return () => {
     restore(getFilters());
@@ -566,10 +639,26 @@ function getStaffExtraFilters() {
 }
 
 function initEventListeners() {
+  myDivisionFilter.addEventListener('change', () => {
+    manualDivisionFilters.disabled = myDivisionFilter.checked;
+    state.page = 1;
+    loadPlayers();
+  });
+  divisionSearch.addEventListener('input', renderDivisionOptions);
+  document.getElementById('clear-divisions').addEventListener('click', () => {
+    selectedDivisions.clear();
+    divisionSearch.value = '';
+    renderDivisionOptions();
+    state.page = 1;
+    loadPlayers();
+  });
   const showPlayerSkills = initSkillChecklist({
     dialogId: 'attribute-filters', prefix: 'attribute-filter',
-    groupsByName: Object.fromEntries(Object.entries(ATTR_GROUPS).map(([group, keys]) =>
-      [group, keys.map(key => [key, `${PLAYER_ATTRIBUTE_THAI[key]} (${key})`])])),
+    groupsByName: {
+      [hiddenFilterGroup]: Object.entries(hiddenFilterLabels),
+      ...Object.fromEntries(Object.entries(ATTR_GROUPS).map(([group, keys]) =>
+        [group, keys.map(key => [key, `${PLAYER_ATTRIBUTE_THAI[key]} (${key})`])]))
+    },
     getFilters: () => attributeFilters,
     onApply: filters => { attributeFilters = filters; state.page = 1; loadPlayers(); }
   });
@@ -631,6 +720,11 @@ function initEventListeners() {
     state.pos = scoutPositions || 'ALL';
     state.selectedPitchPositions = new Set(scoutPositions ? scoutPositions.split(',') : []);
     attributeFilters.clear();
+    myDivisionFilter.checked = false;
+    manualDivisionFilters.disabled = false;
+    selectedDivisions.clear();
+    divisionSearch.value = '';
+    renderDivisionOptions();
     footFilter.value = '';
     for (const field of transferFilters.values()) field.value = '';
     selectedNationality = '';
@@ -1242,7 +1336,12 @@ function updatePlayerFilterSummary() {
     if (state.natOnly) labels.push('ตำแหน่งถนัดเท่านั้น');
   }
   if (footFilter.value) labels.push('เท้าถนัด '+footLabels.get(footFilter.value));
-  for (const [key, minimum] of attributeFilters) labels.push(key+' ≥ '+minimum);
+  for (const [term, value] of attributeFilters) {
+    const [key, bound] = term.split(':');
+    labels.push(`${bound ? hiddenFilterLabels[key] : key} ${bound === 'max' ? '≤' : '≥'} ${value}`);
+  }
+  if (myDivisionFilter.checked) labels.push(myDivision ? `ลีกทีมที่คุม · ${myDivision}` : 'ลีกทีมที่คุม · ไม่พบข้อมูลลีก');
+  else if (selectedDivisions.size) labels.push(`ลีก ${[...selectedDivisions].join(', ')}`);
   for (const [key, field] of transferFilters) {
     const value = getTransferFilterValue(field);
     if (!value) continue;
@@ -1666,7 +1765,9 @@ async function loadPlayers() {
 
   if (state.q) params.set('q', state.q);
   if (footFilter.value) params.set('foot', footFilter.value);
-  for (const [key, minimum] of attributeFilters) params.append('attribute', key+':'+minimum);
+  for (const [key, value] of attributeFilters) params.append(key.includes(':') ? 'hiddenAttribute' : 'attribute', key+':'+value);
+  if (myDivisionFilter.checked) params.set('myDivision', '1');
+  else for (const division of selectedDivisions) params.append('division', division);
   for (const [key, field] of transferFilters) {
     const value = getTransferFilterValue(field);
     if (value) params.set(key, value);
@@ -1702,6 +1803,21 @@ async function loadPlayers() {
     if (request.signal.aborted) return;
 
     const nationalities = data.nationalities || [];
+    myDivision = data.myDivision ?? null;
+    myDivisionStatus.textContent = myDivision ? `ลีกทีมที่คุม · ${myDivision}` : (data.meta?.myClub
+      ? 'ไม่พบข้อมูลลีกของทีมที่คุมจากรอบสแกนนี้'
+      : 'ยังไม่มีทีมที่คุมจากรอบสแกนนี้');
+    const divisions = data.divisions || [];
+    if (divisions.length !== availableDivisions.length || divisions.some((name, i) => name !== availableDivisions[i])) {
+      availableDivisions = divisions;
+      const stale = [...selectedDivisions].filter(name => !divisions.includes(name));
+      for (const name of stale) selectedDivisions.delete(name);
+      renderDivisionOptions();
+      if (stale.length) {
+        state.page = 1;
+        return loadPlayers();
+      }
+    }
     nationalityInput.disabled = !nationalities.length;
     if (nationalities.length !== nationalityOptions.options.length ||
         nationalities.some((name, index) => nationalityOptions.options[index].value !== name)) {

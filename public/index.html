@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.37">
+  <link rel="stylesheet" href="style.css?v=1.0.39">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -196,6 +196,22 @@
       <details id="player-advanced-filters" class="player-advanced-filters">
         <summary>ตัวกรองเพิ่มเติม</summary>
         <div class="player-extra-filter-grid">
+        <details class="filter-group player-division-filter">
+          <summary>ลีก / ดิวิชัน</summary>
+          <label class="my-division-option"><input type="checkbox" id="filter-my-division"> ใช้ลีกเดียวกับทีมที่คุม</label>
+          <p id="my-division-status" class="text-muted" aria-live="polite"></p>
+          <fieldset id="manual-division-filters" aria-label="เลือกลีกเอง">
+            <div class="search-box">
+              <span class="search-icon player-search-icon" aria-hidden="true"></span>
+              <input type="search" id="filter-division-search" class="form-input" placeholder="ค้นหาชื่อลีก" aria-label="ค้นหาชื่อลีก" autocomplete="off">
+            </div>
+            <div id="division-options" aria-label="เลือกลีกได้หลายรายการ" aria-describedby="division-selection-status" role="group">ยังไม่มีข้อมูลลีก</div>
+            <div class="division-filter-footer">
+              <span id="division-selection-status" class="text-muted" role="status">เลือกได้สูงสุด 12 ลีก</span>
+              <button type="button" id="clear-divisions" class="btn btn-secondary btn-sm">ล้างลีก</button>
+            </div>
+          </fieldset>
+        </details>
         <!-- Age Range -->
         <div class="filter-group player-range-filter player-age-filter">
           <label class="filter-label">ช่วงอายุ: <span id="val-age" class="text-accent font-semibold">15 - 45</span> ปี</label>
@@ -811,10 +827,10 @@
       <h2 id="attribute-filter-title">Attributes</h2>
       <button type="button" id="cancel-attribute-filters" class="player-modal-close" aria-label="ปิดตัวกรองค่าพลังนักเตะ" title="ปิด"><span aria-hidden="true">&times;</span></button>
     </header>
-    <p class="text-muted">ค้นหานักเตะที่มีค่าพลังถึงขั้นต่ำทุกข้อ</p>
+    <p class="text-muted">ติ๊กค่าพลังที่ต้องการกรอง นักเตะต้องผ่านทุกข้อที่เลือก</p>
     <form id="attribute-filter-form" novalidate>
       <input type="search" id="attribute-filter-search" class="form-input" placeholder="ค้นหาชื่อค่าพลัง ไทยหรืออังกฤษ" aria-label="ค้นหาชื่อค่าพลัง" autocomplete="off">
-      <div class="attribute-filter-column-label" aria-hidden="true">ขั้นต่ำ</div>
+      <div class="attribute-filter-column-label" aria-hidden="true">ค่าที่ใช้กรอง</div>
       <div id="attribute-filter-rows"></div>
       <p id="attribute-filter-empty" class="text-muted" hidden>ไม่พบค่าพลังที่ตรงกัน</p>
       <footer class="attribute-filter-actions">
@@ -1017,7 +1033,7 @@
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
   <script src="staff-comparison.js?v=1.0.34"></script>
-  <script src="app.js?v=1.0.37"></script>
+  <script src="app.js?v=1.0.39"></script>
   <script src="replacement.js?v=1.0.35"></script>
 </body>
 </html>

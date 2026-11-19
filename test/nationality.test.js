@@ -11,11 +11,12 @@ test('nationality options come from the save and match either nationality before
   fs.writeFileSync(path.join(scanner, 'dump.json'), JSON.stringify({
     meta: { game: 'FM27', manager: 'Test Manager', myClub: 'Test Club', gameDate: '2027-08-31' },
     players: [
-      { id: 1, name: 'Dual', nat: ['Portugal', 'Brazil'], age: 18, ca: 80, pa: 160, pos: 'MC', foot: 'Links', attrs: { Pace: 15, Passing: 17 }, club: 'Test Club', expires: '2028-02-29', listed: true, loanListed: true, value: 1000000, wage: 5000 },
+      { id: 1, name: 'Dual', nat: ['Portugal', 'Brazil'], age: 18, ca: 80, pa: 160, pos: 'MC', foot: 'Links', attrs: { Pace: 15, Passing: 17 }, club: 'Test Club', div: 'League Two', teamType: 0, expires: '2028-02-29', listed: true, loanListed: true, value: 1000000, wage: 5000 },
       { id: 2, name: 'Veteran', nat: ' Brazil ', age: 30, ca: 90, pa: 155, pos: 'MC', foot: 'Rechts', attrs: { Pace: 20, Passing: 12 } },
-      { id: 3, name: 'Other', nat: ['France'], age: 18, ca: 80, pa: 160, pos: 'MC', foot: 'Right', expires: '2028-08-31' },
+      { id: 3, name: 'Other', nat: ['France'], age: 18, ca: 80, pa: 160, pos: 'MC', foot: 'Right', expires: '2028-08-31', club: 'Second Club', div: 'League Two', professionalism: 16, attrs: { ImportantMatches: 15, InjuryProneness: 8 } },
       { id: 4, name: 'Forward', nat: 'Brazil', age: 18, ca: 80, pa: 160, pos: 'ST', foot: 'Beide', attrs: { Pace: 18, Passing: 16 } },
-      { id: 5, name: 'Unknown', nat: null, age: 18, ca: 80, pa: 160, pos: 'MC', attrs: { Pace: 18 }, club: null, expires: '2027-08-30' }
+      { id: 5, name: 'Unknown', nat: null, age: 18, ca: 80, pa: 160, pos: 'MC', attrs: { Pace: 18, ImportantMatches: 18, InjuryProneness: 0 }, club: null, div: 'Stale League', expires: '2027-08-30' },
+      { id: 6, name: 'League Fixture', nat: ['France'], age: 19, ca: 50, pa: 90, pos: 'DC', club: 'Test Club', div: 'League One', teamType: 1, attrs: { ImportantMatches: 17, InjuryProneness: 9 } }
     ]
   }));
   process.env.LOCALAPPDATA = dir;
@@ -34,7 +35,25 @@ test('nationality options come from the save and match either nationality before
   assert.deepEqual(filtered.nationalities, ['Brazil', 'France', 'Portugal']);
   assert.equal(filtered.page, 1);
   assert.equal((await get('?nationality=BRA')).total, 0);
-  assert.equal((await get('')).total, 5);
+  assert.equal((await get('')).total, 6);
+
+  await t.test('league selections combine with hidden ranges before pagination', async () => {
+    const leagues = '?division=League+One&division=League+Two&limit=1';
+    const result = await get(leagues);
+    assert.equal(result.total, 3);
+    assert.deepEqual(result.divisions, ['League One', 'League Two']);
+    const hidden = '&hiddenAttribute=ImportantMatches:min:15&hiddenAttribute=InjuryProneness:max:8';
+    assert.deepEqual((await get(leagues + hidden)).players.map(player => player.id), [3]);
+    assert.deepEqual((await get('?' + hidden)).players.map(player => player.id), [3]);
+    assert.deepEqual((await get('?hiddenAttribute=professionalism:min:16')).players.map(player => player.id), [3]);
+    assert.equal((await fetch(url + '?hiddenAttribute=constructor:min:1')).status, 400);
+  });
+
+  await t.test('same league uses the managed first team and includes other clubs', async () => {
+    const result = await get('?myDivision=1&division=League+One');
+    assert.equal(result.myDivision, 'League Two');
+    assert.deepEqual(result.players.map(player => player.id).sort(), [1, 3]);
+  });
 
   await t.test('Attributes require every minimum and combine with other filters before pagination', async () => {
     const both = '&attribute=Pace:15&attribute=Passing:16';

@@ -52,6 +52,11 @@ let currentBaselineDate = null;
 let profileHistory;
 let currentSaveKey = null;
 let playerNationalities = [];
+let playerDivisions = [];
+let myDivision = null;
+const hiddenPlayerAttributes = new Set(['Consistency', 'ImportantMatches', 'InjuryProneness', 'Versatility', 'Dirtiness']);
+const playerPersonalityKeys = new Set(['ambition', 'loyalty', 'professionalism', 'pressure', 'sportsmanship', 'temperament', 'adaptability', 'controversy']);
+const getPlayerDivision = player => player.club && typeof player.div === 'string' ? player.div.trim() : '';
 
 const PREFERRED_FEET = new Map([
   ['links', 'left'], ['left', 'left'],
@@ -510,12 +515,26 @@ const server = http.createServer(async (req, res) => {
       const [, key, minimum] = match;
       attributeFilters.set(key, Math.max(Number(minimum), attributeFilters.get(key) ?? 0));
     }
+    const hiddenFilters = [];
+    for (const term of parsedUrl.searchParams.getAll('hiddenAttribute')) {
+      const match = /^([A-Za-z]+):(min|max):([1-9]|1\d|20)$/.exec(term);
+      if (!match || (!hiddenPlayerAttributes.has(match[1]) && !playerPersonalityKeys.has(match[1]))) {
+        return sendJson(res, 400, { error: 'ตัวกรองค่าพลังแฝงต้องอยู่ในช่วง 1–20' });
+      }
+      hiddenFilters.push([match[1], match[2], Number(match[3])]);
+    }
+    const divisions = new Set(parsedUrl.searchParams.getAll('division').map(name => name.trim()).filter(Boolean));
+    if (divisions.size > 12) {
+      return sendJson(res, 400, { error: 'เลือกลีกได้สูงสุด 12 รายการ' });
+    }
     const dump = getOrLoadDump();
     if (!dump || !dump.players) {
       return sendJson(res, 200, {
         meta: null,
         total: 0,
         nationalities: [],
+        divisions: [],
+        myDivision: null,
         players: []
       });
     }
@@ -535,6 +554,13 @@ const server = http.createServer(async (req, res) => {
         }
       }
       playerNationalities = [...nationalities.values()].sort((a, b) => a.localeCompare(b));
+      playerDivisions = [...new Set(validPlayers.map(getPlayerDivision).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      const club = dump.meta?.myClub?.trim();
+      const roster = club ? validPlayers.filter(player => player.club === club) : [];
+      const firstTeam = roster.filter(player => player.teamType === 0);
+      const clubDivisions = [...new Set((firstTeam.length ? firstTeam : roster)
+        .map(getPlayerDivision).filter(Boolean))];
+      myDivision = clubDivisions.length === 1 ? clubDivisions[0] : null;
       let deltas;
       let store;
       if (baselineDate && baselineDate !== dump.meta?.gameDate) {
@@ -564,6 +590,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     let result = cachedPlayersWithDeltas;
+    if (query.myDivision === '1') {
+      result = myDivision ? result.filter(player => getPlayerDivision(player) === myDivision) : [];
+    } else if (divisions.size) {
+      result = result.filter(player => divisions.has(getPlayerDivision(player)));
+    }
+    if (hiddenFilters.length) {
+      result = result.filter(player => hiddenFilters.every(([key, bound, threshold]) => {
+        const value = playerPersonalityKeys.has(key) ? player[key] : player.attrs?.[key];
+        return Number.isInteger(value) && value >= 1 && value <= 20 &&
+          (bound === 'min' ? value >= threshold : value <= threshold);
+      }));
+    }
     const nationality = (query.nationality || '').trim().toLowerCase();
     if (nationality) {
       result = result.filter(player => getNationalities(player).some(name => name.toLowerCase() === nationality));
@@ -728,6 +766,8 @@ const server = http.createServer(async (req, res) => {
       totalPages: Math.ceil(totalCount / limit),
       baselineDate: currentBaselineDate,
       nationalities: playerNationalities,
+      divisions: playerDivisions,
+      myDivision,
       players: paginated
     });
   }
