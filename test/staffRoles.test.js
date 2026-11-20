@@ -23,6 +23,21 @@ test('employed job 22 is a set-piece coach regardless of scanner title or prefer
   assert.deepEqual(filterStaff(pool, { role: 'perf_analyst', status: 'employed' }).staff.map(p => p.id), [analyst.id]);
 });
 
+test('preferred roles extend a specific role filter without relabeling or including administrators', () => {
+  const analyst = { id: 1, name: 'Analyst', club: 'Lens', job: 'Prestatie analist', prefJob: [12, 7] };
+  const coach = { id: 2, name: 'Coach', club: 'Arsenal', jobId: 22 };
+  const director = { id: 3, name: 'Director', club: 'Lens', job: 'Directeur', prefJob: [7] };
+  const free = { id: 4, name: 'Free', prefJob: [1, 7] };
+  const pool = [analyst, coach, director, free];
+  const query = { role: 'set_piece_coach' };
+  assert.deepEqual(filterStaff(pool, query).staff.map(s => s.id), [2]);
+  const expanded = { ...query, includePreferredRole: '1' };
+  assert.deepEqual(filterStaff(pool, expanded).staff.map(s => s.id).sort(), [1, 2, 4]);
+  const employed = filterStaff(pool, { ...expanded, status: 'employed', q: 'analyst' });
+  assert.equal(employed.total, 1);
+  assert.equal(employed.staff[0].roleId, 'perf_analyst');
+});
+
 test('club administrators are never inferred as coaches or medical staff from attributes or preferences', () => {
   for (const job of ['Algemeen directeur', 'Directeur', 'Voorzitter', 'Eigenaar', 'President', 'Algemeen manager']) {
     const person = { id: 83262130, name: 'Francisco Salgado Zenha', job, club: 'Sporting CP', ca: 175, staffAttrs: strong };

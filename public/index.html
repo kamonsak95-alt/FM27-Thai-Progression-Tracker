@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.39">
+  <link rel="stylesheet" href="style.css?v=1.0.40">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -531,6 +531,11 @@
               <option value="sports_scientist">นักวิทยาศาสตร์การกีฬา</option>
             </optgroup>
           </select>
+          <div hidden id="staff-preferred-role-option">
+            <label class="my-division-option">
+              <input type="checkbox" id="filter-staff-preferred-role" autocomplete="off"> รวมคนที่สนใจทำตำแหน่งนี้
+            </label>
+          </div>
         </div>
 
         <!-- Dropdown 2: สถานะสัญญา -->
@@ -706,7 +711,7 @@
   </main>
 
   <!-- Player Detail Modal -->
-  <div id="player-modal" class="modal-overlay" style="display:none;">
+  <div id="player-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-name" style="display:none;">
     <div class="modal-card player-modal-card">
       <div class="player-modal-overview">
         <div class="modal-header player-modal-header">
@@ -884,7 +889,7 @@
   </dialog>
 
   <!-- Staff Detail Modal -->
-  <div id="staff-modal" class="modal-overlay" style="display:none;">
+  <div id="staff-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="staff-modal-name" style="display:none;">
     <div class="modal-card modal-card-lg player-modal-card">
       <div class="player-modal-overview">
       <div class="modal-header player-modal-header">
@@ -1033,7 +1038,7 @@
   <script src="shortlist.js?v=1.0.13"></script>
   <script src="nationality-flags.js"></script>
   <script src="staff-comparison.js?v=1.0.34"></script>
-  <script src="app.js?v=1.0.39"></script>
+  <script src="app.js?v=1.0.40"></script>
   <script src="replacement.js?v=1.0.35"></script>
 </body>
 </html>

@@ -389,7 +389,9 @@ function filterStaff(staffList, query = {}, skills = []) {
   // Role filter (specific roleId)
   const roleId = (query.role || '').trim().toLowerCase();
   if (roleId && roleId !== 'any' && roleId !== 'all') {
-    result = result.filter(s => resolveStaffRole(s).roleId === roleId);
+    result = result.filter(s => resolveStaffRole(s).roleId === roleId ||
+      (query.includePreferredRole === '1' && Array.isArray(s.prefJob) &&
+        s.prefJob.some(code => PREF_JOB_ROLE_MAP[code] === roleId)));
   }
 
   // Employment status filter (unemployed, employed)

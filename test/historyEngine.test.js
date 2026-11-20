@@ -6,6 +6,31 @@ const os = require('node:os');
 const http = require('node:http');
 const { decodeSnapshotAttributes } = require('../server/snapshotAttributes');
 
+test('saving after corrupt history preserves the original and a failed replacement keeps valid history', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fm27-history-write-'));
+  const file = path.join(dir, 'history.json');
+  const previousFile = process.env.FM27_HISTORY_FILE;
+  process.env.FM27_HISTORY_FILE = file;
+  t.after(() => {
+    if (previousFile === undefined) delete process.env.FM27_HISTORY_FILE;
+    else process.env.FM27_HISTORY_FILE = previousFile;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const { loadHistoryStore, saveHistoryStore } = require('../server/historyEngine');
+  fs.writeFileSync(file, '{"incomplete":');
+  const store = loadHistoryStore();
+  saveHistoryStore(store);
+  const backup = fs.readdirSync(dir).find(name => name.endsWith('.unreadable'));
+  assert.equal(fs.readFileSync(path.join(dir, backup), 'utf8'), '{"incomplete":');
+  const valid = fs.readFileSync(file, 'utf8');
+  assert.deepStrictEqual(JSON.parse(valid), { careers: [], snapshots: [] });
+  const rename = t.mock.method(fs, 'renameSync', () => { throw new Error('simulated replacement failure'); });
+  saveHistoryStore({ careers: [], snapshots: [{ gameDate: '2026-10-31' }] });
+  rename.mock.restore();
+  assert.equal(fs.readFileSync(file, 'utf8'), valid);
+  assert(!fs.readdirSync(dir).some(name => name.endsWith('.tmp')));
+});
+
 test('profile history includes only earlier rounds from the same career', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fm27-profile-history-'));
   process.env.FM27_HISTORY_FILE = path.join(dir, 'history.json');

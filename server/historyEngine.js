@@ -1,9 +1,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { encodeSnapshotAttributes } = require('./snapshotAttributes');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const UNIDENTIFIED_SAVE = 'UNIDENTIFIED';
+const unreadableHistory = new WeakSet();
 
 function getHistoryFilePath() {
   if (process.env.FM27_HISTORY_FILE) return process.env.FM27_HISTORY_FILE;
@@ -105,17 +107,31 @@ function loadHistoryStore() {
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     return migrateStore(raw);
   } catch {
-    return { careers: [], snapshots: [] };
+    const store = { careers: [], snapshots: [] };
+    unreadableHistory.add(store);
+    return store;
   }
 }
 
 function saveHistoryStore(store) {
   ensureDataDir();
   const filePath = getHistoryFilePath();
+  const temporary = filePath + '.' + randomUUID() + '.tmp';
   try {
-    fs.writeFileSync(filePath, JSON.stringify(store, null, 2), 'utf8');
+    if (unreadableHistory.has(store)) {
+      const backup = filePath + '.' + randomUUID() + '.unreadable';
+      fs.copyFileSync(filePath, backup, fs.constants.COPYFILE_EXCL);
+      console.warn('Unreadable history preserved at:', backup);
+      unreadableHistory.delete(store);
+    }
+    fs.writeFileSync(temporary, JSON.stringify(store, null, 2), { encoding: 'utf8', flag: 'wx' });
+    fs.renameSync(temporary, filePath);
   } catch (err) {
     console.error('Warning: could not write history store:', err.message);
+  } finally {
+    try { fs.rmSync(temporary, { force: true }); } catch (error) {
+      console.warn('Could not clean temporary history file:', error.message);
+    }
   }
 }
 

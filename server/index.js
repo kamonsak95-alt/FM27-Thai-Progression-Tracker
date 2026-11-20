@@ -1,3 +1,4 @@
+const { getContractEnd, addContractMonths } = require('./contractDates');
 const http = require('node:http');
 const { createHash, randomUUID } = require('node:crypto');
 const { once } = require('node:events');
@@ -66,24 +67,6 @@ const PREFERRED_FEET = new Map([
 
 function getPreferredFoot(foot) {
   return typeof foot === 'string' ? PREFERRED_FEET.get(foot.trim().toLowerCase()) ?? null : null;
-}
-
-function getContractEnd(player) {
-  const value = player.expires;
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const parsed = new Date(value + 'T00:00:00Z');
-  return Number.isFinite(+parsed) && parsed.toISOString().slice(0, 10) === value ? value : null;
-}
-
-function addContractMonths(date, months) {
-  const start = new Date(date + 'T00:00:00Z');
-  if (!Number.isFinite(+start)) return null;
-  const day = start.getUTCDate();
-  start.setUTCDate(1);
-  start.setUTCMonth(start.getUTCMonth() + months);
-  const last = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
-  start.setUTCDate(Math.min(day, last));
-  return start.toISOString().slice(0, 10);
 }
 
 function getTransferStatuses(player) {
@@ -502,7 +485,8 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/squad-analysis') {
     const dump = getOrLoadDump();
-    return sendJson(res, 200, { ...analyzeSquad(dump), scanId: dump?.meta?.scanId });
+    const previousRound = dump?.meta?.myClub ? getProfileSnapshots(dump).at(-1) : null;
+    return sendJson(res, 200, { ...analyzeSquad(dump, previousRound), scanId: dump?.meta?.scanId });
   }
 
   if (pathname === '/api/players') {

@@ -564,6 +564,7 @@ function initSkillChecklist({ dialogId, prefix, groupsByName, getFilters, onAppl
 }
 
 const staffWage = document.getElementById('staff-max-wage');
+const staffPreferredRole = document.getElementById('filter-staff-preferred-role');
 const staffTraining = document.getElementById('staff-training');
 const staffTrainingStars = document.getElementById('staff-training-stars');
 const staffGroupLabels = { coaching: 'การฝึกสอน (Coaching)', mental: 'จิตวิทยา (Mental)', scouting: 'การสรรหา (Scouting)', medical: 'การแพทย์และวิทยาศาสตร์กีฬา (Medical)' };
@@ -626,6 +627,13 @@ function getStaffExtraFilters() {
   ]) {
     if (min !== (label === 'อายุ' ? 15 : 1) || max !== defaultMax) labels.push(`${label} ${min}–${max}`);
   }
+  const preferredRoleAvailable = stateStaff.role !== 'all';
+  document.getElementById('staff-preferred-role-option').hidden = !preferredRoleAvailable;
+  if (!preferredRoleAvailable) staffPreferredRole.checked = false;
+  if (staffPreferredRole.checked) {
+    params.set('includePreferredRole', '1');
+    labels.push('รวมคนที่สนใจทำตำแหน่งนี้');
+  }
   const canReset = labels.length || stateStaff.sort !== 'ca' || stateStaff.order !== 'desc';
   document.getElementById('clear-staff-extras').disabled = !canReset;
   const summary = document.getElementById('staff-active-filters');
@@ -639,6 +647,27 @@ function getStaffExtraFilters() {
 }
 
 function initEventListeners() {
+  const headerNav = document.querySelector('.header-nav-tabs');
+  const appHeader = document.querySelector('.app-header');
+  const headerStatus = appHeader.querySelector('.header-status');
+  const narrowHeader = matchMedia('(max-width: 600px)');
+  const placeHeaderNav = () => narrowHeader.matches ? appHeader.after(headerNav) : headerStatus.before(headerNav);
+  narrowHeader.addEventListener('change', placeHeaderNav);
+  placeHeaderNav();
+  for (const modal of [el.modal, el.staffModal]) modal.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return;
+    const controls = [...modal.querySelectorAll('button, a[href], select, input, summary, [tabindex]')]
+      .filter(control => control.tabIndex >= 0 && !control.disabled && control.getClientRects().length);
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey ? document.activeElement === first : document.activeElement === last) {
+      event.preventDefault();
+      (event.shiftKey ? last : first)?.focus();
+    }
+  });
+  staffPreferredRole.addEventListener('change', () => {
+    stateStaff.page = 1;
+    loadStaff();
+  });
   myDivisionFilter.addEventListener('change', () => {
     manualDivisionFilters.disabled = myDivisionFilter.checked;
     state.page = 1;
@@ -1137,7 +1166,7 @@ function initEventListeners() {
         if (el.btnTogglePitch) el.btnTogglePitch.classList.remove('active');
       }
       if (el.staffModal && el.staffModal.style.display !== 'none') {
-        el.staffModal.style.display = 'none';
+        closeStaffModal();
       }
       if (el.modal && el.modal.style.display !== 'none') {
         closePlayerModal();
@@ -1300,14 +1329,14 @@ function initEventListeners() {
   // Staff Detail Modal Close
   if (el.staffModalClose) {
     el.staffModalClose.addEventListener('click', () => {
-      el.staffModal.style.display = 'none';
+      closeStaffModal();
     });
   }
 
   if (el.staffModal) {
     el.staffModal.addEventListener('click', (e) => {
       if (e.target === el.staffModal) {
-        el.staffModal.style.display = 'none';
+        closeStaffModal();
       }
     });
   }
@@ -1452,20 +1481,42 @@ async function loadSquadAnalysis() {
     squadStatus.textContent = `${data.club} · ${data.hasSquadTypes ? 'ชุดใหญ่' : 'นักเตะทั้งหมดที่สแกนได้'} ${data.squadSize} คน · นับตามตำแหน่งหลัก`;
     const statuses = { empty: 'ขาดผู้เล่น', reinforce: 'ควรเสริม', strong: 'ตัวเลือกเพียงพอ' };
     const priorities = data.slots.filter(slot => slot.status !== 'strong');
+    const shortPositions = priorities.filter(slot => slot.count < slot.target);
     const priority = priorities.find(slot => slot.status === 'empty') ??
       priorities.filter(slot => slot.status === 'reinforce').sort((a, b) => (b.target - b.count) - (a.target - a.count) || b.gap - a.gap)[0] ??
       priorities[0];
-    squadBoard.innerHTML = `<div class="squad-priority"><strong>${priority ? 'เริ่มดูที่ ' + priority.label : 'มีตัวเลือกเพียงพอทุกตำแหน่ง'}</strong>
-      <span>${priority ? statuses[priority.status] : ''}</span></div>
+    squadBoard.innerHTML = `<nav class="squad-view-switch" aria-label="มุมมองวิเคราะห์ทีม">
+      ${['ภาพรวม', 'สัญญา', 'ปล่อยยืม', 'ดาวรุ่ง'].map((label, index) =>
+        `<button type="button" class="btn btn-secondary btn-sm" aria-pressed="${index === 0}" aria-controls="squad-view-${index}">${label}</button>`).join('')}
+      </nav>
+      <div id="squad-view-0"><div class="squad-priority">
+      <strong>${shortPositions.length ? 'ตำแหน่งที่มีผู้เล่นน้อยกว่าจำนวนแนะนำ' : priority ? 'ตำแหน่งที่ควรดู · ' + priority.label : 'มีตัวเลือกเพียงพอทุกตำแหน่ง'}</strong>
+      <span>${shortPositions.length ? shortPositions.map(slot =>
+        `${slot.label} มี ${slot.count} คน · แนะนำ ${slot.target} คน`).join(' / ') : priority ? statuses[priority.status] : ''}</span></div>
       <div class="squad-positions">${data.slots.map(slot => `
         <article class="squad-position" data-status="${slot.status}">
           <header><h3>${slot.label} <small>${slot.id}</small></h3><span>${statuses[slot.status]}</span></header>
-          <p class="text-muted">${slot.count} คน · เป้าหมาย ${slot.target}${slot.gap !== null ? ' · ตัวหลักกับสำรองห่าง ' + slot.gap + ' CA' : ''}</p>
+          <p class="text-muted">${slot.count} คน · แนะนำ ${slot.target} คน${slot.gap !== null ? ' · ตัวหลักกับสำรองห่าง ' + slot.gap + ' CA' : ''}</p>
           <ol>${slot.players.map((player, index) => `<li><span>${index === 0 ? 'CA สูงสุด' : 'ตัวเลือก ' + (index + 1)}</span>${renderSquadPlayerName(player)}<b>${Number.isFinite(player.ca) ? player.ca : '–'}</b></li>`).join('') || '<li>ไม่พบผู้เล่นตำแหน่งหลักนี้</li>'}</ol>
           <button type="button" class="btn btn-secondary btn-sm" data-squad-scout="${slot.positions.join(',')}">ค้นหาผู้เล่นนอกทีม</button>
         </article>`).join('')}</div>
-      <details class="squad-method"><summary>เกณฑ์การวิเคราะห์</summary><p>ขึ้น “ควรเสริม” เมื่อจำนวนผู้เล่นตามตำแหน่งหลักต่ำกว่าเป้า หรือ CA ของสองอันดับแรกห่างกันตั้งแต่ 20 แต้ม เป้าหมายจำนวนผู้เล่นใช้เกณฑ์ทั่วไป</p></details>
-      ${renderSquadProspects(data.prospects ?? [], data.hasSquadTypes)}`;
+      <details class="squad-method"><summary>เกณฑ์การวิเคราะห์</summary><p>ขึ้น “ควรเสริม” เมื่อจำนวนผู้เล่นตามตำแหน่งหลักน้อยกว่าจำนวนแนะนำ หรือ CA ของสองอันดับแรกห่างกันตั้งแต่ 20 แต้ม จำนวนผู้เล่นที่แนะนำใช้เกณฑ์ทั่วไป</p></details>
+      </div>
+      <div id="squad-view-1" hidden>${renderSquadContractPlans(data.contractPlans ?? [])}</div>
+      <div id="squad-view-2" hidden>${renderSquadLoans(data.loanedPlayers ?? [], data.loanComparisonDate)}</div>
+      <div id="squad-view-3" hidden>${renderSquadProspects(data.prospects ?? [], data.hasSquadTypes)}</div>`;
+    const views = [...squadBoard.querySelectorAll('.squad-view-switch button')];
+    for (const button of views) button.addEventListener('click', () => {
+      for (const item of views) {
+        item.setAttribute('aria-pressed', String(item === button));
+        document.getElementById(item.getAttribute('aria-controls')).hidden = item !== button;
+      }
+    });
+    const horizon = squadBoard.querySelector('#squad-contract-horizon');
+    if (horizon) horizon.addEventListener('change', () => {
+      squadBoard.querySelector('#squad-contract-results').innerHTML =
+        renderSquadContractRows(data.contractPlans.find(plan => String(plan.months) === horizon.value));
+    });
   } catch (error) {
     if (!request.signal.aborted) squadStatus.textContent = 'โหลดผลวิเคราะห์ทีมไม่สำเร็จ';
   }
@@ -1476,6 +1527,58 @@ function renderSquadPlayerName(player) {
   return Number.isSafeInteger(player.id) && player.id > 0
     ? `<button type="button" class="player-name player-name-button" data-squad-player="${player.id}">${name}</button>`
     : `<strong>${name}</strong>`;
+}
+
+function renderSquadLoans(players, comparisonDate) {
+  return `<section class="squad-prospects" aria-labelledby="squad-loans-title">
+    <h3 id="squad-loans-title">นักเตะปล่อยยืมและแผนกลับทีม</h3>
+    <p class="text-muted">${players.length} คนที่มีสโมสรเราเป็นต้นสังกัดและอยู่กับทีมอื่นในรอบสแกนนี้
+      ${comparisonDate ? ` · เทียบ CA กับรอบ ${formatGameDate(comparisonDate)}` : ' · ยังไม่มีรอบก่อนหน้าสำหรับเทียบ CA'}</p>
+    ${players.length ? `<div class="table-wrapper"><table class="data-table">
+      <thead><tr><th scope="col">นักเตะ</th><th scope="col">สโมสรปัจจุบัน</th><th scope="col">ตำแหน่งหลัก</th><th scope="col">CA / PA</th><th scope="col">CA เทียบรอบก่อน</th><th scope="col">เมื่อกลับทีม</th></tr></thead>
+      <tbody>${players.map(player => {
+        const { depth, caChange } = player;
+        const benchmark = depth?.benchmark;
+        const notes = [];
+        if (depth && depth.count < depth.target) notes.push(`ชุดใหญ่มี ${depth.count} คน · แนะนำ ${depth.target} คน`);
+        if (benchmark?.ca > 0 && player.ca > 0) {
+          const gap = player.ca - benchmark.ca;
+          notes.push(`CA ${gap === 0 ? 'เท่ากับ' : (gap > 0 ? 'สูงกว่า ' : 'ต่ำกว่า ') + Math.abs(gap) + ' แต้ม ·'} ${escapeHtml(benchmark.name)}`);
+        }
+        return `<tr><td>${renderSquadPlayerName(player)}<br><span class="text-muted">${Number(player.age) || '–'} ปี</span></td>
+          <td>${escapeHtml(player.currentClub)}${player.div ? `<br><span class="text-muted">${escapeHtml(player.div)}</span>` : ''}</td>
+          <td>${escapeHtml(player.position || '–')}</td><td>${Number(player.ca) || '–'} / ${Number(player.pa) || '–'}</td>
+          <td>${caChange == null ? 'ไม่มีข้อมูลเทียบ' : (caChange > 0 ? '+' : '') + caChange + ' CA'}</td>
+          <td>${notes.join('<br>') || '–'}</td></tr>`;
+      }).join('')}</tbody></table></div>` : '<p>ไม่พบนักเตะที่ปล่อยยืมจากข้อมูลรอบนี้</p>'}
+  </section>`;
+}
+
+function renderSquadContractPlans(plans) {
+  return `<section class="squad-prospects" aria-labelledby="squad-contract-title">
+    <div class="squad-view-heading">
+      <h3 id="squad-contract-title">วางแผนสัญญาและหาตัวแทน</h3>
+      ${plans.length ? `<select id="squad-contract-horizon" class="form-select form-select-sm" aria-label="ช่วงวางแผนสัญญา">
+        ${plans.map(plan => `<option value="${plan.months}">อีก ${plan.months} เดือน</option>`).join('')}
+      </select>` : ''}
+    </div>
+    <p class="text-muted">นับตามตำแหน่งหลักจากรอบสแกน สมมติว่านักเตะไม่ต่อสัญญา คนที่ไม่ทราบวันหมดสัญญาแสดงแยกจากจำนวนที่ยืนยันได้</p>
+    ${plans.length ? `<div id="squad-contract-results">${renderSquadContractRows(plans[0])}</div>`
+      : '<p>ยังไม่ทราบวันที่ในเกมจากรอบสแกนนี้</p>'}
+  </section>`;
+}
+
+function renderSquadContractRows(plan) {
+  return `<p class="text-muted">ถึง ${formatGameDate(plan.cutoff)}</p>
+    ${plan.slots.length ? `<div class="table-wrapper"><table class="data-table">
+      <thead><tr><th scope="col">ตำแหน่ง</th><th scope="col">เหลือหลังครบกำหนด</th><th scope="col">สัญญาครบกำหนด</th><th scope="col">ตัวเลือกทดแทน</th></tr></thead>
+      <tbody>${plan.slots.map(slot => `<tr>
+        <td>${escapeHtml(slot.label)}</td>
+        <td><strong>${slot.remaining} จาก ${slot.count} คน</strong> · แนะนำ ${slot.target} คน${slot.unknown ? `<br><span class="text-muted">ไม่ทราบวันหมดสัญญา ${slot.unknown} คน</span>` : ''}</td>
+        <td>${slot.expiring.map(player => `<div>${renderSquadPlayerName(player)} · ${formatGameDate(player.end)} · ${formatWeeklyWage(player.wage, 'ไม่ระบุค่าเหนื่อย', '/w')}</div>`).join('') || '–'}</td>
+        <td>${slot.replacements.map(player => `<div>${renderSquadPlayerName(player)} · อายุ ${player.age} · CA ${Number(player.ca) || '–'} / PA ${Number(player.pa) || '–'}</div>`).join('')}
+          ${slot.expiring.length && slot.remaining < slot.target ? `<button type="button" class="btn btn-secondary btn-sm" data-squad-scout="${slot.positions.join(',')}">ค้นหาผู้เล่นนอกทีม</button>` : '–'}
+        </td></tr>`).join('')}</tbody></table></div>` : '<p>ไม่มีตำแหน่งที่พบสัญญาครบกำหนดหรือไม่ทราบวันหมดสัญญาในช่วงนี้</p>'}`;
 }
 
 function renderSquadProspects(prospects, hasSquadTypes) {
@@ -1501,6 +1604,7 @@ function renderSquadProspects(prospects, hasSquadTypes) {
 }
 
 function applyStaffPreset(preset) {
+  staffPreferredRole.checked = false;
   stateStaff.preset = preset;
   stateStaff.category = 'all';
   stateStaff.role = 'all';
@@ -1951,15 +2055,21 @@ function renderTable(players, comparisonDate, refCode) {
 }
 
 let playerProfileReturn = null;
+let playerProfileOpener = null;
+let staffProfileOpener = null;
+let staffProfileRequest;
 
 function closePlayerModal() {
   const restore = playerProfileReturn;
   playerProfileReturn = null;
   el.modal.style.display = 'none';
   if (restore) void restore();
+  else playerProfileOpener?.focus();
+  playerProfileOpener = null;
 }
 
 async function openPlayerModal(id, expectedRef, expectedScanId) {
+  const opener = document.activeElement;
   document.getElementById('modal-hidden-stats').open = false;
   try {
     const res = await fetch(`/api/player/${id}`);
@@ -2114,7 +2224,9 @@ async function openPlayerModal(id, expectedRef, expectedScanId) {
       .map(key => [key, attrs[key]]));
     pGrid.innerHTML = renderPersonalityGrid({ ...personalityStats, ...hiddenStats });
 
+    if (el.modal.style.display === 'none') playerProfileOpener = opener;
     el.modal.style.display = 'flex';
+    el.modalClose.focus({ preventScroll: true });
     el.modal.querySelector('.player-modal-details').scrollTop = 0;
     el.modal.querySelector('.player-modal-overview').scrollTop = 0;
     return true;
@@ -2773,7 +2885,7 @@ function renderStaffTable(staffList) {
       <tr class="clickable-row staff-row" data-id="${s.id}">
         <td class="col-name sticky-col">
           <div class="player-name-cell">
-            <span class="player-name font-semibold text-white">${escapeHtml(s.name)}</span>
+            <button type="button" class="player-name player-name-button font-semibold text-white">${escapeHtml(s.name)}</button>
             <span class="nat-badge text-muted text-xs">${renderPrimaryNationality(s.nat)}</span>
           </div>
         </td>
@@ -2801,17 +2913,33 @@ function renderStaffTable(staffList) {
   el.staffTableBody.querySelectorAll('.staff-row').forEach(row => {
     row.addEventListener('click', () => {
       const id = row.dataset.id;
-      if (id) openStaffModal(id);
+      if (id) openStaffModal(id, row.querySelector('.player-name-button'));
     });
   });
 }
 
-async function openStaffModal(id) {
+function closeStaffModal() {
+  staffProfileRequest?.abort();
+  el.staffModal.style.display = 'none';
+  staffProfileOpener?.focus();
+  staffProfileOpener = null;
+}
+
+async function openStaffModal(id, opener = document.activeElement) {
   if (!el.staffModal) return;
+  staffProfileRequest?.abort();
+  const request = new AbortController();
+  staffProfileRequest = request;
+  if (el.staffModal.style.display === 'none') staffProfileOpener = opener;
   document.getElementById('staff-modal-hidden-stats').open = false;
 
   document.getElementById('btn-compare-staff').disabled = true;
   el.staffModalName.textContent = 'กำลังโหลดข้อมูล...';
+  for (const field of [el.staffModalRole, el.staffModalClub, el.staffModalNat, el.staffModalAge, el.staffModalHeaderStats]) {
+    field.textContent = '';
+  }
+  currentStaffName = '';
+  if (el.btnCopyStaffName) el.btnCopyStaffName.disabled = true;
   const staffId = document.getElementById('staff-modal-id');
   staffId.hidden = true;
   staffId.textContent = '';
@@ -2820,11 +2948,13 @@ async function openStaffModal(id) {
   document.getElementById('staff-contract-section').hidden = true;
   document.getElementById('staff-training-section').hidden = true;
   el.staffModal.style.display = 'flex';
+  el.staffModalClose.focus({ preventScroll: true });
 
   try {
-    const res = await fetch(`/api/staff/${id}`);
+    const res = await fetch(`/api/staff/${id}`, { signal: request.signal });
     if (!res.ok) throw new Error('ไม่พบข้อมูลทีมงาน');
     const data = await res.json();
+    if (request.signal.aborted) return;
     const s = data.staff || data;
     const compareButton = document.getElementById('btn-compare-staff');
     compareButton.onclick = () => openStaffComparison(s, data.refCode, data.scanId);
@@ -2835,6 +2965,7 @@ async function openStaffModal(id) {
     staffId.textContent = staffId.hidden ? '' : `ID ${s.id}`;
     currentStaffName = s.name;
     if (el.btnCopyStaffName) {
+      el.btnCopyStaffName.disabled = false;
       el.btnCopyStaffName.classList.remove('copied');
       el.btnCopyStaffName.innerHTML = `<span class="copy-icon">📋</span> <span class="copy-label">คัดลอกชื่อ</span>`;
     }
@@ -2900,6 +3031,7 @@ async function openStaffModal(id) {
       el.staffModalPersonalityGrid.innerHTML = '<span class="text-muted text-sm">ไม่มีข้อมูลลักษณะนิสัยแฝง</span>';
     }
   } catch (err) {
+    if (request.signal.aborted) return;
     console.error('Failed to load staff detail:', err);
     el.staffModalName.textContent = 'เกิดข้อผิดพลาด';
     el.staffModalAttrsContainer.innerHTML = `<div class="text-red py-8 text-center" style="grid-column: 1/-1;">${escapeHtml(err.message)}</div>`;
