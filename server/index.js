@@ -33,6 +33,8 @@ const { findReplacements } = require('./replacementEngine');
 const { foldSearchText } = require('./searchText');
 const { ATTRIBUTE_KEYS, decodeSnapshotAttributes } = require('./snapshotAttributes');
 const { shortlist, validRef } = require('./shortlistStore');
+const { savedSearches } = require('./savedSearchStore');
+const playerRoles = require('../public/player-roles');
 const { validateFeedback, sendFeedback } = require('./feedback');
 let feedbackBusy = false;
 let feedbackLastSent = 0;
@@ -244,32 +246,37 @@ const server = http.createServer(async (req, res) => {
     } finally { feedbackBusy = false; }
   }
 
-  if (pathname === '/api/shortlist' && ['GET', 'POST'].includes(req.method)) {
+  if (['/api/shortlist', '/api/saved-searches'].includes(pathname) && ['GET', 'POST'].includes(req.method)) {
+    const isShortlist = pathname === '/api/shortlist';
+    const feature = isShortlist ? 'Shortlist' : 'ชุดค้นหา';
+    const header = isShortlist ? 'x-fm27-shortlist' : 'x-fm27-saved-searches';
     const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
     if (!loopback || !['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname) ||
         (req.headers.origin && req.headers.origin !== parsedUrl.origin) ||
-        (req.method === 'POST' && req.headers['x-fm27-shortlist'] !== '1')) {
-      return sendJson(res, 403, { error: 'เปิด Tracker บนเครื่องนี้เพื่อใช้ Shortlist' });
+        (req.method === 'POST' && req.headers[header] !== '1')) {
+      return sendJson(res, 403, { error: `เปิด Tracker บนเครื่องนี้เพื่อใช้ ${feature}` });
     }
-    if (!validRef(query.ref)) return sendJson(res, 400, { error: 'ยังระบุเซฟไม่ได้' });
+    if (isShortlist && !validRef(query.ref)) return sendJson(res, 400, { error: 'ยังระบุเซฟไม่ได้' });
     try {
       let change;
       if (req.method === 'POST') {
-        let body = '';
+        const chunks = [];
+        let bytes = 0;
         for await (const chunk of req) {
-          body += chunk;
-          if (body.length > 65536) {
-            sendJson(res, 413, { error: 'รายการ Shortlist มีขนาดใหญ่เกินไป' });
+          bytes += chunk.length;
+          if (bytes > (isShortlist ? 65536 : 262144)) {
+            sendJson(res, 413, { error: `รายการ ${feature} มีขนาดใหญ่เกินไป` });
             return;
           }
+          chunks.push(chunk);
         }
-        change = JSON.parse(body);
-        if (!change || typeof change !== 'object') throw new TypeError('Invalid shortlist request');
+        change = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!change || typeof change !== 'object') throw new TypeError('Invalid request');
       }
-      return sendJson(res, 200, shortlist(query.ref, change));
+      return sendJson(res, 200, isShortlist ? shortlist(query.ref, change) : savedSearches(change));
     } catch (error) {
       const invalid = error instanceof TypeError || error instanceof SyntaxError;
-      return sendJson(res, invalid ? 400 : 500, { error: 'อ่านหรือบันทึก Shortlist ไม่สำเร็จ' });
+      return sendJson(res, invalid ? 400 : 500, { error: `อ่านหรือบันทึก ${feature} ไม่สำเร็จ` });
     }
   }
 
@@ -655,18 +662,21 @@ const server = http.createServer(async (req, res) => {
     // Filter by Position (Categories or specific positions e.g. DC, AML, ST, MC)
     const posQuery = (query.pos || '').trim();
     const natOnly = query.natOnly === '1';
+    const role = query.role;
+    const selectedPositions = posQuery.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    const rolePositions = role ? selectedPositions.filter(position => playerRoles.options(position).includes(role)) : [];
     if (posQuery && posQuery !== 'ALL') {
-      const selectedPositions = posQuery.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-      if (selectedPositions.length > 0) {
+      const positions = rolePositions.length ? rolePositions : selectedPositions;
+      if (positions.length > 0) {
         result = result.filter(p => {
           const pArr = p.posArr || (p.pos ? p.pos.split(',').map(s => s.trim().toUpperCase()) : []);
           const pNat = (p.posNat && p.posNat.length > 0) ? p.posNat : (pArr.length > 0 ? [pArr[0]] : []);
           const targetArr = natOnly ? pNat : pArr;
-          return selectedPositions.some(sp => {
+          return positions.some(sp => {
             if (sp === 'GK') return targetArr.includes('GK');
             if (sp === 'DEF') return targetArr.some(x => ['DC', 'DR', 'DL', 'WBL', 'WBR', 'SW'].includes(x));
             if (sp === 'MID') return targetArr.some(x => ['MC', 'MR', 'ML', 'DM', 'AMC', 'AML', 'AMR'].includes(x));
-            if (sp === 'ATT') return targetArr.some(x => ['ST', 'FC'].includes(x));
+            if (sp === 'ATT' || sp === 'ST') return targetArr.some(x => ['ST', 'FC'].includes(x));
             return targetArr.includes(sp);
           });
         });
@@ -692,8 +702,19 @@ const server = http.createServer(async (req, res) => {
       result = result.filter(p => p.club === dump.meta.myClub);
     }
 
+    if (rolePositions.length) {
+      const keys = playerRoles.keys(role);
+      result = result.flatMap(player => {
+        const values = keys.map(key => player.attrs?.[key]);
+        if (!values.every(value => Number.isInteger(value) && value >= 1 && value <= 20)) return [];
+        const roleScore = values.reduce((sum, value) => sum + value, 0) / values.length;
+        return [{ ...player, roleScore }];
+      });
+    }
+
     // Sorting
-    const sortBy = query.sort || 'growthPercent';
+    const sortBy = query.sort === 'roleScore' && !rolePositions.length ? 'ca'
+      : query.sort || (rolePositions.length ? 'roleScore' : 'growthPercent');
     const order = query.order === 'asc' ? 1 : -1;
 
     result.sort((a, b) => {
@@ -726,6 +747,7 @@ const server = http.createServer(async (req, res) => {
       posArr: p.posArr || (p.pos ? p.pos.split(',').map(s => s.trim().toUpperCase()) : []),
       posNat: (p.posNat && p.posNat.length > 0) ? p.posNat : ((p.posArr && p.posArr.length > 0) ? [p.posArr[0]] : []),
       ca: p.ca,
+      roleScore: p.roleScore,
       pa: p.pa,
       prevCA: p.prevCA,
       deltaCA: p.deltaCA,

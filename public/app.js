@@ -9,6 +9,7 @@ let state = {
   minPA: 1,
   maxPA: 200,
   pos: 'ALL',
+  role: '',
   selectedPitchPositions: new Set(),
   natOnly: false,
   preset: 'all',
@@ -647,6 +648,143 @@ function getStaffExtraFilters() {
 }
 
 function initEventListeners() {
+  const roleSelect = document.getElementById('player-role');
+  roleSelect.addEventListener('change', () => {
+    state.role = roleSelect.value;
+    state.sort = state.role ? 'roleScore' : 'ca';
+    state.order = 'desc';
+    updatePlayerSortHeaders();
+    state.page = 1;
+    loadPlayers();
+  });
+  const savedSearchKey = 'fm27.player-searches.v1';
+  const savedSearchMenu = document.getElementById('saved-player-search');
+  const savedSearchLabel = document.getElementById('saved-player-search-label');
+  const savedSearchList = document.getElementById('saved-player-search-list');
+  const saveSearchButton = document.getElementById('save-player-search');
+  const rangeFields = ['minAge', 'maxAge', 'minCA', 'maxCA', 'minPA', 'maxPA'];
+  const searchFields = [...rangeFields, 'q', 'pos', 'role', 'natOnly', 'preset', 'trend', 'sort', 'order', 'excludeMyClub'];
+  let savedSearches = new Map();
+  async function requestSavedSearches(change) {
+    const response = await fetch('/api/saved-searches', change ? {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-FM27-Saved-Searches': '1' },
+      body: JSON.stringify(change)
+    } : undefined);
+    if (!response.ok) throw new Error('Saved searches request failed');
+    savedSearches = new Map(await response.json());
+    renderSavedSearches();
+  }
+  function selectSavedSearch(name = '') {
+    savedSearchMenu.dataset.selected = name;
+    savedSearchLabel.textContent = name || 'เลือกชุดค้นหา';
+  }
+  function renderSavedSearches() {
+    savedSearchList.replaceChildren();
+    if (!savedSearches.size) {
+      const empty = document.createElement('li');
+      empty.textContent = 'ยังไม่มีชุดค้นหาที่บันทึกไว้';
+      savedSearchList.append(empty);
+    }
+    for (const name of savedSearches.keys()) {
+      const row = document.createElement('li');
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = 'btn btn-secondary btn-sm';
+      pick.textContent = name;
+      pick.addEventListener('click', () => applySavedSearch(name));
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn btn-clear-filters btn-sm';
+      remove.textContent = 'ลบ';
+      remove.setAttribute('aria-label', `ลบชุดค้นหา ${name}`);
+      remove.addEventListener('click', async () => {
+        if (!confirm(`ลบชุดค้นหา “${name}” หรือไม่?`)) return;
+        remove.disabled = true;
+        try {
+          await requestSavedSearches({ action: 'delete', name });
+          if (savedSearchMenu.dataset.selected === name) selectSavedSearch();
+          updatePlayerFilterSummary();
+          savedSearchLabel.focus();
+        } catch {
+          remove.disabled = false;
+          showToast('ลบชุดค้นหาไม่สำเร็จ', true);
+        }
+      });
+      row.append(pick, remove);
+      savedSearchList.append(row);
+    }
+  }
+  saveSearchButton.disabled = true;
+  requestSavedSearches().then(async () => {
+    const entries = JSON.parse(localStorage.getItem(savedSearchKey) ?? '[]');
+    if (!entries.length) return;
+    await requestSavedSearches({ action: 'import', entries });
+    localStorage.removeItem(savedSearchKey);
+  }).catch(() => showToast('โหลดหรือย้ายชุดค้นหาเดิมไม่สำเร็จ', true))
+    .finally(() => { saveSearchButton.disabled = false; });
+  saveSearchButton.addEventListener('click', async () => {
+    const name = prompt('ตั้งชื่อชุดค้นหา')?.trim();
+    if (!name) return;
+    if (savedSearches.has(name) && !confirm(`บันทึกทับชุดค้นหา “${name}” หรือไม่?`)) return;
+    const value = {
+      filters: Object.fromEntries(searchFields.map(field => [field, state[field]])),
+      positions: [...state.selectedPitchPositions],
+      attributes: [...attributeFilters],
+      divisions: [...selectedDivisions],
+      myDivision: myDivisionFilter.checked,
+      nationality: selectedNationality,
+      foot: footFilter.value,
+      transfer: [...transferFilters].map(([key, field]) => [key, getTransferFilterValue(field)])
+    };
+    saveSearchButton.disabled = true;
+    try {
+      await requestSavedSearches({ action: 'save', name, value });
+      selectSavedSearch(name);
+      updatePlayerFilterSummary();
+      showToast(`บันทึกชุดค้นหา “${name}” แล้ว`);
+    } catch {
+      showToast('บันทึกชุดค้นหาไม่สำเร็จ', true);
+    } finally {
+      saveSearchButton.disabled = false;
+    }
+  });
+  function applySavedSearch(name) {
+    const saved = savedSearches.get(name);
+    if (!saved) return;
+    selectSavedSearch(name);
+    savedSearchMenu.open = false;
+    savedSearchLabel.focus();
+    clearTimeout(debounceTimer);
+    for (const field of searchFields) state[field] = saved.filters[field];
+    state.page = 1;
+    state.selectedPitchPositions = new Set(saved.positions);
+    attributeFilters = new Map(saved.attributes);
+    selectedDivisions.clear();
+    for (const division of saved.divisions) selectedDivisions.add(division);
+    myDivisionFilter.checked = saved.myDivision;
+    manualDivisionFilters.disabled = saved.myDivision;
+    divisionSearch.value = '';
+    renderDivisionOptions();
+    nationalityInput.value = selectedNationality = saved.nationality;
+    clearNationality.disabled = !selectedNationality;
+    footFilter.value = saved.foot;
+    const transfer = new Map(saved.transfer);
+    for (const [key, field] of transferFilters) field.value = transfer.get(key) ?? '';
+    el.filterSearch.value = state.q;
+    el.btnClearSearch.style.display = state.q ? 'inline-flex' : 'none';
+    if (el.checkNatOnly) el.checkNatOnly.checked = state.natOnly;
+    for (const field of rangeFields) el[field].value = state[field];
+    el.valAge.textContent = `${state.minAge} - ${state.maxAge}`;
+    el.valCA.textContent = `${state.minCA} - ${state.maxCA}`;
+    el.valPA.textContent = `${state.minPA} - ${state.maxPA}`;
+    document.querySelectorAll('[data-preset]').forEach(button => {
+      button.classList.toggle('active', button.dataset.preset === state.preset);
+    });
+    updatePitchUI();
+    updatePlayerSortHeaders();
+    loadPlayers();
+  }
   const headerNav = document.querySelector('.header-nav-tabs');
   const appHeader = document.querySelector('.app-header');
   const headerStatus = appHeader.querySelector('.header-status');
@@ -744,7 +882,8 @@ function initEventListeners() {
   });
   function resetPlayerFilters(scoutPositions = '') {
     clearTimeout(debounceTimer);
-    Object.assign(state, { q: '', pos: 'ALL', natOnly: false, baseline: '', sort: 'ca', order: 'desc', page: 1 });
+    selectSavedSearch();
+    Object.assign(state, { q: '', pos: 'ALL', role: '', natOnly: false, baseline: '', sort: 'ca', order: 'desc', page: 1 });
     state.excludeMyClub = Boolean(scoutPositions);
     state.pos = scoutPositions || 'ALL';
     state.selectedPitchPositions = new Set(scoutPositions ? scoutPositions.split(',') : []);
@@ -1357,6 +1496,7 @@ function updatePlayerSortHeaders() {
 
 function updatePlayerFilterSummary() {
   const labels = [];
+  if (state.role) labels.push(state.role);
   if (state.q.trim()) labels.push(`ค้นหา “${state.q.trim()}”`);
   if (state.pos !== 'ALL') {
     const positions = state.pos.split(',').map(code =>
@@ -1392,7 +1532,8 @@ function updatePlayerFilterSummary() {
   if (state.minPA !== (state.preset === 'wonderkids' ? 150 : 1) || state.maxPA !== 200) {
     labels.push(`PA ${state.minPA}–${state.maxPA}`);
   }
-  const canReset = labels.length || state.natOnly || state.baseline || state.sort !== 'ca' || state.order !== 'desc';
+  const canReset = labels.length || state.natOnly || state.baseline || state.sort !== 'ca' || state.order !== 'desc'
+    || document.getElementById('saved-player-search').dataset.selected;
   const summary = document.getElementById('player-filter-summary');
   summary.hidden = !labels.length;
   document.getElementById('clear-player-filters').disabled = !canReset;
@@ -1490,17 +1631,22 @@ async function loadSquadAnalysis() {
         `<button type="button" class="btn btn-secondary btn-sm" aria-pressed="${index === 0}" aria-controls="squad-view-${index}">${label}</button>`).join('')}
       </nav>
       <div id="squad-view-0"><div class="squad-priority">
-      <strong>${shortPositions.length ? 'ตำแหน่งที่มีผู้เล่นน้อยกว่าจำนวนแนะนำ' : priority ? 'ตำแหน่งที่ควรดู · ' + priority.label : 'มีตัวเลือกเพียงพอทุกตำแหน่ง'}</strong>
-      <span>${shortPositions.length ? shortPositions.map(slot =>
-        `${slot.label} มี ${slot.count} คน · แนะนำ ${slot.target} คน`).join(' / ') : priority ? statuses[priority.status] : ''}</span></div>
-      <div class="squad-positions">${data.slots.map(slot => `
-        <article class="squad-position" data-status="${slot.status}">
-          <header><h3>${slot.label} <small>${slot.id}</small></h3><span>${statuses[slot.status]}</span></header>
-          <p class="text-muted">${slot.count} คน · แนะนำ ${slot.target} คน${slot.gap !== null ? ' · ตัวหลักกับสำรองห่าง ' + slot.gap + ' CA' : ''}</p>
-          <ol>${slot.players.map((player, index) => `<li><span>${index === 0 ? 'CA สูงสุด' : 'ตัวเลือก ' + (index + 1)}</span>${renderSquadPlayerName(player)}<b>${Number.isFinite(player.ca) ? player.ca : '–'}</b></li>`).join('') || '<li>ไม่พบผู้เล่นตำแหน่งหลักนี้</li>'}</ol>
-          <button type="button" class="btn btn-secondary btn-sm" data-squad-scout="${slot.positions.join(',')}">ค้นหาผู้เล่นนอกทีม</button>
-        </article>`).join('')}</div>
-      <details class="squad-method"><summary>เกณฑ์การวิเคราะห์</summary><p>ขึ้น “ควรเสริม” เมื่อจำนวนผู้เล่นตามตำแหน่งหลักน้อยกว่าจำนวนแนะนำ หรือ CA ของสองอันดับแรกห่างกันตั้งแต่ 20 แต้ม จำนวนผู้เล่นที่แนะนำใช้เกณฑ์ทั่วไป</p></details>
+        <strong>${shortPositions.length ? 'ตำแหน่งที่มีผู้เล่นน้อยกว่าจำนวนแนะนำ' : priority ? 'ตำแหน่งที่ควรดู · ' + priority.label : 'มีตัวเลือกเพียงพอทุกตำแหน่ง'}</strong>
+        <span>${shortPositions.length ? shortPositions.map(slot =>
+          `${slot.label} มี ${slot.count} คน · แนะนำ ${slot.target} คน`).join(' / ') : priority ? statuses[priority.status] : ''}</span></div>
+        <div class="squad-pitch" role="group" aria-label="ผังตำแหน่งและจุดที่ควรเสริม">
+          <div class="squad-pitch-lines" aria-hidden="true"><i></i></div>
+          ${data.slots.map(slot => `<span class="squad-pitch-slot" data-position="${slot.id}" data-status="${slot.status}"
+            title="${slot.label} · ${statuses[slot.status]}">${slot.id}${['empty', 'reinforce'].includes(slot.status) ? ' <b aria-hidden="true">!</b>' : ''}<span class="visually-hidden"> ${slot.label} · ${statuses[slot.status]}</span></span>`).join('')}
+        </div>
+        <div class="squad-positions">${data.slots.map(slot => `
+          <article class="squad-position" data-status="${slot.status}">
+            <header><h3>${slot.label} <small>${slot.id}</small></h3><span>${statuses[slot.status]}</span></header>
+            <p class="text-muted">${slot.count} คน · แนะนำ ${slot.target} คน${slot.gap !== null ? ' · ตัวหลักกับสำรองห่าง ' + slot.gap + ' CA' : ''}</p>
+            <ol>${slot.players.map((player, index) => `<li><span>${index === 0 ? 'CA สูงสุด' : 'ตัวเลือก ' + (index + 1)}</span>${renderSquadPlayerName(player)}<b>${Number.isFinite(player.ca) ? player.ca : '–'}</b></li>`).join('') || '<li>ไม่พบผู้เล่นตำแหน่งหลักนี้</li>'}</ol>
+            <button type="button" class="btn btn-secondary btn-sm" data-squad-scout="${slot.positions.join(',')}">ค้นหาผู้เล่นนอกทีม</button>
+          </article>`).join('')}</div>
+        <details class="squad-method"><summary>เกณฑ์การวิเคราะห์</summary><p>ขึ้น “ควรเสริม” เมื่อจำนวนผู้เล่นตามตำแหน่งหลักน้อยกว่าจำนวนแนะนำ หรือ CA ของสองอันดับแรกห่างกันตั้งแต่ 20 แต้ม จำนวนผู้เล่นที่แนะนำใช้เกณฑ์ทั่วไป</p></details>
       </div>
       <div id="squad-view-1" hidden>${renderSquadContractPlans(data.contractPlans ?? [])}</div>
       <div id="squad-view-2" hidden>${renderSquadLoans(data.loanedPlayers ?? [], data.loanComparisonDate)}</div>
@@ -1846,6 +1992,26 @@ function updatePitchUI() {
 }
 
 async function loadPlayers() {
+  const roles = playerRoles.optionsForSelection(state.pos);
+  const roleSelect = document.getElementById('player-role');
+  if (!roles.includes(state.role)) {
+    state.role = '';
+    if (state.sort === 'roleScore') {
+      state.sort = 'ca';
+      state.order = 'desc';
+      updatePlayerSortHeaders();
+    }
+  }
+  if (roleSelect.dataset.position !== state.pos) {
+    roleSelect.replaceChildren(new Option('ทุกบทบาท', ''), ...roles.map(role => new Option(role, role)));
+    roleSelect.dataset.position = state.pos;
+  }
+  roleSelect.value = state.role;
+  document.getElementById('player-role-filter').hidden = !roles.length;
+  const attributeNames = playerRoles.keys(state.role).join(', ');
+  document.getElementById('player-role-help').textContent = attributeNames
+    ? `Tracker เฉลี่ยค่าพลัง ${attributeNames} (/20)`
+    : 'เลือกบทบาทเพื่อเรียงตามค่าพลังที่ Tracker ใช้ประเมิน';
   playerListRequest?.abort();
   const request = new AbortController();
   playerListRequest = request;
@@ -1866,6 +2032,7 @@ async function loadPlayers() {
   });
 
   if (state.baseline) params.set('baseline', state.baseline);
+  if (state.role) params.set('role', state.role);
 
   if (state.q) params.set('q', state.q);
   if (footFilter.value) params.set('foot', footFilter.value);
@@ -2030,6 +2197,7 @@ function renderTable(players, comparisonDate, refCode) {
             ${canSave ? `<button type="button" class="shortlist-star" data-player-id="${Number(p.id)}" data-ref="${escapeHtml(refCode)}" onclick="toggleShortlistStar(event, this)"></button>` : ''}
             <div class="player-name-cell">
               <button type="button" class="player-name player-name-button">${escapeHtml(p.name)}</button>
+              ${Number.isFinite(p.roleScore) ? `<span class="text-accent text-xs" title="ความเหมาะกับบทบาท">${p.roleScore.toFixed(1)}/20</span>` : ''}
               <span class="nat-badge text-muted text-xs">${renderPrimaryNationality(p.nat)}</span>
             </div>
           </div>
