@@ -2713,7 +2713,8 @@ async function triggerScan() {
       const sec = (data.elapsed / 1000).toFixed(1);
       const staffMsg = data.staffCount ? ` และทีมงาน ${sCount} คน` : '';
       const refMsg = data.refCode ? ` [เซฟ: ${formatSaveRefCode(data.refCode)}]` : '';
-      showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
+      if (data.historySaveFailed) showToast('โหลดข้อมูลเกมแล้ว แต่บันทึกรอบเปรียบเทียบไม่สำเร็จ', true);
+      else showToast(`✅ โหลดข้อมูลสำเร็จ! พบนักเตะ ${pCount} คน${staffMsg} (${sec} วิ)${refMsg}`);
       await loadStatus();
       await loadPlayers();
       if (!squadSection.hidden) await loadSquadAnalysis();

@@ -124,10 +124,12 @@ function saveHistoryStore(store) {
       console.warn('Unreadable history preserved at:', backup);
       unreadableHistory.delete(store);
     }
-    fs.writeFileSync(temporary, JSON.stringify(store, null, 2), { encoding: 'utf8', flag: 'wx' });
+    fs.writeFileSync(temporary, JSON.stringify(store), { encoding: 'utf8', flag: 'wx' });
     fs.renameSync(temporary, filePath);
+    return true;
   } catch (err) {
     console.error('Warning: could not write history store:', err.message);
+    return false;
   } finally {
     try { fs.rmSync(temporary, { force: true }); } catch (error) {
       console.warn('Could not clean temporary history file:', error.message);
@@ -511,9 +513,7 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', 
   }
 
   store.snapshots.sort((a, b) => a.gameDate.localeCompare(b.gameDate));
-  saveHistoryStore(store);
-
-  return snapObj;
+  return saveHistoryStore(store) ? snapObj : null;
 }
 
 function renameSnapshotDate(oldGameDate, newGameDate, manager = '', club = '', refCode = '', players = null) {

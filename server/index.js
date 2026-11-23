@@ -405,6 +405,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/scan' && req.method === 'POST') {
     runScan().then(result => {
       let refCode = null;
+      let historySaveFailed = false;
       if (result.ok) {
         cachedDump = getLatestDump();
         cachedRefCode = null;
@@ -416,8 +417,9 @@ const server = http.createServer(async (req, res) => {
           cachedRefCode = syncDumpWithCareer(cachedDump) || computeSaveRefCode(cachedDump.meta, cachedDump.staff);
         }
         // Auto-save snapshot after every scan (no manual confirmation needed)
-        if (cachedDump?.meta?.gameDate && !cachedDump.meta.datePending && !cachedDump.meta.managerConfirmedManually && cachedDump?.players) {
-          saveSnapshot(
+        if (cachedRefCode && cachedRefCode !== 'UNIDENTIFIED' && cachedDump?.meta?.gameDate &&
+            !cachedDump.meta.datePending && !cachedDump.meta.managerConfirmedManually && cachedDump?.players) {
+          historySaveFailed = !saveSnapshot(
             cachedDump.meta.gameDate,
             cachedDump.players,
             cachedDump.meta.manager,
@@ -431,6 +433,7 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, result.ok ? 200 : 500, {
         ...result,
         refCode,
+        historySaveFailed,
         meta: cachedDump?.meta || null
       });
     }).catch(err => {
@@ -544,6 +547,9 @@ const server = http.createServer(async (req, res) => {
           activeRefCode
         );
 
+        if (!result?.snapshot) {
+          return sendJson(res, 500, { ok: false, error: 'บันทึกประวัติไม่สำเร็จ' });
+        }
         cachedPlayersWithDeltas = null;
         cachedRefCode = computeSaveRefCode(dump.meta, dump.staff);
 
