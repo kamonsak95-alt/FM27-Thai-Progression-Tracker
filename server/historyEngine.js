@@ -560,7 +560,7 @@ function renameSnapshotDate(oldGameDate, newGameDate, manager = '', club = '', r
   return snap;
 }
 
-function listSnapshots(manager = '', club = '', refCode = '') {
+function listSnapshots(manager = '', club = '', refCode = '', throughDate = '') {
   const store = loadHistoryStore();
   const career = resolveCareer(store, { manager, myClub: club }, null, refCode);
   const targetKey = career ? career.id : getSaveKey(manager, club, refCode);
@@ -568,7 +568,7 @@ function listSnapshots(manager = '', club = '', refCode = '') {
     ? store.snapshots
     : store.snapshots.filter(s => isSnapshotMatchingSave(s, targetKey, store));
 
-  return filtered.map(s => ({
+  return filtered.filter(s => !throughDate || s.gameDate <= throughDate).map(s => ({
     id: s.id,
     gameDate: s.gameDate,
     timestamp: s.timestamp,

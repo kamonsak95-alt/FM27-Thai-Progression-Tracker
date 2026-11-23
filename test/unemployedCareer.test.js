@@ -72,6 +72,19 @@ test('a confirmed unemployed scan survives restart without identifying another s
       assert.equal(differentScan.meta.managerPending, true);
       assert.equal(JSON.parse(fs.readFileSync(history, 'utf8')).snapshots.length, 1);
     });
+    dump.meta = { ...dump.meta, manager: 'Test Manager', myClub: 'Test Club', gameDate: '2026-07-14', gameDateSource: 'memory' };
+    Object.assign(dump.staff[1], { club: 'Test Club', job: 'Manager' });
+    fs.writeFileSync(dumpFile, JSON.stringify(dump));
+    await withServer(async base => {
+      const status = await (await fetch(base + '/api/status')).json();
+      assert.equal(status.refCode, reference);
+      assert.deepEqual(status.snapshots.map(round => round.gameDate), ['2026-07-14']);
+      const list = await (await fetch(base + '/api/snapshots')).json();
+      assert.deepEqual(list.snapshots.map(round => round.gameDate), ['2026-07-14']);
+      const players = await (await fetch(base + '/api/players?baseline=2026-10-24')).json();
+      assert.equal(players.players[0].isFirstScan, true);
+      assert.equal(JSON.parse(fs.readFileSync(history, 'utf8')).snapshots.length, 2);
+    });
   } finally {
     fs.rmSync(dumpFile, { force: true });
     fs.rmSync(history, { force: true });

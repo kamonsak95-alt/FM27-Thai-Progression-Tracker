@@ -1987,6 +1987,7 @@ async function loadStatus() {
 
     // Populate snapshots dropdown if present (backwards compatibility)
     if (el.selectBaseline) {
+      state.baseline = '';
       if (data.snapshots && data.snapshots.length > 0) {
         el.selectBaseline.innerHTML = '';
         data.snapshots.forEach((snap, idx) => {

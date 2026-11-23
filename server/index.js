@@ -398,7 +398,7 @@ const server = http.createServer(async (req, res) => {
       build: await runningBuild,
       justUpdated,
       totalPlayers: dump?.players?.length || 0,
-      snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode)
+      snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode, dump?.meta?.gameDate)
     });
   }
 
@@ -443,7 +443,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/snapshots') {
     const dump = getOrLoadDump();
     const refCode = cachedRefCode;
-    return sendJson(res, 200, { snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode) });
+    return sendJson(res, 200, { snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode, dump?.meta?.gameDate) });
   }
 
   if (pathname === '/api/confirm-unemployed-manager' && req.method === 'POST') {
@@ -619,7 +619,8 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    const baselineDate = query.baseline || '';
+    const baselineDate = typeof query.baseline === 'string' && dump.meta?.gameDate && query.baseline <= dump.meta.gameDate
+      ? query.baseline : '';
     const refCode = cachedRefCode;
     const activeSaveKey = refCode || `${dump.meta?.manager || ''}__${dump.meta?.myClub || ''}`;
     if (baselineDate !== currentBaselineDate || activeSaveKey !== currentSaveKey || !cachedPlayersWithDeltas) {
