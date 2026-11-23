@@ -10,6 +10,7 @@ let state = {
   maxPA: 200,
   pos: 'ALL',
   role: '',
+  firstTeam: false,
   selectedPitchPositions: new Set(),
   natOnly: false,
   preset: 'all',
@@ -451,7 +452,16 @@ const transferFilters = new Map([
 const transferLabels = new Map(Array.from(transferFilters.get('transferStatus').options, option => [option.value, option.textContent]));
 
 function getTransferFilterValue(field) {
+  if (field.hasAttribute('data-money-filter')) {
+    const raw = field.value.replaceAll(',', '').trim();
+    const amount = Number(raw);
+    return /^\d+$/.test(raw) && Number.isSafeInteger(amount) && amount > 0 ? String(amount) : '';
+  }
   return field.validity.valid ? field.value : '';
+}
+
+function formatMoneyFilter(value) {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function initSkillChecklist({ dialogId, prefix, groupsByName, getFilters, onApply }) {
@@ -597,8 +607,8 @@ function refreshStaffFilters() {
 function getStaffExtraFilters() {
   const params = new URLSearchParams();
   const labels = [];
-  const wage = staffWage.valueAsNumber;
-  if (staffWage.validity.valid && Number.isSafeInteger(wage)) {
+  const wage = Number(getTransferFilterValue(staffWage));
+  if (wage) {
     params.set('maxWage', wage);
     labels.push(`ค่าเหนื่อย ≤ £${wage.toLocaleString()}/สัปดาห์`);
   }
@@ -648,6 +658,42 @@ function getStaffExtraFilters() {
 }
 
 function initEventListeners() {
+  for (const field of document.querySelectorAll('[data-money-filter]')) {
+    field.addEventListener('keydown', event => {
+      const caret = field.selectionStart;
+      if (caret !== field.selectionEnd) return;
+      if (event.key === 'Backspace' && field.value[caret - 1] === ',') field.setSelectionRange(caret - 1, caret - 1);
+      if (event.key === 'Delete' && field.value[caret] === ',') field.setSelectionRange(caret + 1, caret + 1);
+    });
+    field.addEventListener('input', () => {
+      field.setCustomValidity('');
+      const digits = field.value.replaceAll(',', '');
+      if (!/^\d*$/.test(digits)) return;
+      const beforeCaret = field.value.slice(0, field.selectionStart).replaceAll(',', '').length;
+      const formatted = formatMoneyFilter(digits);
+      if (field.value === formatted) return;
+      field.value = formatted;
+      let caret = 0;
+      for (let remaining = beforeCaret; remaining > 0; caret++) {
+        if (formatted[caret] !== ',') remaining--;
+      }
+      field.setSelectionRange(caret, caret);
+    });
+    const format = () => {
+      const raw = getTransferFilterValue(field);
+      field.setCustomValidity(field.value.trim() && !raw ? 'กรอกจำนวนเต็มตั้งแต่ 1 ขึ้นไป' : '');
+      if (raw) field.value = formatMoneyFilter(raw);
+      if (!field.value.trim()) field.value = '';
+    };
+    field.addEventListener('change', format);
+    field.addEventListener('blur', format);
+  }
+  const firstTeam = document.getElementById('player-first-team');
+  firstTeam.addEventListener('change', () => {
+    state.firstTeam = firstTeam.checked;
+    state.page = 1;
+    loadPlayers();
+  });
   const roleSelect = document.getElementById('player-role');
   roleSelect.addEventListener('change', () => {
     state.role = roleSelect.value;
@@ -663,7 +709,7 @@ function initEventListeners() {
   const savedSearchList = document.getElementById('saved-player-search-list');
   const saveSearchButton = document.getElementById('save-player-search');
   const rangeFields = ['minAge', 'maxAge', 'minCA', 'maxCA', 'minPA', 'maxPA'];
-  const searchFields = [...rangeFields, 'q', 'pos', 'role', 'natOnly', 'preset', 'trend', 'sort', 'order', 'excludeMyClub'];
+  const searchFields = [...rangeFields, 'q', 'pos', 'role', 'natOnly', 'preset', 'trend', 'sort', 'order', 'excludeMyClub', 'firstTeam'];
   let savedSearches = new Map();
   async function requestSavedSearches(change) {
     const response = await fetch('/api/saved-searches', change ? {
@@ -770,7 +816,11 @@ function initEventListeners() {
     clearNationality.disabled = !selectedNationality;
     footFilter.value = saved.foot;
     const transfer = new Map(saved.transfer);
-    for (const [key, field] of transferFilters) field.value = transfer.get(key) ?? '';
+    for (const [key, field] of transferFilters) {
+      const value = String(transfer.get(key) ?? '');
+      field.value = field.hasAttribute('data-money-filter') ? formatMoneyFilter(value) : value;
+      field.setCustomValidity('');
+    }
     el.filterSearch.value = state.q;
     el.btnClearSearch.style.display = state.q ? 'inline-flex' : 'none';
     if (el.checkNatOnly) el.checkNatOnly.checked = state.natOnly;
@@ -846,6 +896,7 @@ function initEventListeners() {
     el.filterStaffSearch.value = '';
     el.btnClearStaffSearch.style.display = 'none';
     staffWage.value = '';
+    staffWage.setCustomValidity('');
     staffTraining.value = '';
     staffTrainingStars.value = '';
     staffSkills.clear();
@@ -894,7 +945,10 @@ function initEventListeners() {
     divisionSearch.value = '';
     renderDivisionOptions();
     footFilter.value = '';
-    for (const field of transferFilters.values()) field.value = '';
+    for (const field of transferFilters.values()) {
+      field.value = '';
+      field.setCustomValidity('');
+    }
     selectedNationality = '';
     nationalityInput.value = '';
     clearNationality.disabled = true;
@@ -973,11 +1027,14 @@ function initEventListeners() {
   });
 
   // Presets
-  const playerPresetButtons = document.querySelectorAll('[data-preset]');
+  const playerPresetButtons = document.querySelectorAll('button[data-preset]');
+  document.getElementById('player-development-preset').addEventListener('change', event => {
+    applyPreset(event.target.value);
+    state.page = 1;
+    loadPlayers();
+  });
   playerPresetButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-      playerPresetButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
       applyPreset(btn.dataset.preset);
       state.page = 1;
       loadPlayers();
@@ -1525,6 +1582,7 @@ function updatePlayerFilterSummary() {
     const preset = document.querySelector(`[data-preset="${state.preset}"]`);
     if (preset) labels.push(preset.textContent.trim());
   }
+  if (state.preset === 'myclub' && state.firstTeam) labels.push('เฉพาะชุดใหญ่');
   if (state.minAge !== 15 || state.maxAge !== (state.preset === 'wonderkids' ? 21 : 45)) {
     labels.push(`อายุ ${state.minAge}–${state.maxAge} ปี`);
   }
@@ -1548,6 +1606,7 @@ function applyPreset(preset) {
   const leavingWonderkids = state.preset === 'wonderkids' && preset !== 'wonderkids';
   if (preset === 'myclub') state.excludeMyClub = false;
   state.preset = preset;
+  if (preset !== 'myclub') state.firstTeam = false;
   state.trend = '';
   if (preset === 'all' || leavingWonderkids) {
     state.minAge = 15; state.maxAge = 45;
@@ -1992,6 +2051,14 @@ function updatePitchUI() {
 }
 
 async function loadPlayers() {
+  document.getElementById('player-first-team-option').hidden = state.preset !== 'myclub';
+  document.getElementById('player-first-team').checked = state.firstTeam === true;
+  const developmentPreset = document.getElementById('player-development-preset');
+  developmentPreset.value = ['explosive', 'declining', 'growth'].includes(state.preset) ? state.preset : '';
+  developmentPreset.classList.toggle('active', Boolean(developmentPreset.value));
+  for (const button of document.querySelectorAll('button[data-preset]')) {
+    button.classList.toggle('active', button.dataset.preset === state.preset);
+  }
   const roles = playerRoles.optionsForSelection(state.pos);
   const roleSelect = document.getElementById('player-role');
   if (!roles.includes(state.role)) {
@@ -2048,7 +2115,10 @@ async function loadPlayers() {
   if (state.trend) params.set('trend', state.trend);
   if (state.natOnly) params.set('natOnly', '1');
   if (state.preset === 'wonderkids') params.set('wonderkids', '1');
-  if (state.preset === 'myclub') params.set('myClub', '1');
+  if (state.preset === 'myclub') {
+    params.set('myClub', '1');
+    if (state.firstTeam) params.set('firstTeam', '1');
+  }
   try {
     const ref = state.refCode;
     if (ref?.startsWith('#') && !serverShortlists.has(ref)) {

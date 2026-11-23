@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.40-squad-pitch-restored">
+  <link rel="stylesheet" href="style.css?v=1.0.41-first-team">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -120,11 +120,19 @@
         <div class="quick-filters">
           <button class="pill-btn active" data-preset="all">ทั้งหมด</button>
           <button class="pill-btn" data-preset="wonderkids">Wonderkids</button>
-          <button class="pill-btn" data-preset="explosive">ก้าวกระโดด</button>
-          <button class="pill-btn" data-preset="declining">เริ่มถดถอย</button>
-          <button class="pill-btn" data-preset="myclub">นักเตะทีมเรา</button>
-          <button class="pill-btn" data-preset="growth">พัฒนาการสูงสุด</button>
+          <div class="my-club-preset">
+            <button class="pill-btn" data-preset="myclub">นักเตะทีมเรา</button>
+            <label id="player-first-team-option" class="text-sm" hidden>
+              <input type="checkbox" id="player-first-team"> เฉพาะชุดใหญ่
+            </label>
+          </div>
           <button class="pill-btn" data-preset="shortlist">Shortlist</button>
+          <select id="player-development-preset" class="pill-btn" aria-label="ตัวกรองพัฒนาการ">
+            <option value="" disabled selected>พัฒนาการ</option>
+            <option data-preset="explosive" value="explosive">ก้าวกระโดด</option>
+            <option data-preset="declining" value="declining">เริ่มถดถอย</option>
+            <option data-preset="growth" value="growth">พัฒนาการสูงสุด</option>
+          </select>
         </div>
       </div>
 
@@ -257,8 +265,8 @@
       </div>
         </div>
       <div class="player-transfer-filters">
-        <label>มูลค่าสูงสุด (£)<input type="number" id="filter-max-value" class="form-input" min="1" max="9007199254740991" placeholder="ไม่จำกัด"></label>
-        <label>ค่าเหนื่อยสูงสุด (£/สัปดาห์)<input type="number" id="filter-max-wage" class="form-input" min="1" max="9007199254740991" placeholder="ไม่จำกัด"></label>
+        <label>มูลค่าสูงสุด (£)<input type="text" inputmode="numeric" data-money-filter id="filter-max-value" class="form-input" placeholder="ไม่จำกัด"></label>
+        <label>ค่าเหนื่อยสูงสุด (£/สัปดาห์)<input type="text" inputmode="numeric" data-money-filter id="filter-max-wage" class="form-input" placeholder="ไม่จำกัด"></label>
         <label>สถานะย้ายทีม
           <select id="filter-transfer-status" class="form-select">
             <option value="">ทุกสถานะ</option><option value="free">ไร้สังกัด</option>
@@ -612,7 +620,7 @@
         <div class="player-extra-filter-grid staff-extra-grid staff-filter-recruitment">
           <div class="filter-group">
             <label for="staff-max-wage">ค่าเหนื่อยสูงสุด (£/สัปดาห์)</label>
-            <input id="staff-max-wage" class="form-input" type="number" min="1" placeholder="ไม่จำกัด">
+            <input id="staff-max-wage" class="form-input" type="text" inputmode="numeric" data-money-filter placeholder="ไม่จำกัด">
           </div>
           <div class="filter-group">
             <label for="staff-training">หมวดฝึกซ้อม</label>
@@ -1049,7 +1057,7 @@
   <script src="nationality-flags.js"></script>
   <script src="staff-comparison.js?v=1.0.34"></script>
   <script src="player-roles.js?v=1.0.40-role-multiple"></script>
-  <script src="app.js?v=1.0.40-squad-pitch-restored"></script>
+  <script src="app.js?v=1.0.41-live-money-filters"></script>
   <script src="replacement.js?v=1.0.35"></script>
 </body>
 </html>

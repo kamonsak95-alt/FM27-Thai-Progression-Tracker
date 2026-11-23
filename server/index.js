@@ -701,6 +701,9 @@ const server = http.createServer(async (req, res) => {
     if (query.myClub === '1' && dump.meta?.myClub) {
       result = result.filter(p => p.club === dump.meta.myClub);
     }
+    if (query.myClub === '1' && query.firstTeam === '1') {
+      result = dump.meta?.myClub ? result.filter(player => player.teamType === 0) : [];
+    }
 
     if (rolePositions.length) {
       const keys = playerRoles.keys(role);

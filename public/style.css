@@ -590,6 +590,14 @@ body {
   flex-wrap: wrap;
 }
 
+.quick-filters:has(.my-club-preset) { align-items: flex-start; }
+.my-club-preset {
+  display: grid;
+  gap: 4px;
+  align-self: flex-start;
+}
+.my-club-preset label { white-space: nowrap; }
+
 .pill-btn {
   background: #101c2c;
   border: 1px solid var(--border-color);
