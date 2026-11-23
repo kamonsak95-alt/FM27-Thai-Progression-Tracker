@@ -419,7 +419,8 @@ function confirmScanRoundDate(storeOrMeta, metaOrDate, confirmedDateOrPlayers, p
   }
 
   // Save the snapshot for this confirmed date
-  const snapshot = saveSnapshot(validDate, players, meta.manager, meta.myClub, saveKey, staff);
+  const confirmedScan = meta.managerConfirmedManually ? meta.generated : undefined;
+  const snapshot = saveSnapshot(validDate, players, meta.manager, meta.myClub, saveKey, staff, confirmedScan);
   return { career, snapshot, gameDate: validDate };
 }
 
@@ -445,7 +446,7 @@ function buildSnapshotPlayerMap(players) {
  * Saves a new snapshot by gameDate and save/career.
  * Updates snapshot if CA/PA or player details changed on same game date.
  */
-function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', staff = []) {
+function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', staff = [], confirmedScan) {
   if (refCode === UNIDENTIFIED_SAVE) return null;
   const store = loadHistoryStore();
   const career = resolveCareer(store, { manager, myClub: club }, staff, refCode);
@@ -463,7 +464,8 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', 
     const existing = store.snapshots[existingIdx];
     let isIdentical = (existing.totalPlayers === players.length) &&
       (existing.manager === manager) &&
-      (existing.club === club);
+      (existing.club === club) &&
+      (!confirmedScan || existing.confirmedScan === confirmedScan);
 
     if (isIdentical) {
       const oldP = existing.players || {};
@@ -500,6 +502,7 @@ function saveSnapshot(gameDate, players, manager = '', club = '', refCode = '', 
     totalPlayers: players.length,
     players: playerMap
   };
+  if (confirmedScan) snapObj.confirmedScan = confirmedScan;
 
   if (existingIdx >= 0) {
     store.snapshots[existingIdx] = snapObj;

@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.41-first-team">
+  <link rel="stylesheet" href="style.css?v=1.0.42-manager-button">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -67,6 +67,7 @@
           <div class="info-pill manager-pill" id="manager-badge" title="ผู้จัดการทีม / กุนซือ (Gaffer)">
             <span class="pill-label">กุนซือ:</span>
             <span class="pill-value manager-name" id="info-manager">กำลังโหลด...</span>
+            <button type="button" id="open-manager-confirmation" class="btn btn-secondary btn-sm" hidden>ยืนยันกุนซือและวันที่</button>
           </div>
           <div class="info-pill" id="save-badge" title="รหัสเซฟเกมเฉพาะตัว (ระบบตรวจจับจากตัวเกมให้อัตโนมัติ ไม่ต้องสลับเอง)">
             <span class="pill-label">เซฟเกม:</span>
@@ -1057,7 +1058,19 @@
   <script src="nationality-flags.js"></script>
   <script src="staff-comparison.js?v=1.0.34"></script>
   <script src="player-roles.js?v=1.0.40-role-multiple"></script>
-  <script src="app.js?v=1.0.41-live-money-filters"></script>
+  <dialog id="manager-confirmation" class="feedback-dialog" aria-labelledby="manager-confirmation-title">
+    <form id="manager-confirmation-form">
+      <h2 id="manager-confirmation-title">ยืนยันกุนซือและวันที่ในเกม</h2>
+      <p>กรอกชื่อเต็มหรือ ID กุนซือจากในเกม ถ้ามีประวัติเดิม เลือกจากรายการได้</p>
+      <label>ชื่อเต็มหรือ ID กุนซือ<input name="managerQuery" class="form-input" list="manager-confirmation-choices" required autocomplete="off"></label>
+      <datalist id="manager-confirmation-choices"></datalist>
+      <label id="manager-confirmation-date">วันที่ในเกม<input name="gameDate" class="form-input" type="date" required></label>
+      <p id="manager-confirmation-error" role="status"></p>
+      <button type="button" id="cancel-manager-confirmation" class="btn btn-secondary">ยกเลิก</button>
+      <button type="submit" class="btn btn-primary">ยืนยันและบันทึก</button>
+    </form>
+  </dialog>
+  <script src="app.js?v=1.0.42-unemployed-keep-date"></script>
   <script src="replacement.js?v=1.0.35"></script>
 </body>
 </html>

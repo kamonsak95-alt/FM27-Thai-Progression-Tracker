@@ -87,24 +87,69 @@ function getNationalities(player) {
     .filter(value => value && value !== '-');
 }
 
+function isUnemployedManagerCandidate(person) {
+  return !person.club?.trim() && ['Manager', 'Staflid'].includes(person.job) &&
+    Number.isSafeInteger(person.id) && person.id > 0 && person.age > 0;
+}
+
 function syncDumpWithCareer(dump) {
   if (!dump || !dump.meta) return;
   const store = loadHistoryStore();
+  const { meta, staff } = dump;
+  if (!meta.myClub && meta.generated) {
+    const snapshot = store.snapshots.find(round => round.confirmedScan === meta.generated);
+    const career = snapshot && store.careers.find(career => career.id === snapshot.careerId);
+    const manager = career && staff?.find(person => person.id === career.managerId && isUnemployedManagerCandidate(person));
+    if (manager) {
+      Object.assign(meta, {
+        manager: manager.name,
+        rawGameDate: meta.gameDate,
+        gameDate: snapshot.gameDate,
+        gameDateSource: 'manual',
+        gameDateConfirmed: true,
+        managerConfirmedManually: true
+      });
+      return career.refCode;
+    }
+  }
+  const reported = !meta.myClub && staff?.filter(person =>
+    person.name.trim().toLowerCase() === meta.manager?.trim().toLowerCase());
+  const trustedManager = reported?.length === 1 && isUnemployedManagerCandidate(reported[0]) ? reported[0] : null;
+  const knownCareer = trustedManager && store.careers.find(career => career.managerId === trustedManager.id);
+  if (knownCareer?.confirmedGameDate && meta.gameDateSource !== 'memory') {
+    meta.rawGameDate = meta.gameDate;
+    meta.gameDate = knownCareer.confirmedGameDate;
+    meta.gameDateEstimated = true;
+    meta.datePending = true;
+    meta.suggestedManagerName = trustedManager.name;
+    return;
+  }
+  if (!meta.myClub && !meta.managerConfirmedManually &&
+      (!trustedManager || meta.gameDateSource !== 'memory')) {
+    if (trustedManager) meta.suggestedManagerName = trustedManager.name;
+    meta.manager = null;
+    meta.managerPending = true;
+    meta.managerChoices = store.careers.flatMap(career => {
+      const person = staff?.find(person => person.id === career.managerId && isUnemployedManagerCandidate(person));
+      return person ? [{ id: person.id, name: person.name, ref: career.refCode }] : [];
+    });
+    return;
+  }
   const career = resolveCareer(store, dump.meta, dump.staff);
   resolveEffectiveGameDate(dump.meta, career, store);
 }
 
 function getOrLoadDump() {
   if (!cachedDump) {
+    if (process.env.FM27_FRESH_SCAN_ONLY === '1') return null;
     cachedDump = getLatestDump();
     if (cachedDump) {
       if (!cachedDump.meta) cachedDump.meta = {};
       cachedDump.meta.scanId = cachedDump.meta.scanId || `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      syncDumpWithCareer(cachedDump);
-      cachedRefCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
+      cachedRefCode = syncDumpWithCareer(cachedDump) || computeSaveRefCode(cachedDump.meta, cachedDump.staff);
     }
     // Auto-save snapshot whenever we have valid data (no manual confirmation needed)
-    if (cachedDump?.meta?.gameDate && cachedDump?.players) {
+    if (cachedDump?.meta?.gameDate && !cachedDump.meta.datePending && !cachedDump.meta.managerConfirmedManually && cachedDump?.players) {
       saveSnapshot(
         cachedDump.meta.gameDate,
         cachedDump.players,
@@ -368,11 +413,10 @@ const server = http.createServer(async (req, res) => {
           if (!cachedDump.meta) cachedDump.meta = {};
           cachedDump.meta.scanId = `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
           cachedDump.meta.gameDateConfirmed = false;
-          syncDumpWithCareer(cachedDump);
-          cachedRefCode = computeSaveRefCode(cachedDump.meta, cachedDump.staff);
+          cachedRefCode = syncDumpWithCareer(cachedDump) || computeSaveRefCode(cachedDump.meta, cachedDump.staff);
         }
         // Auto-save snapshot after every scan (no manual confirmation needed)
-        if (cachedDump?.meta?.gameDate && cachedDump?.players) {
+        if (cachedDump?.meta?.gameDate && !cachedDump.meta.datePending && !cachedDump.meta.managerConfirmedManually && cachedDump?.players) {
           saveSnapshot(
             cachedDump.meta.gameDate,
             cachedDump.players,
@@ -400,6 +444,51 @@ const server = http.createServer(async (req, res) => {
     const dump = getOrLoadDump();
     const refCode = cachedRefCode;
     return sendJson(res, 200, { snapshots: listSnapshots(dump?.meta?.manager, dump?.meta?.myClub, refCode) });
+  }
+
+  if (pathname === '/api/confirm-unemployed-manager' && req.method === 'POST') {
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname) ||
+        !['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) ||
+        req.headers['x-fm27-confirm-manager'] !== '1' ||
+        (req.headers.origin && req.headers.origin !== parsedUrl.origin)) {
+      return sendJson(res, 403, { error: 'ยืนยันกุนซือจาก Tracker บนเครื่องนี้เท่านั้น' });
+    }
+    try {
+      let body = '';
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 4096) return sendJson(res, 413, { error: 'คำขอยาวเกินไป' });
+      }
+      const { scanId, managerQuery, gameDate } = JSON.parse(body);
+      const dump = getOrLoadDump();
+      if (!(dump?.meta?.managerPending || dump?.meta?.datePending) || scanId !== dump.meta.scanId) {
+        return sendJson(res, 409, { error: 'รอบสแกนเปลี่ยนแล้ว กรุณาโหลดหน้าใหม่' });
+      }
+      const query = typeof managerQuery === 'string' ? managerQuery.trim().toLowerCase() : '';
+      const matches = query ? (dump.staff ?? []).filter(person =>
+        isUnemployedManagerCandidate(person) && (String(person.id) === query || person.name.trim().toLowerCase() === query)
+      ) : [];
+      if (matches.length !== 1) {
+        return sendJson(res, 400, { error: 'ไม่พบกุนซือว่างงานที่ตรงกันคนเดียว ลองกรอก ID จากในเกม' });
+      }
+      const manager = matches[0];
+      const choice = dump.meta.managerChoices?.find(choice => choice.id === manager.id);
+      const date = dump.meta.gameDateSource === 'memory' ? dump.meta.gameDate : gameDate;
+      if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+          new Date(date).toJSON()?.slice(0, 10) !== date) {
+        return sendJson(res, 400, { error: 'กรุณากรอกวันที่ในเกมให้ถูกต้อง' });
+      }
+      const meta = { ...dump.meta, manager: manager.name, rawGameDate: dump.meta.rawGameDate || dump.meta.gameDate,
+        gameDateEstimated: false, gameDateSource: 'manual', managerPending: false, datePending: false, managerConfirmedManually: true };
+      const result = confirmScanRoundDate(meta, date, dump.players, [manager], choice?.ref);
+      if (!result?.snapshot) return sendJson(res, 409, { error: 'บันทึกรอบนี้เข้าประวัติเซฟไม่ได้' });
+      dump.meta = meta;
+      cachedRefCode = result.career.refCode;
+      cachedPlayersWithDeltas = null;
+      return sendJson(res, 200, { ok: true });
+    } catch {
+      return sendJson(res, 400, { error: 'ยืนยันข้อมูลรอบสแกนไม่สำเร็จ' });
+    }
   }
 
   if ((pathname === '/api/confirm-date' || pathname === '/api/set-date') && req.method === 'POST') {

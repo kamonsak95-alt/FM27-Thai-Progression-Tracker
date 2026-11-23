@@ -2732,3 +2732,5 @@ body {
 #changelog-modal-close { position: absolute; top: 1rem; right: 1.25rem; }
 #changelog-modal .modal-header { padding-inline-end: 42px; }
 #btn-changelog-close[hidden] { display: none; }
+#open-manager-confirmation[hidden],
+#manager-confirmation-date[hidden] { display: none; }

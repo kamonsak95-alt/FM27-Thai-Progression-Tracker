@@ -658,6 +658,45 @@ function getStaffExtraFilters() {
 }
 
 function initEventListeners() {
+  const managerDialog = document.getElementById('manager-confirmation');
+  const managerForm = document.getElementById('manager-confirmation-form');
+  const managerError = document.getElementById('manager-confirmation-error');
+  document.getElementById('open-manager-confirmation').onclick = () => {
+    managerForm.reset();
+    managerForm.elements.managerQuery.value = state.suggestedManagerName || '';
+    const date = managerForm.elements.gameDate;
+    date.required = state.managerDateRequired;
+    document.getElementById('manager-confirmation-date').hidden = !date.required;
+    managerError.textContent = '';
+    managerDialog.showModal();
+  };
+  document.getElementById('cancel-manager-confirmation').onclick = () => managerDialog.close();
+  managerForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submit = event.submitter;
+    submit.disabled = true;
+    managerError.textContent = '';
+    try {
+      const response = await fetch('/api/confirm-unemployed-manager', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-FM27-Confirm-Manager': '1' },
+        body: JSON.stringify({
+          scanId: state.scanId,
+          managerQuery: managerForm.elements.managerQuery.value,
+          gameDate: managerForm.elements.gameDate.value
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      managerDialog.close();
+      await loadStatus();
+      await loadPlayers();
+    } catch (error) {
+      managerError.textContent = error.message;
+    } finally {
+      submit.disabled = false;
+    }
+  });
   for (const field of document.querySelectorAll('[data-money-filter]')) {
     field.addEventListener('keydown', event => {
       const caret = field.selectionStart;
@@ -1904,7 +1943,22 @@ async function loadStatus() {
       state.refCode = data.refCode || '';
       el.infoClub.textContent = state.myClub;
       el.infoDate.textContent = formatGameDate(state.gameDate) || 'ไม่ทราบวันที่';
-      if (el.infoManager) el.infoManager.textContent = data.meta.manager || 'ไม่ระบุ';
+      if (el.infoManager) el.infoManager.textContent = data.meta.manager || data.meta.suggestedManagerName ||
+        (data.meta.managerPending ? 'ต้องยืนยันกุนซือ' : 'ไม่ระบุ');
+      if (!data.meta.myClub && (data.meta.suggestedManagerName || data.meta.managerConfirmedManually || (data.meta.manager && data.refCode?.startsWith('#')))) {
+        el.infoClub.textContent = 'ว่างงาน';
+      }
+      state.managerDateRequired = data.meta.gameDateSource !== 'memory';
+      state.suggestedManagerName = data.meta.suggestedManagerName;
+      const confirmation = document.getElementById('open-manager-confirmation');
+      confirmation.hidden = !data.meta.managerPending && !data.meta.datePending;
+      confirmation.textContent = data.meta.datePending ? 'อัปเดตวันที่ในเกม'
+        : data.meta.suggestedManagerName ? 'ระบุวันที่ในเกม' : 'ยืนยันกุนซือและวันที่';
+      document.getElementById('manager-confirmation-title').textContent = data.meta.suggestedManagerName
+        ? 'ระบุวันที่ในเกม' : 'ยืนยันกุนซือและวันที่ในเกม';
+      document.getElementById('manager-confirmation-choices').replaceChildren(
+        ...(data.meta.managerChoices ?? []).map(choice => new Option(`${choice.name} · ${choice.ref}`, choice.id))
+      );
 
       const dateBadgeEl = document.getElementById('date-badge');
       const isEstimated = data.meta.gameDateEstimated === true || data.meta.gameDateSource === 'derived';
@@ -1914,7 +1968,9 @@ async function loadStatus() {
     }
 
     if (el.infoSave) {
-      el.infoSave.textContent = formatSaveRefCode(data.refCode);
+      el.infoSave.textContent = data.meta?.managerPending && data.meta.suggestedManagerName
+        ? 'รอระบุวันที่ในเกม'
+        : formatSaveRefCode(data.refCode);
     }
 
     // Update baseline info badge in header
