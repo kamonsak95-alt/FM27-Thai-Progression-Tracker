@@ -336,6 +336,7 @@ let staffListRequest;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  initHistorySaves();
   document.querySelectorAll('.pos-btn, .compact-pos-pill, .pitch-btn, .pitch-preset-btn').forEach(button => {
     const group = getPositionGroup(button.dataset.pos || button.dataset.presetPos);
     if (group) button.dataset.positionGroup = group;
@@ -624,7 +625,7 @@ function getStaffExtraFilters() {
   }
   if (stateStaff.q.trim()) labels.unshift(`ค้นหา “${stateStaff.q.trim()}”`);
   if (stateStaff.preset !== 'all') {
-    const preset = document.querySelector(`[data-staff-preset="${stateStaff.preset}"]`);
+    const preset = document.querySelector(`[data-staff-preset="${CSS.escape(stateStaff.preset)}"]`);
     if (preset) labels.push(preset.textContent.trim());
   }
   for (const id of ['filter-staff-role', 'filter-staff-status', 'filter-staff-rep']) {
@@ -645,7 +646,7 @@ function getStaffExtraFilters() {
     params.set('includePreferredRole', '1');
     labels.push('รวมคนที่สนใจทำตำแหน่งนี้');
   }
-  const canReset = labels.length || stateStaff.sort !== 'ca' || stateStaff.order !== 'desc';
+  const canReset = labels.length || document.getElementById('saved-staff-search').dataset.selected || stateStaff.sort !== 'ca' || stateStaff.order !== 'desc';
   document.getElementById('clear-staff-extras').disabled = !canReset;
   const summary = document.getElementById('staff-active-filters');
   document.getElementById('staff-filter-summary').hidden = !labels.length;
@@ -655,6 +656,104 @@ function getStaffExtraFilters() {
     return chip;
   }));
   return params;
+}
+
+function initSavedFilters(scope, capture, restore, refreshSummary, savedSearchKey) {
+  const savedSearchMenu = document.getElementById(`saved-${scope}-search`);
+  const savedSearchLabel = document.getElementById(`saved-${scope}-search-label`);
+  const savedSearchList = document.getElementById(`saved-${scope}-search-list`);
+  const saveSearchButton = document.getElementById(`save-${scope}-search`);
+  let savedSearches = new Map();
+  async function requestSavedSearches(change) {
+    const response = await fetch('/api/saved-searches?scope=' + scope, change ? {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-FM27-Saved-Searches': '1' },
+      body: JSON.stringify(change)
+    } : undefined);
+    if (!response.ok) throw new Error('Saved searches request failed');
+    savedSearches = new Map(await response.json());
+    renderSavedSearches();
+  }
+  function selectSavedSearch(name = '') {
+    savedSearchMenu.dataset.selected = name;
+    savedSearchLabel.textContent = name || 'เลือกฟิลเตอร์';
+  }
+  function renderSavedSearches() {
+    savedSearchList.replaceChildren();
+    if (!savedSearches.size) {
+      const empty = document.createElement('li');
+      empty.textContent = 'ยังไม่มีฟิลเตอร์ที่บันทึกไว้';
+      savedSearchList.append(empty);
+    }
+    for (const name of savedSearches.keys()) {
+      const row = document.createElement('li');
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = 'btn btn-secondary btn-sm';
+      pick.textContent = name;
+      pick.addEventListener('click', () => applySavedSearch(name));
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn btn-clear-filters btn-sm';
+      remove.textContent = 'ลบ';
+      remove.setAttribute('aria-label', `ลบฟิลเตอร์ ${name}`);
+      remove.addEventListener('click', async () => {
+        if (!confirm(`ลบฟิลเตอร์ “${name}” หรือไม่?`)) return;
+        remove.disabled = true;
+        try {
+          await requestSavedSearches({ action: 'delete', name });
+          if (savedSearchMenu.dataset.selected === name) selectSavedSearch();
+          refreshSummary();
+          savedSearchLabel.focus();
+        } catch {
+          remove.disabled = false;
+          showToast('ลบฟิลเตอร์ไม่สำเร็จ', true);
+        }
+      });
+      row.append(pick, remove);
+      savedSearchList.append(row);
+    }
+  }
+  saveSearchButton.disabled = true;
+  requestSavedSearches().then(async () => {
+    if (!savedSearchKey) return;
+    const entries = JSON.parse(localStorage.getItem(savedSearchKey) ?? '[]');
+    if (!entries.length) return;
+    await requestSavedSearches({ action: 'import', entries });
+    localStorage.removeItem(savedSearchKey);
+  }).catch(() => showToast('โหลดหรือย้ายฟิลเตอร์เดิมไม่สำเร็จ', true))
+    .finally(() => { saveSearchButton.disabled = false; });
+  saveSearchButton.addEventListener('click', async () => {
+    const name = prompt('ตั้งชื่อฟิลเตอร์')?.trim();
+    if (!name) return;
+    if (savedSearches.has(name) && !confirm(`บันทึกทับฟิลเตอร์ “${name}” หรือไม่?`)) return;
+    const value = capture();
+    saveSearchButton.disabled = true;
+    try {
+      await requestSavedSearches({ action: 'save', name, value });
+      selectSavedSearch(name);
+      refreshSummary();
+      showToast(`บันทึกฟิลเตอร์ “${name}” แล้ว`);
+    } catch {
+      showToast('บันทึกฟิลเตอร์ไม่สำเร็จ', true);
+    } finally {
+      saveSearchButton.disabled = false;
+    }
+  });
+  async function applySavedSearch(name) {
+    const saved = savedSearches.get(name);
+    if (!saved) return;
+    savedSearchMenu.open = false;
+    savedSearchLabel.focus();
+    try {
+      await restore(saved);
+      selectSavedSearch(name);
+      refreshSummary();
+    } catch {
+      showToast('ใช้ฟิลเตอร์ไม่สำเร็จ', true);
+    }
+  }
+  return selectSavedSearch;
 }
 
 function initEventListeners() {
@@ -742,77 +841,9 @@ function initEventListeners() {
     state.page = 1;
     loadPlayers();
   });
-  const savedSearchKey = 'fm27.player-searches.v1';
-  const savedSearchMenu = document.getElementById('saved-player-search');
-  const savedSearchLabel = document.getElementById('saved-player-search-label');
-  const savedSearchList = document.getElementById('saved-player-search-list');
-  const saveSearchButton = document.getElementById('save-player-search');
   const rangeFields = ['minAge', 'maxAge', 'minCA', 'maxCA', 'minPA', 'maxPA'];
   const searchFields = [...rangeFields, 'q', 'pos', 'role', 'natOnly', 'preset', 'trend', 'sort', 'order', 'excludeMyClub', 'firstTeam'];
-  let savedSearches = new Map();
-  async function requestSavedSearches(change) {
-    const response = await fetch('/api/saved-searches', change ? {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-FM27-Saved-Searches': '1' },
-      body: JSON.stringify(change)
-    } : undefined);
-    if (!response.ok) throw new Error('Saved searches request failed');
-    savedSearches = new Map(await response.json());
-    renderSavedSearches();
-  }
-  function selectSavedSearch(name = '') {
-    savedSearchMenu.dataset.selected = name;
-    savedSearchLabel.textContent = name || 'เลือกชุดค้นหา';
-  }
-  function renderSavedSearches() {
-    savedSearchList.replaceChildren();
-    if (!savedSearches.size) {
-      const empty = document.createElement('li');
-      empty.textContent = 'ยังไม่มีชุดค้นหาที่บันทึกไว้';
-      savedSearchList.append(empty);
-    }
-    for (const name of savedSearches.keys()) {
-      const row = document.createElement('li');
-      const pick = document.createElement('button');
-      pick.type = 'button';
-      pick.className = 'btn btn-secondary btn-sm';
-      pick.textContent = name;
-      pick.addEventListener('click', () => applySavedSearch(name));
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'btn btn-clear-filters btn-sm';
-      remove.textContent = 'ลบ';
-      remove.setAttribute('aria-label', `ลบชุดค้นหา ${name}`);
-      remove.addEventListener('click', async () => {
-        if (!confirm(`ลบชุดค้นหา “${name}” หรือไม่?`)) return;
-        remove.disabled = true;
-        try {
-          await requestSavedSearches({ action: 'delete', name });
-          if (savedSearchMenu.dataset.selected === name) selectSavedSearch();
-          updatePlayerFilterSummary();
-          savedSearchLabel.focus();
-        } catch {
-          remove.disabled = false;
-          showToast('ลบชุดค้นหาไม่สำเร็จ', true);
-        }
-      });
-      row.append(pick, remove);
-      savedSearchList.append(row);
-    }
-  }
-  saveSearchButton.disabled = true;
-  requestSavedSearches().then(async () => {
-    const entries = JSON.parse(localStorage.getItem(savedSearchKey) ?? '[]');
-    if (!entries.length) return;
-    await requestSavedSearches({ action: 'import', entries });
-    localStorage.removeItem(savedSearchKey);
-  }).catch(() => showToast('โหลดหรือย้ายชุดค้นหาเดิมไม่สำเร็จ', true))
-    .finally(() => { saveSearchButton.disabled = false; });
-  saveSearchButton.addEventListener('click', async () => {
-    const name = prompt('ตั้งชื่อชุดค้นหา')?.trim();
-    if (!name) return;
-    if (savedSearches.has(name) && !confirm(`บันทึกทับชุดค้นหา “${name}” หรือไม่?`)) return;
-    const value = {
+  const selectSavedSearch = initSavedFilters('player', () => ({
       filters: Object.fromEntries(searchFields.map(field => [field, state[field]])),
       positions: [...state.selectedPitchPositions],
       attributes: [...attributeFilters],
@@ -821,25 +852,7 @@ function initEventListeners() {
       nationality: selectedNationality,
       foot: footFilter.value,
       transfer: [...transferFilters].map(([key, field]) => [key, getTransferFilterValue(field)])
-    };
-    saveSearchButton.disabled = true;
-    try {
-      await requestSavedSearches({ action: 'save', name, value });
-      selectSavedSearch(name);
-      updatePlayerFilterSummary();
-      showToast(`บันทึกชุดค้นหา “${name}” แล้ว`);
-    } catch {
-      showToast('บันทึกชุดค้นหาไม่สำเร็จ', true);
-    } finally {
-      saveSearchButton.disabled = false;
-    }
-  });
-  function applySavedSearch(name) {
-    const saved = savedSearches.get(name);
-    if (!saved) return;
-    selectSavedSearch(name);
-    savedSearchMenu.open = false;
-    savedSearchLabel.focus();
+    }), saved => {
     clearTimeout(debounceTimer);
     for (const field of searchFields) state[field] = saved.filters[field];
     state.page = 1;
@@ -873,7 +886,36 @@ function initEventListeners() {
     updatePitchUI();
     updatePlayerSortHeaders();
     loadPlayers();
-  }
+  }, updatePlayerFilterSummary, 'fm27.player-searches.v1');
+  const staffFields = [...rangeFields, 'q', 'category', 'role', 'status', 'rep', 'preset', 'sort', 'order'];
+  const selectSavedStaffFilter = initSavedFilters('staff', () => ({
+    filters: Object.fromEntries(staffFields.map(field => [field, stateStaff[field]])),
+    skills: [...staffSkills],
+    preferredRole: staffPreferredRole.checked,
+    training: staffTraining.value,
+    stars: staffTrainingStars.value,
+    wage: getTransferFilterValue(staffWage)
+  }), async saved => {
+    await loadStaffOptions();
+    clearTimeout(debounceStaffTimer);
+    for (const field of staffFields) stateStaff[field] = saved.filters[field];
+    el.filterStaffSearch.value = stateStaff.q;
+    el.btnClearStaffSearch.style.display = stateStaff.q ? 'inline-flex' : 'none';
+    el.filterStaffRole.value = stateStaff.category === 'all' ? stateStaff.role : 'cat:' + stateStaff.category;
+    el.filterStaffStatus.value = stateStaff.status;
+    el.filterStaffRep.value = stateStaff.rep;
+    staffPreferredRole.checked = saved.preferredRole === true;
+    staffTraining.value = saved.training;
+    staffTrainingStars.value = saved.stars;
+    staffWage.value = formatMoneyFilter(String(saved.wage ?? ''));
+    staffWage.setCustomValidity('');
+    staffSkills = new Map(saved.skills);
+    for (const button of document.querySelectorAll('.staff-preset-btn')) {
+      button.classList.toggle('active', button.dataset.staffPreset === stateStaff.preset);
+    }
+    syncStaffRanges();
+    refreshStaffFilters();
+  }, getStaffExtraFilters);
   const headerNav = document.querySelector('.header-nav-tabs');
   const appHeader = document.querySelector('.app-header');
   const headerStatus = appHeader.querySelector('.header-status');
@@ -929,7 +971,8 @@ function initEventListeners() {
       refreshStaffFilters();
     });
   }
-  document.getElementById('clear-staff-extras').addEventListener('click', () => {
+  function resetStaffFilters(preset) {
+    selectSavedStaffFilter();
     clearTimeout(debounceStaffTimer);
     stateStaff.q = '';
     el.filterStaffSearch.value = '';
@@ -940,12 +983,13 @@ function initEventListeners() {
     staffTrainingStars.value = '';
     staffSkills.clear();
     document.querySelectorAll('.staff-preset-btn').forEach(button => {
-      button.classList.toggle('active', button.dataset.staffPreset === 'all');
+      button.classList.toggle('active', button.dataset.staffPreset === preset);
     });
-    applyStaffPreset('all');
+    applyStaffPreset(preset);
     el.filterStaffSearch.focus();
     refreshStaffFilters();
-  });
+  }
+  document.getElementById('clear-staff-extras').addEventListener('click', () => resetStaffFilters('all'));
   for (const field of transferFilters.values()) {
     field.addEventListener('change', () => {
       if (!field.reportValidity()) return;
@@ -960,6 +1004,11 @@ function initEventListeners() {
   document.getElementById('clear-player-filters').addEventListener('click', () => resetPlayerFilters());
   document.getElementById('tab-btn-squad').addEventListener('click', () => switchTab('squad'));
   squadBoard.addEventListener('click', event => {
+    if (event.target.closest('[data-squad-staff]')) {
+      switchTab('staff');
+      resetStaffFilters('myclub');
+      return;
+    }
     const profile = event.target.closest('[data-squad-player]');
     if (profile) {
       if (!el.btnScan.disabled) openPlayerModal(Number(profile.dataset.squadPlayer), undefined, squadBoard.dataset.scanId);
@@ -1714,6 +1763,7 @@ async function loadSquadAnalysis() {
         'no-scan': 'กดโหลดข้อมูลเกมเพื่อเริ่มวิเคราะห์ทีม',
         empty: 'ยังไม่พบนักเตะของสโมสรนี้ในผลสแกน'
       }[data.status];
+      if (data.status === 'empty') squadBoard.innerHTML = renderSquadStaff(data.staffGroups);
       return;
     }
     squadBoard.dataset.scanId = data.scanId ?? '';
@@ -1725,7 +1775,7 @@ async function loadSquadAnalysis() {
       priorities.filter(slot => slot.status === 'reinforce').sort((a, b) => (b.target - b.count) - (a.target - a.count) || b.gap - a.gap)[0] ??
       priorities[0];
     squadBoard.innerHTML = `<nav class="squad-view-switch" aria-label="มุมมองวิเคราะห์ทีม">
-      ${['ภาพรวม', 'สัญญา', 'ปล่อยยืม', 'ดาวรุ่ง'].map((label, index) =>
+      ${['ภาพรวม', 'สัญญา', 'ปล่อยยืม', 'ดาวรุ่ง', 'ทีมงาน'].map((label, index) =>
         `<button type="button" class="btn btn-secondary btn-sm" aria-pressed="${index === 0}" aria-controls="squad-view-${index}">${label}</button>`).join('')}
       </nav>
       <div id="squad-view-0"><div class="squad-priority">
@@ -1748,7 +1798,8 @@ async function loadSquadAnalysis() {
       </div>
       <div id="squad-view-1" hidden>${renderSquadContractPlans(data.contractPlans ?? [])}</div>
       <div id="squad-view-2" hidden>${renderSquadLoans(data.loanedPlayers ?? [], data.loanComparisonDate)}</div>
-      <div id="squad-view-3" hidden>${renderSquadProspects(data.prospects ?? [], data.hasSquadTypes)}</div>`;
+      <div id="squad-view-3" hidden>${renderSquadProspects(data.prospects ?? [], data.hasSquadTypes)}</div>
+      <div id="squad-view-4" hidden>${renderSquadStaff(data.staffGroups)}</div>`;
     const views = [...squadBoard.querySelectorAll('.squad-view-switch button')];
     for (const button of views) button.addEventListener('click', () => {
       for (const item of views) {
@@ -1764,6 +1815,30 @@ async function loadSquadAnalysis() {
   } catch (error) {
     if (!request.signal.aborted) squadStatus.textContent = 'โหลดผลวิเคราะห์ทีมไม่สำเร็จ';
   }
+}
+
+function renderSquadStaff(groups = {}) {
+  const categories = [
+    ['coaching', 'ฝึกสอน'],
+    ['recruitment', 'สรรหา'],
+    ['medical', 'แพทย์และวิทยาศาสตร์กีฬา']
+  ];
+  const total = categories.flatMap(([key]) => groups[key] ?? []).reduce((sum, role) => sum + role.count, 0);
+  return `<section aria-labelledby="squad-staff-title">
+    <header class="squad-staff-header">
+      <div><h3 id="squad-staff-title">ทีมงานทีมเรา</h3><span class="text-muted text-sm">พบ ${total} คนจากผลสแกน</span></div>
+      <button type="button" class="btn btn-secondary btn-sm" data-squad-staff>ดูรายชื่อทีมงาน</button>
+    </header>
+    <div class="squad-staff-grid">${categories.map(([key, label]) => {
+      const roles = groups[key] ?? [];
+      const count = roles.reduce((sum, role) => sum + role.count, 0);
+      return `<article class="squad-staff-card">
+        <header><h4>${label}</h4><strong>${count} คน</strong></header>
+        ${roles.length ? `<ul>${roles.map(role => `<li><span>${escapeHtml(role.name)}</span><b>${role.count}</b></li>`).join('')}</ul>`
+          : '<p class="text-muted text-sm">ไม่พบในผลสแกน</p>'}
+      </article>`;
+    }).join('')}</div>
+  </section>`;
 }
 
 function renderSquadPlayerName(player) {
@@ -1893,7 +1968,10 @@ function applyStaffPreset(preset) {
 
   if (el.filterStaffRep) el.filterStaffRep.value = 'any';
 
-  // Update input displays
+  syncStaffRanges();
+}
+
+function syncStaffRanges() {
   if (el.minStaffAge) el.minStaffAge.value = stateStaff.minAge;
   if (el.maxStaffAge) el.maxStaffAge.value = stateStaff.maxAge;
   if (el.valStaffAge) el.valStaffAge.textContent = `${stateStaff.minAge} - ${stateStaff.maxAge}`;
@@ -2730,6 +2808,81 @@ async function triggerScan() {
     el.btnScan.disabled = false;
     el.btnScanText.textContent = 'โหลดข้อมูลเกม (FM27)';
   }
+}
+
+function initHistorySaves() {
+  const dialog = document.getElementById('history-saves');
+  const list = document.getElementById('history-saves-list');
+  const status = document.getElementById('history-saves-status');
+  const formatSize = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 1 });
+  const endpoint = '/api/history-saves';
+  let deleting = false;
+  let loadId = 0;
+
+  async function loadSaves(message = '') {
+    const requestId = ++loadId;
+    list.replaceChildren();
+    status.textContent = 'กำลังโหลดประวัติเซฟ…';
+    try {
+      const response = await fetch(endpoint);
+      if (!response.ok) throw new Error('Load failed');
+      const { saves, activeRef } = await response.json();
+      if (requestId !== loadId) return;
+      status.textContent = message || (saves.length ? '' : 'ยังไม่มีประวัติเซฟที่ระบุรหัสได้');
+      for (const save of saves) {
+        const row = document.createElement('li');
+        const details = document.createElement('div');
+        const identity = [save.refCode, save.manager, save.club].filter(Boolean).join(' · ');
+        const roundCount = save.rounds.toLocaleString('th-TH') + ' รอบ';
+        const size = save.bytes == null ? '' :
+          ' · คืนพื้นที่ประมาณ ' + formatSize.format(save.bytes >= 1048576 ? save.bytes / 1048576 : save.bytes / 1024) +
+          (save.bytes >= 1048576 ? ' MB' : ' KB');
+        details.innerHTML = '<strong>' + escapeHtml(identity) + '</strong><p class="text-muted text-sm">' +
+          escapeHtml(roundCount + ' · รอบล่าสุด ' + formatGameDate(save.lastDate) + size) + '</p>';
+        row.append(details);
+        if (save.refCode === activeRef) {
+          const active = document.createElement('span');
+          active.className = 'text-muted text-sm';
+          active.textContent = 'กำลังใช้งาน';
+          row.append(active);
+        } else {
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'btn btn-clear-filters btn-sm';
+          remove.textContent = 'ลบประวัติ';
+          remove.setAttribute('aria-label', 'ลบประวัติ ' + save.refCode);
+          remove.addEventListener('click', async () => {
+            if (deleting || !confirm('ลบประวัติเซฟ ' + save.refCode + ' จำนวน ' + roundCount + ' หรือไม่?\nประวัติที่ลบจะกู้คืนจาก Tracker ไม่ได้')) return;
+            deleting = true;
+            remove.disabled = true;
+            try {
+              const result = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-FM27-History-Saves': '1' },
+                body: JSON.stringify({ refCode: save.refCode, rounds: save.rounds })
+              });
+              if (!result.ok) throw new Error((await result.json()).error);
+              await loadSaves('ลบประวัติ ' + save.refCode + ' แล้ว');
+            } catch (error) {
+              await loadSaves(error.message || 'ลบประวัติเซฟไม่สำเร็จ');
+            } finally {
+              deleting = false;
+              if (dialog.open) dialog.querySelector('[autofocus]').focus();
+            }
+          });
+          row.append(remove);
+        }
+        list.append(row);
+      }
+    } catch {
+      if (requestId === loadId) status.textContent = 'โหลดประวัติเซฟไม่สำเร็จ';
+    }
+  }
+
+  document.getElementById('open-history-saves').addEventListener('click', () => {
+    dialog.showModal();
+    if (!deleting) loadSaves();
+  });
 }
 
 function showToast(msg, isError = false) {

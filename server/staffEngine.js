@@ -367,6 +367,21 @@ function normalizeStaff(s) {
 /**
  * Filters and paginates staff array
  */
+function summarizeClubStaff(staffList, club) {
+  const groups = new Map();
+  for (const person of staffList) {
+    if (!club || person.club !== club) continue;
+    const { category, roleId, nameTh } = resolveStaffRole(person);
+    if (!['coaching', 'recruitment', 'medical'].includes(category)) continue;
+    if (!groups.has(category)) groups.set(category, new Map());
+    const roles = groups.get(category);
+    if (!roles.has(roleId)) roles.set(roleId, { name: nameTh, count: 0 });
+    roles.get(roleId).count++;
+
+  }
+  return Object.fromEntries([...groups].map(([category, roles]) => [category, [...roles.values()]]));
+}
+
 function filterStaff(staffList, query = {}, skills = []) {
   let result = staffList.filter(s => {
     const { category } = resolveStaffRole(s);
@@ -460,8 +475,8 @@ function filterStaff(staffList, query = {}, skills = []) {
     result = result.filter(s => (s.staffAttrs?.Fysiotherapie || 0) >= 18);
   } else if (preset === 'free_agents') {
     result = result.filter(s => !s.club);
-  } else if (preset === 'myclub' && query.myClub) {
-    result = result.filter(s => s.club === query.myClub);
+  } else if (preset === 'myclub') {
+    result = query.myClub ? result.filter(s => s.club === query.myClub) : [];
   }
 
   // Sorting
@@ -590,6 +605,7 @@ function getStaffDetail(staffList, id) {
 }
 
 module.exports = {
+  summarizeClubStaff,
   STAFF_SKILL_GROUPS,
   TRAINING_LABELS,
   ROLES_DEF,

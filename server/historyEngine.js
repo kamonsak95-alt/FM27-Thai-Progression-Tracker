@@ -271,6 +271,47 @@ function getSaveKey(manager = '', club = '', refCode = '') {
   return 'default';
 }
 
+function getHistorySaveGroups(store) {
+  if (unreadableHistory.has(store)) throw new Error('History could not be read');
+  const careers = new Map(store.careers.map(career => [career.id, career]));
+  const groups = new Map();
+  for (const snapshot of store.snapshots) {
+    const career = careers.get(snapshot.careerId);
+    const refCode = career?.refCode || snapshot.saveKey;
+    if (typeof refCode !== 'string' || !/^#[^\s#]+-[A-F0-9]{6,}$/iu.test(refCode)) continue;
+    let group = groups.get(refCode);
+    if (!group) {
+      group = { career, snapshots: [], latest: snapshot };
+      groups.set(refCode, group);
+    }
+    group.snapshots.push(snapshot);
+    if (snapshot.gameDate >= group.latest.gameDate) group.latest = snapshot;
+  }
+  return groups;
+}
+
+function listHistorySaves() {
+  const store = loadHistoryStore();
+  return [...getHistorySaveGroups(store)].map(([refCode, { career, snapshots, latest }]) => ({
+    refCode,
+    manager: career?.managerName || latest.manager || '',
+    club: latest.club || '',
+    lastDate: latest.gameDate || '',
+    rounds: snapshots.length,
+    bytes: snapshots.reduce((sum, snapshot) => sum + Buffer.byteLength(JSON.stringify(snapshot)), 0)
+  })).sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0) || b.lastDate.localeCompare(a.lastDate));
+}
+
+function deleteSaveHistory(refCode, expectedRounds) {
+  const store = loadHistoryStore();
+  const group = getHistorySaveGroups(store).get(refCode);
+  if (!group) return 'missing';
+  if (group.snapshots.length !== expectedRounds) return 'changed';
+  const removed = new Set(group.snapshots);
+  store.snapshots = store.snapshots.filter(snapshot => !removed.has(snapshot));
+  return saveHistoryStore(store) ? 'deleted' : 'failed';
+}
+
 function isSnapshotMatchingSave(snapshot, targetKey, store = null) {
   if (targetKey === UNIDENTIFIED_SAVE) return false;
   if (!targetKey || targetKey === 'default' || targetKey === 'DEFAULT') return true;
@@ -742,6 +783,8 @@ function calculateFirstSeenDeltas(currentPlayers, snapshots = [], currentGameDat
 
 module.exports = {
   loadHistoryStore,
+  listHistorySaves,
+  deleteSaveHistory,
   saveHistoryStore,
   computeSaveRefCode,
   getSaveKey,

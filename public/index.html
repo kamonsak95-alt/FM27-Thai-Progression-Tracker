@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.42-manager-button">
+  <link rel="stylesheet" href="style.css?v=1.0.46">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -81,6 +81,7 @@
             <span>เช็กอัปเดต</span>
           </button>
           <button id="btn-feedback" class="btn btn-secondary btn-sm">แจ้งปัญหา / ข้อเสนอแนะ</button>
+          <button type="button" id="open-history-saves" class="btn btn-secondary btn-sm" aria-haspopup="dialog">จัดการประวัติเซฟ</button>
           <span id="header-build" class="header-build" title="เวอร์ชันและคอมมิตที่กำลังใช้งาน" hidden></span>
         </div>
       </div>
@@ -120,13 +121,13 @@
 
         <div class="quick-filters">
           <button class="pill-btn active" data-preset="all">ทั้งหมด</button>
-          <button class="pill-btn" data-preset="wonderkids">Wonderkids</button>
           <div class="my-club-preset">
             <button class="pill-btn" data-preset="myclub">นักเตะทีมเรา</button>
             <label id="player-first-team-option" class="text-sm" hidden>
               <input type="checkbox" id="player-first-team"> เฉพาะชุดใหญ่
             </label>
           </div>
+          <button class="pill-btn" data-preset="wonderkids">Wonderkids</button>
           <button class="pill-btn" data-preset="shortlist">Shortlist</button>
           <select id="player-development-preset" class="pill-btn" aria-label="ตัวกรองพัฒนาการ">
             <option value="" disabled selected>พัฒนาการ</option>
@@ -200,10 +201,10 @@
       <div class="player-secondary-filters">
       <div class="player-filter-actions">
         <details id="saved-player-search">
-          <summary class="btn btn-secondary btn-sm" id="saved-player-search-label">เลือกชุดค้นหา</summary>
+          <summary class="btn btn-secondary btn-sm" id="saved-player-search-label">เลือกฟิลเตอร์</summary>
           <ul id="saved-player-search-list"></ul>
         </details>
-        <button type="button" id="save-player-search" class="btn btn-secondary btn-sm">บันทึกชุดค้นหา</button>
+        <button type="button" id="save-player-search" class="btn btn-secondary btn-sm">บันทึกฟิลเตอร์</button>
         <button type="button" id="open-attribute-filters" class="btn btn-secondary btn-sm" aria-haspopup="dialog">Attributes</button>
         <button type="button" id="clear-player-filters" class="btn btn-clear-filters btn-sm" disabled>ล้างทั้งหมด</button>
       </div>
@@ -509,6 +510,7 @@
 
         <div class="quick-filters">
           <button type="button" class="pill-btn staff-preset-btn active" data-staff-preset="all">ทั้งหมด</button>
+          <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="myclub">ทีมงานทีมเรา</button>
           <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="five_star">โค้ช 4.5–5 ดาว</button>
           <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="hoyd">หัวหน้าพัฒนาเยาวชน</button>
           <button type="button" class="pill-btn staff-preset-btn" data-staff-preset="diamond_scout">แมวมอง JPA/JPP 18+</button>
@@ -582,6 +584,11 @@
       </div>
       <div class="player-secondary-filters">
         <div class="player-filter-actions">
+          <details id="saved-staff-search">
+            <summary class="btn btn-secondary btn-sm" id="saved-staff-search-label">เลือกฟิลเตอร์</summary>
+            <ul id="saved-staff-search-list"></ul>
+          </details>
+          <button type="button" id="save-staff-search" class="btn btn-secondary btn-sm">บันทึกฟิลเตอร์</button>
           <button type="button" class="btn btn-secondary btn-sm" id="open-staff-skills" aria-haspopup="dialog">ทักษะทีมงาน</button>
           <button type="button" id="clear-staff-extras" class="btn btn-clear-filters btn-sm" disabled>ล้างทั้งหมด</button>
         </div>
@@ -1070,7 +1077,16 @@
       <button type="submit" class="btn btn-primary">ยืนยันและบันทึก</button>
     </form>
   </dialog>
-  <script src="app.js?v=1.0.44-history-write"></script>
+  <dialog id="history-saves" class="compare-dialog history-saves-dialog" aria-labelledby="history-saves-title">
+    <header class="compare-header">
+      <h2 id="history-saves-title">จัดการประวัติเซฟ</h2>
+      <form method="dialog"><button type="submit" class="player-modal-close" aria-label="ปิด" autofocus>&times;</button></form>
+    </header>
+    <p class="text-muted text-sm">ลบประวัติพัฒนาการที่ Tracker บันทึกไว้ในเครื่อง</p>
+    <p id="history-saves-status" role="status" class="text-muted text-sm"></p>
+    <ul id="history-saves-list"></ul>
+  </dialog>
+  <script src="app.js?v=1.0.46"></script>
   <script src="replacement.js?v=1.0.35"></script>
 </body>
 </html>

@@ -14,6 +14,8 @@ const {
   calculateDeltas,
   calculateFirstSeenDeltas,
   loadHistoryStore,
+  listHistorySaves,
+  deleteSaveHistory,
   computeSaveRefCode,
   resolveCareer,
   resolveEffectiveGameDate,
@@ -27,7 +29,7 @@ const runningBuild = getLocalCommit().then(commit => ({
   commit: commit === 'local' ? null : commit.slice(0, 7)
 }));
 const { stageUpdate, stageSetup, removeStage, startUpdateWorker } = require('./zipInstaller');
-const { filterStaff, getStaffDetail, getReputationLabel, STAFF_SKILL_GROUPS, TRAINING_LABELS } = require('./staffEngine');
+const { filterStaff, summarizeClubStaff, getStaffDetail, getReputationLabel, STAFF_SKILL_GROUPS, TRAINING_LABELS } = require('./staffEngine');
 const { analyzeSquad } = require('./squadAnalysis');
 const { findReplacements } = require('./replacementEngine');
 const { foldSearchText } = require('./searchText');
@@ -291,10 +293,11 @@ const server = http.createServer(async (req, res) => {
     } finally { feedbackBusy = false; }
   }
 
-  if (['/api/shortlist', '/api/saved-searches'].includes(pathname) && ['GET', 'POST'].includes(req.method)) {
+  if (['/api/shortlist', '/api/saved-searches', '/api/history-saves'].includes(pathname) && ['GET', 'POST'].includes(req.method)) {
     const isShortlist = pathname === '/api/shortlist';
-    const feature = isShortlist ? 'Shortlist' : 'ชุดค้นหา';
-    const header = isShortlist ? 'x-fm27-shortlist' : 'x-fm27-saved-searches';
+    const isHistory = pathname === '/api/history-saves';
+    const feature = isHistory ? 'ประวัติเซฟ' : isShortlist ? 'Shortlist' : 'ฟิลเตอร์';
+    const header = isHistory ? 'x-fm27-history-saves' : isShortlist ? 'x-fm27-shortlist' : 'x-fm27-saved-searches';
     const loopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
     if (!loopback || !['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname) ||
         (req.headers.origin && req.headers.origin !== parsedUrl.origin) ||
@@ -309,7 +312,7 @@ const server = http.createServer(async (req, res) => {
         let bytes = 0;
         for await (const chunk of req) {
           bytes += chunk.length;
-          if (bytes > (isShortlist ? 65536 : 262144)) {
+          if (bytes > (isHistory ? 1024 : isShortlist ? 65536 : 262144)) {
             sendJson(res, 413, { error: `รายการ ${feature} มีขนาดใหญ่เกินไป` });
             return;
           }
@@ -318,7 +321,22 @@ const server = http.createServer(async (req, res) => {
         change = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (!change || typeof change !== 'object') throw new TypeError('Invalid request');
       }
-      return sendJson(res, 200, isShortlist ? shortlist(query.ref, change) : savedSearches(change));
+      if (isHistory) {
+        getOrLoadDump();
+        if (!change) return sendJson(res, 200, { saves: listHistorySaves(), activeRef: cachedRefCode });
+        const { refCode, rounds } = change;
+        if (typeof refCode !== 'string' || !Number.isSafeInteger(rounds) || rounds < 1) throw new TypeError('Invalid history request');
+        if (refCode === cachedRefCode) return sendJson(res, 409, { error: 'ลบประวัติเซฟที่กำลังใช้งานไม่ได้' });
+        const result = deleteSaveHistory(refCode, rounds);
+        if (result === 'missing' || result === 'changed') {
+          return sendJson(res, 409, { error: 'ประวัติเซฟเปลี่ยนไป กรุณาเปิดรายการใหม่' });
+        }
+        if (result === 'failed') return sendJson(res, 500, { error: 'ลบประวัติเซฟไม่สำเร็จ' });
+        cachedPlayersWithDeltas = null;
+        profileHistory = null;
+        return sendJson(res, 200, { ok: true });
+      }
+      return sendJson(res, 200, isShortlist ? shortlist(query.ref, change) : savedSearches(change, query.scope === 'staff'));
     } catch (error) {
       const invalid = error instanceof TypeError || error instanceof SyntaxError;
       return sendJson(res, invalid ? 400 : 500, { error: `อ่านหรือบันทึก ${feature} ไม่สำเร็จ` });
@@ -588,7 +606,11 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/squad-analysis') {
     const dump = getOrLoadDump();
     const previousRound = dump?.meta?.myClub ? getProfileSnapshots(dump).at(-1) : null;
-    return sendJson(res, 200, { ...analyzeSquad(dump, previousRound), scanId: dump?.meta?.scanId });
+    return sendJson(res, 200, {
+      ...analyzeSquad(dump, previousRound),
+      staffGroups: summarizeClubStaff(dump?.staff ?? [], dump?.meta?.myClub),
+      scanId: dump?.meta?.scanId
+    });
   }
 
   if (pathname === '/api/players') {

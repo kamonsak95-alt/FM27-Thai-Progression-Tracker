@@ -3,8 +3,8 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { getHistoryFilePath } = require('./historyEngine');
 
-function savedSearches(change) {
-  const file = path.join(path.dirname(getHistoryFilePath()), 'saved-searches.json');
+function savedSearches(change, staff = false) {
+  const file = path.join(path.dirname(getHistoryFilePath()), staff ? 'saved-staff-filters.json' : 'saved-searches.json');
   let searches = new Map();
   try {
     searches = new Map(JSON.parse(fs.readFileSync(file, 'utf8')));
@@ -16,14 +16,14 @@ function savedSearches(change) {
   const validName = name => typeof name === 'string' && name.trim() === name && name.length > 0 && name.length <= 100;
   function put(name, value, overwrite) {
     if (!validName(name) || !value?.filters || typeof value.filters !== 'object' ||
-        !['positions', 'attributes', 'divisions', 'transfer'].every(key => Array.isArray(value[key]))) {
+        !(staff ? Array.isArray(value.skills) : ['positions', 'attributes', 'divisions', 'transfer'].every(key => Array.isArray(value[key])))) {
       throw new TypeError('Invalid saved search');
     }
     if (overwrite || !searches.has(name)) searches.set(name, value);
   }
   if (change.action === 'save') put(change.name, change.value, true);
   else if (change.action === 'delete' && validName(change.name)) searches.delete(change.name);
-  else if (change.action === 'import' && Array.isArray(change.entries)) {
+  else if (!staff && change.action === 'import' && Array.isArray(change.entries)) {
     for (const [name, value] of change.entries) put(name, value, false);
   } else throw new TypeError('Invalid saved search action');
 
