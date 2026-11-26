@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg?v=blue-ball">
   <link rel="apple-touch-icon" href="icon.svg?v=blue-ball">
   <link rel="stylesheet" href="vendor/bootstrap/bootstrap-grid.min.css">
-  <link rel="stylesheet" href="style.css?v=1.0.46">
+  <link rel="stylesheet" href="style.css?v=1.0.47">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -440,13 +440,20 @@
           </div>
         </div>
 
-        <div class="table-actions">
-          <label class="text-sm text-muted">แสดงต่อหน้า:</label>
-          <select id="select-limit" class="form-select form-select-sm">
-            <option value="25">25 คน</option>
-            <option value="50" selected>50 คน</option>
-            <option value="100">100 คน</option>
-          </select>
+        <div class="table-actions player-table-actions">
+          <label class="text-sm text-muted">เรียงพัฒนาการ
+            <select id="player-growth-sort" class="form-select form-select-sm">
+              <option value="deltaCA">แต้ม CA</option>
+              <option value="growthPercent">เปอร์เซ็นต์ (%)</option>
+            </select>
+          </label>
+          <label class="text-sm text-muted">แสดงต่อหน้า
+            <select id="select-limit" class="form-select form-select-sm">
+              <option value="25">25 คน</option>
+              <option value="50" selected>50 คน</option>
+              <option value="100">100 คน</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -474,7 +481,7 @@
               <th data-sort="ca" class="sortable text-center active-sort desc" aria-sort="descending" title="Current Ability (ค่าพลังปัจจุบัน 1-200)">CA</th>
               <th data-sort="pa" class="sortable text-center" title="Potential Ability (ศักยภาพสูงสุด 1-200)">PA</th>
               <th data-sort="trendScore" class="sortable text-center player-table-secondary" title="แนวโน้มพัฒนาการประเมินจากอายุและช่องว่าง CA/PA">แนวโน้ม</th>
-              <th id="player-ca-comparison-heading" data-sort="growthPercent" class="sortable text-right" aria-describedby="player-comparison-basis">CA เทียบรอบแรก</th>
+              <th id="player-ca-comparison-heading" data-sort="deltaCA" class="sortable text-right" aria-describedby="player-comparison-basis">CA เทียบรอบแรก</th>
               <th scope="col" data-sort="transferInterest" class="sortable text-center player-table-secondary" title="ประเมินความสนใจย้ายมาทีมเราจากส่วนต่างชื่อเสียง ผลจริงขึ้นอยู่กับการเจรจาในเกม">สนใจย้ายทีม</th>
               <th data-sort="value" class="sortable text-right player-table-secondary" title="มูลค่าประเมินในตลาด">มูลค่า</th>
               <th data-sort="wage" class="sortable text-right player-table-secondary" title="ค่าเหนื่อยต่อสัปดาห์">ค่าเหนื่อย</th>
@@ -1086,7 +1093,7 @@
     <p id="history-saves-status" role="status" class="text-muted text-sm"></p>
     <ul id="history-saves-list"></ul>
   </dialog>
-  <script src="app.js?v=1.0.46"></script>
+  <script src="app.js?v=1.0.47"></script>
   <script src="replacement.js?v=1.0.35"></script>
 </body>
 </html>

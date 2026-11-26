@@ -397,6 +397,8 @@ const nationalityInput = document.getElementById('filter-nationality');
 const nationalityOptions = document.getElementById('nationality-options');
 const clearNationality = document.getElementById('clear-nationality');
 const footFilter = document.getElementById('filter-foot');
+const playerGrowthSort = document.getElementById('player-growth-sort');
+const playerComparisonHeading = document.getElementById('player-ca-comparison-heading');
 const footLabels = new Map(Array.from(footFilter.options, option => [option.value, option.textContent]));
 let selectedNationality = '';
 let attributeFilters = new Map();
@@ -855,6 +857,7 @@ function initEventListeners() {
     }), saved => {
     clearTimeout(debounceTimer);
     for (const field of searchFields) state[field] = saved.filters[field];
+    if (state.sort === 'deltaCA' || state.sort === 'growthPercent') playerGrowthSort.value = state.sort;
     state.page = 1;
     state.selectedPitchPositions = new Set(saved.positions);
     attributeFilters = new Map(saved.attributes);
@@ -1001,7 +1004,10 @@ function initEventListeners() {
     state.page = 1;
     loadPlayers();
   });
-  document.getElementById('clear-player-filters').addEventListener('click', () => resetPlayerFilters());
+  document.getElementById('clear-player-filters').addEventListener('click', () => {
+    playerGrowthSort.value = 'deltaCA';
+    resetPlayerFilters();
+  });
   document.getElementById('tab-btn-squad').addEventListener('click', () => switchTab('squad'));
   squadBoard.addEventListener('click', event => {
     if (event.target.closest('[data-squad-staff]')) {
@@ -1349,6 +1355,14 @@ function initEventListeners() {
   });
 
   // Table Column Sort
+  playerGrowthSort.addEventListener('change', () => {
+    if (state.sort !== playerComparisonHeading.dataset.sort) state.order = 'desc';
+    state.sort = playerGrowthSort.value;
+    state.page = 1;
+    updatePlayerSortHeaders();
+    loadPlayers();
+  });
+  updatePlayerSortHeaders();
   document.querySelectorAll('#players-table th[data-sort]').forEach(th => {
     th.addEventListener('click', () => {
       const sortKey = th.dataset.sort;
@@ -1627,6 +1641,7 @@ function initEventListeners() {
 }
 
 function updatePlayerSortHeaders() {
+  playerComparisonHeading.dataset.sort = playerGrowthSort.value;
   document.querySelectorAll('#players-table th[data-sort]').forEach(th => {
     const active = th.dataset.sort === state.sort;
     th.classList.remove('active-sort', 'asc', 'desc');
@@ -1679,6 +1694,7 @@ function updatePlayerFilterSummary() {
     labels.push(`PA ${state.minPA}–${state.maxPA}`);
   }
   const canReset = labels.length || state.natOnly || state.baseline || state.sort !== 'ca' || state.order !== 'desc'
+    || playerGrowthSort.value !== 'deltaCA'
     || document.getElementById('saved-player-search').dataset.selected;
   const summary = document.getElementById('player-filter-summary');
   summary.hidden = !labels.length;
@@ -1712,7 +1728,7 @@ function applyPreset(preset) {
   } else if (preset === 'declining') {
     state.trend = 'declining';
   } else if (preset === 'growth') {
-    state.sort = 'growthPercent';
+    state.sort = playerGrowthSort.value;
     state.order = 'desc';
   }
   updatePlayerSortHeaders();
@@ -2324,7 +2340,7 @@ async function loadPlayers() {
     el.btnNextPage.disabled = state.page >= state.totalPages;
 
     const comparisonDate = data.baselineDate && data.baselineDate !== state.gameDate ? data.baselineDate : '';
-    document.getElementById('player-ca-comparison-heading').textContent = comparisonDate ? 'CA เทียบรอบที่เลือก' : 'CA เทียบรอบแรก';
+    playerComparisonHeading.textContent = comparisonDate ? 'CA เทียบรอบที่เลือก' : 'CA เทียบรอบแรก';
     document.getElementById('player-comparison-basis').textContent = comparisonDate
       ? `เทียบ CA กับรอบ ${formatGameDate(comparisonDate)}`
       : 'เทียบ CA กับรอบแรกที่พบนักเตะแต่ละคนในเซฟนี้';

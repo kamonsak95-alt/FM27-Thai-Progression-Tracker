@@ -1294,6 +1294,15 @@ body {
   gap: 0.75rem;
 }
 
+.player-table-actions,
+.player-table-actions > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-table-actions { flex-wrap: wrap; column-gap: 14px; }
+
 .player-filter-summary,
 .player-filter-values {
   display: flex;
@@ -1396,7 +1405,7 @@ body {
 }
 
 @media (max-width: 540px) {
-  #players-table :is(.player-col-age, .player-col-growth, [data-sort="age"], [data-sort="growthPercent"],
+  #players-table :is(.player-col-age, .player-col-growth, [data-sort="age"], #player-ca-comparison-heading,
     td:nth-child(2), td:nth-child(8)):not([colspan]) {
     display: none;
   }
